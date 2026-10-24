@@ -1,0 +1,108 @@
+/* ALL design tokens live here. Components use Tailwind classes (bg-paper, text-ink, ...) only:
+   no hex values or font names anywhere else (enforced by eslint). */
+
+:root {
+  --ink: #141414; /* text, primary buttons, active pill, wish cards */
+  --paper: #f4f3ef; /* page background */
+  --card: #ffffff; /* cards, inactive pills */
+  --soft: #c9d3dc; /* inputs, secondary buttons, "You" badge */
+  --muted: #62625e; /* secondary text (4.5:1 on paper) */
+  --line: #dcdad3; /* borders, dividers */
+  --sheet: #fbfaf7; /* drawers, dialogs */
+  --viewer: #0e0e0e; /* full-screen viewer */
+  --font-body: var(--font-poppins), system-ui, sans-serif;
+  --font-script: var(--font-pinyon), cursive; /* monogram + couple names only */
+  --font-serif: var(--font-cormorant), Georgia, serif; /* wish text, italic */
+  --radius-card: 18px;
+  --radius-media: 12px;
+  --feed-pattern: radial-gradient(rgba(20, 20, 20, 0.2) 1px, transparent 1.35px) 0 0 / 6px 6px; /* halftone */
+}
+
+/* Client review theme: white, grey lines, system font, no decor. */
+[data-theme="wireframe"] {
+  --ink: #222222;
+  --paper: #ffffff;
+  --card: #ffffff;
+  --soft: #e6e6e6;
+  --muted: #666666;
+  --line: #bdbdbd;
+  --sheet: #ffffff;
+  --viewer: #111111;
+  --font-body: system-ui, sans-serif;
+  --font-script: system-ui, sans-serif;
+  --font-serif: system-ui, sans-serif;
+  --radius-card: 4px;
+  --radius-media: 2px;
+  --feed-pattern: none;
+}
+
+/* `reference` registers the utilities without re-emitting these vars on :root, which would
+   make `--font-script: var(--font-script)` a self-cycle. Utilities read the tokens above. */
+@theme inline reference {
+  --color-ink: var(--ink);
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --color-soft: var(--soft);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-sheet: var(--sheet);
+  --color-viewer: var(--viewer);
+  --font-sans: var(--font-body);
+  --font-script: var(--font-script);
+  --font-serif: var(--font-serif);
+  --radius-card: var(--radius-card);
+  --radius-media: var(--radius-media);
+}
+
+/* Decorations (lace, florals, halftone) render only when a theme leaves this on. */
+[data-decor="off"] .decor,
+[data-theme="wireframe"] .decor {
+  display: none;
+}
+
+/* Mobile baseline (mobile-native): feel installed, not embedded. In `base` so utilities can
+   override it. Page overscroll stays on: pull-to-refresh is the guest's recovery if Realtime
+   drops. Drawers and the viewer set `overscroll-behavior: contain` themselves. */
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    color-scheme: light;
+  }
+
+  body {
+    min-height: 100dvh;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-body);
+  }
+
+  /* 16px minimum stops iOS zooming into a focused field. */
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+
+  button,
+  a,
+  [role="button"] {
+    touch-action: manipulation;
+  }
+
+  button,
+  [role="button"] {
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
