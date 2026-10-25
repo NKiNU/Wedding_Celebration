@@ -33,7 +33,7 @@ export function WishDrawer({ open, me, onClose, onPosted }: Props) {
   }
 
   return (
-    <BottomSheet open={open} title="Write a wish" onClose={close}>
+    <BottomSheet open={open} title="Write a wish" onClose={close} busy={sending}>
       <p className="text-[13px] text-muted">
         Your wish appears on the wall from <strong className="text-ink">{me}</strong>.
       </p>

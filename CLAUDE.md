@@ -48,6 +48,8 @@ R2_ACCOUNT_ID=
 R2_ACCESS_KEY_ID=
 R2_SECRET_ACCESS_KEY=
 R2_BUCKET=
+R2_ENDPOINT=                    # dev only: an S3-compatible endpoint instead of R2 (local Supabase Storage)
+R2_REGION=                      # dev only, default "auto"
 NEXT_PUBLIC_MEDIA_BASE_URL=     # R2 public custom domain
 EVENT_SLUG=                     # which event this deployment serves
 CRON_SECRET=                    # guards /api/cron/sweep
@@ -69,6 +71,7 @@ src/
       posts/route.ts         # POST create post, GET paginated wall
       posts/[id]/route.ts    # DELETE own post
       uploads/route.ts       # POST -> signed upload URLs
+      uploads/[postId]/route.ts  # DELETE cancel an unposted upload (cleanup)
   components/
     wall/                    # Header, WishTicker, FilterBar, PostCard, AlbumStack, Fab, ActionMenu
     drawers/                 # BottomSheet + PhotoDrawer, VideoDrawer, WishDrawer, QrDrawer, WishViewDrawer, MeDrawer

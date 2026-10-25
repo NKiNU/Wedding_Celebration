@@ -165,6 +165,14 @@ describe("BottomSheet drag to dismiss", () => {
       expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
     });
 
+    it("opens again when the browser closes it anyway (a second Escape or back gesture)", () => {
+      const onClosed = vi.fn();
+      open({ busy: true, onClosed });
+      dialog().close(); // what Chrome does when it ignores preventDefault on `cancel`
+      expect(onClosed).not.toHaveBeenCalled();
+      expect(dialog()).toHaveAttribute("open");
+    });
+
     it("lets Escape through when not busy", () => {
       open();
       const cancel = new Event("cancel", { cancelable: true });

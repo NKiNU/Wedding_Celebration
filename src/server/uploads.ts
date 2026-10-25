@@ -71,14 +71,20 @@ export async function createUploadIntent(guest: Guest, files: UploadFile[]): Pro
   if (error) throw new Error(`Creating the upload intent failed: ${error.code} ${error.message}`);
 
   const signer = r2();
-  const uploads = await Promise.all(
-    stored.map(async (f) => ({
-      role: f.role,
-      position: f.position,
-      url: await signer.presignPut(f.key, f.mime, f.bytes),
-    })),
-  );
-  return { postId, uploads };
+  try {
+    const uploads = await Promise.all(
+      stored.map(async (f) => ({
+        role: f.role,
+        position: f.position,
+        url: await signer.presignPut(f.key, f.mime, f.bytes),
+      })),
+    );
+    return { postId, uploads };
+  } catch (e) {
+    // An intent nobody can use must not keep counting against the guest's hour.
+    await db().from("upload_intents").delete().eq("post_id", postId);
+    throw e;
+  }
 }
 
 /** Removes the objects of an intent that will never become a post, then the intent itself. */

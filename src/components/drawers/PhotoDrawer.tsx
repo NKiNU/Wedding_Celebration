@@ -64,10 +64,9 @@ export function PhotoDrawer({ open, onClose, onPosted }: Props) {
     const chosen = Array.from(files ?? []);
     const room = MAX_PHOTOS - count;
     setNotice(chosen.length > room ? `Up to ${MAX_PHOTOS} photos per post.` : null);
-    setPhotos((current) => [
-      ...current,
-      ...chosen.slice(0, room).map((file) => ({ id: crypto.randomUUID(), file, url: URL.createObjectURL(file) })),
-    ]);
+    // Built outside the updater: React may run an updater twice and the first URLs would leak.
+    const added = chosen.slice(0, room).map((file) => ({ id: crypto.randomUUID(), file, url: URL.createObjectURL(file) }));
+    setPhotos((current) => [...current, ...added]);
   }
 
   function remove(id: string) {
@@ -134,7 +133,7 @@ export function PhotoDrawer({ open, onClose, onPosted }: Props) {
             {photos.map((photo, i) => (
               <li key={photo.id} className="relative aspect-square overflow-hidden rounded-[10px] bg-soft">
                 {/* eslint-disable-next-line @next/next/no-img-element -- a local blob: preview, nothing to optimise */}
-                <img src={photo.url} alt={`Photo ${i + 1}`} className="size-full object-cover" />
+                <img src={photo.url} alt={`Photo ${i + 1}`} decoding="async" className="size-full object-cover" />
                 <button
                   type="button"
                   disabled={busy}

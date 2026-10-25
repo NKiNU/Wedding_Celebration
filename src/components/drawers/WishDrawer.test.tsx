@@ -84,6 +84,12 @@ describe("WishDrawer", () => {
     expect(send()).toHaveTextContent("Sending…");
   });
 
+  it("cannot be closed while the wish is being sent", () => {
+    mocks.state = { status: "posting", error: null };
+    show();
+    expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
+  });
+
   it("clears the draft and the error when closed", () => {
     const { onClose } = show();
     fireEvent.change(field(), { target: { value: "draft" } });

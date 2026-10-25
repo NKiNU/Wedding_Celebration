@@ -124,3 +124,28 @@ test("postIdParam accepts only a uuid", () => {
   expect(postIdParam.safeParse(ID).success).toBe(true);
   expect(postIdParam.safeParse("../x").success).toBe(false);
 });
+
+describe("wish length counts characters like the database", () => {
+  test("two emoji are two characters, so they are too short", () => {
+    expect(msg(createPostBody.safeParse({ wishText: "😍😍" }))).toMatch(/at least 3/);
+    expect(createPostBody.safeParse({ wishText: "😍😍😍" }).success).toBe(true);
+  });
+  test("300 emoji fit and 301 do not", () => {
+    expect(createPostBody.safeParse({ wishText: "😍".repeat(300) }).success).toBe(true);
+    expect(msg(createPostBody.safeParse({ wishText: "😍".repeat(301) }))).toMatch(/up to 300/);
+  });
+});
+
+describe("dev-only R2 endpoint", () => {
+  test("empty values from a copied .env.example mean unset", () => {
+    const env = parseEnv({ ...valid, R2_ENDPOINT: "", R2_REGION: "" });
+    expect(env.R2_ENDPOINT).toBeUndefined();
+    expect(env.R2_REGION).toBe("auto");
+  });
+  test("is accepted outside production and refused in production", () => {
+    const withEndpoint = { ...valid, R2_ENDPOINT: "http://127.0.0.1:54321/storage/v1/s3" };
+    expect(parseEnv(withEndpoint).R2_ENDPOINT).toBe("http://127.0.0.1:54321/storage/v1/s3");
+    expect(() => parseEnv({ ...withEndpoint, VERCEL_ENV: "production" })).toThrow(/R2_ENDPOINT/);
+    expect(parseEnv({ ...withEndpoint, VERCEL_ENV: "preview" }).R2_ENDPOINT).toBeDefined();
+  });
+});

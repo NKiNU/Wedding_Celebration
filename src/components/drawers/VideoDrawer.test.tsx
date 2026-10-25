@@ -133,7 +133,7 @@ describe("VideoDrawer", () => {
   it("shows progress and locks the sheet while uploading", () => {
     mocks.state = { status: "uploading", progress: 0.25, error: null };
     show();
-    expect(screen.getByRole("status")).toHaveTextContent("25%");
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "25");
     expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
   });
 

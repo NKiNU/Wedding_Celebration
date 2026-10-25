@@ -48,7 +48,10 @@ export function useCreatePost() {
   }, []);
 
   const postWish = async (text: string) => {
-    update(() => setError(null));
+    update(() => {
+      setError(null);
+      setStatus("posting"); // locks the drawer, so a second tap cannot send the wish twice
+    });
     const res = await api<CreatedPost>("/api/posts", "POST", { wishText: text });
     return settle(res.ok ? null : res.error.message);
   };
@@ -72,8 +75,11 @@ export function useCreatePost() {
     if (!intent.ok) return settle(intent.error.message);
 
     const { postId } = intent.data;
-    const abandon = (message: string) => {
-      void api(`/api/uploads/${postId}`, "DELETE"); // the server refuses once the post exists
+    const abandon = async (message: string) => {
+      const cancelled = await api(`/api/uploads/${postId}`, "DELETE");
+      // A lost or slow response does not mean the post failed: the server may have committed it
+      // (it refuses to cancel then), and retrying would upload everything again as a duplicate.
+      if (!cancelled.ok && cancelled.error.code === "already_posted") return settle(null);
       return settle(message);
     };
 

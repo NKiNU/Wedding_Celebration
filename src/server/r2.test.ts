@@ -48,8 +48,15 @@ describe("head", () => {
 
   it("reads size and type of an existing object", async () => {
     const fetchMock = stub(new Response(null, { status: 200, headers: { "content-length": "42", "content-type": "image/jpeg" } }));
-    expect(await r2().head("k")).toEqual({ bytes: 42, mime: "image/jpeg" });
+    expect(await r2().head("k")).toEqual({ bytes: 42, mime: "image/jpeg", overridden: false });
     expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("flags an object stored with Content-Disposition or Content-Encoding", async () => {
+    stub(new Response(null, { status: 200, headers: { "content-length": "1", "content-type": "image/jpeg", "content-disposition": "attachment" } }));
+    expect(await r2().head("k")).toMatchObject({ overridden: true });
+    stub(new Response(null, { status: 200, headers: { "content-length": "1", "content-type": "image/jpeg", "content-encoding": "gzip" } }));
+    expect(await r2().head("k")).toMatchObject({ overridden: true });
   });
 
   it("is null for a missing object and throws on any other failure", async () => {

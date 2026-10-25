@@ -153,6 +153,13 @@ describe("createMediaPost", () => {
     await expect(createMediaPost(GUEST, POST_ID, null)).rejects.toMatchObject({ code: "upload_incomplete" });
   });
 
+  it("is a 400 when the uploader added Content-Disposition or Content-Encoding", async () => {
+    const stored = { ...uploaded(photoFiles), [K("0.jpg")]: { bytes: 2 * MB, mime: "image/jpeg", overridden: true } };
+    const { calls } = setup([intent(photoFiles)], stored);
+    await expect(createMediaPost(GUEST, POST_ID, null)).rejects.toMatchObject({ code: "upload_incomplete" });
+    expect(calls.some((c) => c.table === "rpc")).toBe(false);
+  });
+
   it("accepts a content type that carries parameters or other casing", async () => {
     const stored = { ...uploaded(photoFiles), [K("0.jpg")]: { bytes: 2 * MB, mime: "Image/JPEG; charset=binary" } };
     setup([intent(photoFiles), ok(null)], stored);

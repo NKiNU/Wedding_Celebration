@@ -122,7 +122,8 @@ describe("PhotoDrawer", () => {
     mocks.state = { status: "uploading", progress: 0.4, error: null };
     show();
     pick(jpg("a.jpg"));
-    expect(screen.getByRole("status")).toHaveTextContent("40%");
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "40");
+    expect(screen.getByRole("status")).toHaveTextContent("Uploading");
     expect(screen.queryByRole("button", { name: /^post/i })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Remove photo 1" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();

@@ -81,6 +81,7 @@ export function prepareVideo(file: File): Promise<PreparedVideo> {
       clearTimeout(timer);
       URL.revokeObjectURL(url);
       video.removeAttribute("src");
+      video.load(); // releases the decoder and buffer on iOS
       if (outcome instanceof MediaError) reject(outcome);
       else resolve(outcome);
     };

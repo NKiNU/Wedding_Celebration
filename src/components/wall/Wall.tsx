@@ -85,6 +85,10 @@ export function Wall({ eventId, groom, bride, headerMessage, me, now: serverNow,
     void refresh();
   };
   const closeSheet = () => setSheet(null);
+  const closeMenu = () => {
+    setSheet(null);
+    fab.current?.focus();
+  };
 
   const visible = posts.filter((p) => matchesFilter(p, filter));
   const showEmpty = visible.length === 0 && (counts[filter] === 0 || nextCursor === null);
@@ -116,7 +120,7 @@ export function Wall({ eventId, groom, bride, headerMessage, me, now: serverNow,
           )}
         </div>
       </main>
-      <ActionMenu open={sheet === "menu"} onPick={setSheet} onClose={closeSheet} returnFocus={() => fab.current?.focus()} />
+      <ActionMenu open={sheet === "menu"} onPick={setSheet} onClose={closeMenu} returnFocus={() => fab.current?.focus()} />
       <Fab ref={fab} open={sheet === "menu"} onToggle={() => setSheet((current) => (current === "menu" ? null : "menu"))} />
       <PhotoDrawer open={sheet === "photos"} onClose={closeSheet} onPosted={posted} />
       <VideoDrawer open={sheet === "video"} onClose={closeSheet} onPosted={posted} />

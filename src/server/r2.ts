@@ -5,10 +5,14 @@ import { env } from "./env";
 
 /** The slice of R2 the app uses. Services depend on this type so tests can swap in a fake. */
 export type R2 = {
-  /** A URL that accepts exactly one PUT of `bytes` bytes of `mime` to `key`, for a few minutes. */
+  /** A URL that accepts a PUT of exactly `bytes` bytes of `mime` to `key`, for a few minutes. */
   presignPut(key: string, mime: string, bytes: number): Promise<string>;
-  /** Size and type of a stored object, or null when it does not exist. */
-  head(key: string): Promise<{ bytes: number; mime: string } | null>;
+  /**
+   * Size and type of a stored object, or null when it does not exist. `overridden` is true when
+   * the uploader slipped in Content-Disposition or Content-Encoding (unsigned headers are stored
+   * and served back), which would let a guest name or re-encode what the media domain serves.
+   */
+  head(key: string): Promise<{ bytes: number; mime: string; overridden: boolean } | null>;
   deleteMany(keys: readonly string[]): Promise<void>;
 };
 
@@ -45,7 +49,11 @@ async function head(key: string) {
   const res = await new AwsClient({ ...credentials(), retries: RETRIES }).fetch(objectUrl(key), { method: "HEAD" });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`R2 HEAD ${key} failed: ${res.status}`);
-  return { bytes: Number(res.headers.get("content-length")), mime: res.headers.get("content-type") ?? "" };
+  return {
+    bytes: Number(res.headers.get("content-length")),
+    mime: res.headers.get("content-type") ?? "",
+    overridden: res.headers.has("content-disposition") || res.headers.has("content-encoding"),
+  };
 }
 
 async function deleteMany(keys: readonly string[]) {

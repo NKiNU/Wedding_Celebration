@@ -4,12 +4,21 @@ type Props = { status: "uploading" | "posting"; progress: number };
 export function UploadProgress({ status, progress }: Props) {
   const percent = status === "posting" ? 100 : Math.round(progress * 100);
   return (
-    <div role="status" className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2">
       <div className="flex justify-between text-[13px]">
-        <span className="font-semibold">{status === "posting" ? "Posting…" : "Uploading… keep this page open"}</span>
-        <span>{percent}%</span>
+        <span role="status" className="font-semibold">
+          {status === "posting" ? "Posting…" : "Uploading… keep this page open"}
+        </span>
+        <span aria-hidden="true">{percent}%</span>
       </div>
-      <div className="h-2 overflow-hidden rounded bg-soft">
+      <div
+        role="progressbar"
+        aria-label="Upload progress"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={percent}
+        className="h-2 overflow-hidden rounded bg-soft"
+      >
         <div className="h-full bg-ink transition-[width] duration-150" style={{ width: `${percent}%` }} />
       </div>
     </div>

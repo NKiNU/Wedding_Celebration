@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { putFile } from "./upload";
+import { putFile, STALL_MS } from "./upload";
 
 class FakeXhr {
   static last: FakeXhr;
@@ -87,5 +87,32 @@ describe("putFile", () => {
     FakeXhr.last = undefined as unknown as FakeXhr;
     await expect(putFile("u", blob, "image/jpeg", vi.fn(), ctrl.signal)).rejects.toThrow();
     expect(FakeXhr.last).toBeUndefined();
+  });
+});
+
+describe("putFile stall watchdog", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("gives up when no progress arrives for too long", async () => {
+    const p = putFile("https://r2/x", blob, "image/jpeg", vi.fn());
+    const failure = expect(p).rejects.toThrow("Upload stalled");
+    vi.advanceTimersByTime(STALL_MS);
+    await failure;
+    expect(FakeXhr.last.abort).toHaveBeenCalled();
+  });
+
+  it("keeps waiting while bytes keep moving, and stops watching once finished", async () => {
+    const p = putFile("https://r2/x", blob, "image/jpeg", vi.fn());
+    const xhr = FakeXhr.last;
+    vi.advanceTimersByTime(STALL_MS - 1);
+    xhr.upload.onprogress?.({ loaded: 1 });
+    vi.advanceTimersByTime(STALL_MS - 1);
+    expect(xhr.abort).not.toHaveBeenCalled();
+
+    xhr.finish(200);
+    await expect(p).resolves.toBeUndefined();
+    vi.advanceTimersByTime(STALL_MS * 2);
+    expect(xhr.abort).not.toHaveBeenCalled();
   });
 });

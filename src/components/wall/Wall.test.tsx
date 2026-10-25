@@ -187,6 +187,13 @@ describe("Wall", () => {
       expect(screen.getByRole("button", { name: drawer })).toBeInTheDocument();
     });
 
+    it("gives focus back to the + button when the menu closes without a pick", () => {
+      show();
+      openMenu();
+      fireEvent.click(screen.getByRole("button", { name: "Close menu" }));
+      expect(screen.getByRole("button", { name: "Share a memory" })).toHaveFocus();
+    });
+
     it("closes the menu on a second tap of the button", () => {
       show();
       openMenu();

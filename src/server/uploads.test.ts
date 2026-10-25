@@ -106,6 +106,13 @@ describe("createUploadIntent", () => {
     expect(presigned).toHaveLength(0);
   });
 
+  it("releases the intent again when presigning fails", async () => {
+    const { calls } = setup([ok([]), ok(null, 0), ok(null), ok(null)]);
+    mocks.r2 = { presignPut: async () => Promise.reject(new Error("no keys")) };
+    await expect(createUploadIntent(GUEST, photo)).rejects.toThrow("no keys");
+    expect(calls.filter((c) => c.method === "delete")).toHaveLength(1);
+  });
+
   it("fails loudly when the usage lookup fails", async () => {
     setup([failure("XX000"), ok(null, 0)]);
     await expect(createUploadIntent(GUEST, photo)).rejects.toThrow(/XX000/);

@@ -196,3 +196,40 @@ describe("postWish", () => {
     expect(result.current).toMatchObject({ error: null, progress: 0, status: "idle" });
   });
 });
+
+describe("double submit and lost responses", () => {
+  it("is posting while a wish is in flight, so the drawer can lock", async () => {
+    let answer!: (r: ReturnType<typeof ok>) => void;
+    apiMock.mockReturnValueOnce(new Promise((r) => (answer = r)));
+    const { result } = renderHook(() => useCreatePost());
+
+    let sending!: Promise<boolean>;
+    act(() => {
+      sending = result.current.postWish("Congrats!");
+    });
+    expect(result.current.status).toBe("posting");
+
+    await act(async () => {
+      answer(ok({ id: "w1" }));
+      await sending;
+    });
+    expect(result.current.status).toBe("idle");
+  });
+
+  it("treats a post the server already committed as posted, instead of failing and inviting a duplicate", async () => {
+    apiMock
+      .mockResolvedValueOnce(ok(intent))
+      .mockResolvedValueOnce(fail("network", "Can’t reach the server."))
+      .mockResolvedValueOnce(fail("already_posted", "That post is already on the wall."));
+    const { result } = renderHook(() => useCreatePost());
+
+    let posted = false;
+    await act(async () => {
+      posted = await result.current.postMedia(items, "");
+    });
+
+    expect(posted).toBe(true);
+    expect(result.current.error).toBeNull();
+    expect(paths()).toEqual(["POST /api/uploads", "POST /api/posts", "DELETE /api/uploads/p1"]);
+  });
+});

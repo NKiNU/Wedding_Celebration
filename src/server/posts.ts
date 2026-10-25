@@ -27,13 +27,19 @@ const baseType = (mime: string) => mime.split(";")[0]!.trim().toLowerCase();
 const incomplete = () =>
   new AppError("upload_incomplete", 400, "Some files didn’t finish uploading. Please try again.");
 
-/** Every file the intent declared must be in R2 with exactly the declared size and type. */
+/** Every file the intent declared must be in R2 with exactly the declared size and type, and no header overrides. */
 async function assertUploaded(files: readonly StoredFile[]): Promise<void> {
   const bucket = r2();
   const found = await Promise.all(files.map((f) => bucket.head(f.key)));
   const complete = files.every((f, i) => {
     const object = found[i];
-    return object !== null && object !== undefined && object.bytes === f.bytes && baseType(object.mime) === f.mime;
+    return (
+      object !== null &&
+      object !== undefined &&
+      !object.overridden &&
+      object.bytes === f.bytes &&
+      baseType(object.mime) === f.mime
+    );
   });
   if (!complete) throw incomplete();
 }

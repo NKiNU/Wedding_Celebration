@@ -1,6 +1,6 @@
 import type { R2 } from "@/server/r2";
 
-export type StoredObject = { bytes: number; mime: string };
+export type StoredObject = { bytes: number; mime: string; overridden?: boolean };
 
 /** In-memory stand-in for `r2()`: tests list the objects "uploaded" so far and read back what was deleted. */
 export function fakeR2(objects: Record<string, StoredObject> = {}) {
@@ -12,7 +12,10 @@ export function fakeR2(objects: Record<string, StoredObject> = {}) {
       presigned.push({ key, mime, bytes });
       return `https://r2.test/${key}`;
     },
-    head: async (key) => store.get(key) ?? null,
+    head: async (key) => {
+      const object = store.get(key);
+      return object ? { overridden: false, ...object } : null;
+    },
     deleteMany: async (keys) => {
       for (const key of keys) {
         deleted.push(key);

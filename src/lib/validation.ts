@@ -10,6 +10,8 @@ import {
 import { nameProblem, normalizeName } from "./domain/names";
 import { uploadProblem } from "./domain/uploads";
 
+const emptyToUndefined = (v: unknown) => (v === "" ? undefined : v);
+
 const envSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.url(),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
@@ -20,8 +22,9 @@ const envSchema = z.object({
   R2_ACCESS_KEY_ID: z.string().min(1),
   R2_SECRET_ACCESS_KEY: z.string().min(1),
   R2_BUCKET: z.string().min(1),
-  R2_ENDPOINT: z.url().optional(), // dev only: any S3-compatible endpoint (local Supabase Storage)
-  R2_REGION: z.string().min(1).default("auto"),
+  // Dev only: any S3-compatible endpoint (local Supabase Storage). `.env.example` ships them empty.
+  R2_ENDPOINT: z.preprocess(emptyToUndefined, z.url().optional()),
+  R2_REGION: z.preprocess(emptyToUndefined, z.string().min(1).default("auto")),
   NEXT_PUBLIC_MEDIA_BASE_URL: z.url(),
   EVENT_SLUG: z.string().min(1),
   CRON_SECRET: z.string().min(16),
@@ -32,7 +35,13 @@ export type Env = z.infer<typeof envSchema>;
 /** Parse env vars, failing fast with every offending variable name. */
 export function parseEnv(source: Record<string, string | undefined>): Env {
   const result = envSchema.safeParse(source);
-  if (result.success) return result.data;
+  if (result.success) {
+    // The dev endpoint would send guest uploads to whatever store it names.
+    if (result.data.R2_ENDPOINT && source.VERCEL_ENV === "production") {
+      throw new Error("Invalid environment: R2_ENDPOINT must not be set in production");
+    }
+    return result.data;
+  }
   const names = result.error.issues.map((i) => i.path.join(".")).join(", ");
   throw new Error(`Invalid environment: ${names}`);
 }
@@ -82,11 +91,12 @@ export const createPostBody = z
   .object({
     postId: z.uuid().optional(),
     caption,
+    // Counted in code points like Postgres char_length: two emoji are 4 UTF-16 units but 2 characters.
     wishText: z
       .string()
       .trim()
-      .min(WISH_MIN, `A wish needs at least ${WISH_MIN} characters.`)
-      .max(WISH_MAX, `A wish can be up to ${WISH_MAX} characters.`)
+      .refine((t) => [...t].length >= WISH_MIN, `A wish needs at least ${WISH_MIN} characters.`)
+      .refine((t) => [...t].length <= WISH_MAX, `A wish can be up to ${WISH_MAX} characters.`)
       .optional(),
   })
   .refine((b) => (b.postId === undefined) !== (b.wishText === undefined), "Send a wish or a post.");
