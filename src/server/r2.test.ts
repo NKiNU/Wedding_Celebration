@@ -82,3 +82,29 @@ describe("deleteMany", () => {
     await expect(r2().deleteMany(["a"])).rejects.toThrow(/403/);
   });
 });
+
+describe("peek", () => {
+  const bytes = (n: number) => new Uint8Array(Array.from({ length: n }, (_, i) => i));
+
+  it("reads the first bytes of an object with a ranged request", async () => {
+    const fetchMock = vi.fn((request: Request) => Promise.resolve(new Response(bytes(16), { status: request ? 206 : 500 })));
+    vi.stubGlobal("fetch", fetchMock);
+    expect([...(await r2().peek("k"))!]).toEqual([...bytes(16)]);
+    const sent = fetchMock.mock.calls[0]![0];
+    expect(sent.headers.get("range")).toBe("bytes=0-15");
+  });
+
+  it("is fine with a file shorter than 16 bytes", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(bytes(4), { status: 206 })));
+    expect((await r2().peek("k"))!.length).toBe(4);
+  });
+
+  it("is null when missing, and throws on other failures or when Range is ignored", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 404 })));
+    expect(await r2().peek("k")).toBeNull();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 403 })));
+    await expect(r2().peek("k")).rejects.toThrow(/403/);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(bytes(5000), { status: 200 })));
+    await expect(r2().peek("k")).rejects.toThrow(/ignored the Range/);
+  });
+});

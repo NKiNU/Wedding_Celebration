@@ -13,8 +13,12 @@ export type R2 = {
    * and served back), which would let a guest name or re-encode what the media domain serves.
    */
   head(key: string): Promise<{ bytes: number; mime: string; overridden: boolean } | null>;
+  /** The first bytes of a stored object (at most `PEEK_BYTES`), or null when it does not exist. */
+  peek(key: string): Promise<Uint8Array | null>;
   deleteMany(keys: readonly string[]): Promise<void>;
 };
+
+export const PEEK_BYTES = 16;
 
 const objectUrl = (key: string) => {
   const { R2_ENDPOINT, R2_ACCOUNT_ID, R2_BUCKET } = env();
@@ -56,6 +60,20 @@ async function head(key: string) {
   };
 }
 
+async function peek(key: string) {
+  const res = await new AwsClient({ ...credentials(), retries: RETRIES }).fetch(objectUrl(key), {
+    headers: { range: `bytes=0-${PEEK_BYTES - 1}` },
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`R2 GET ${key} failed: ${res.status}`);
+  if (res.status !== 206) {
+    // A store that ignored Range would send the whole file (up to 100 MB): never read that.
+    void res.body?.cancel();
+    throw new Error(`R2 GET ${key} ignored the Range header`);
+  }
+  return new Uint8Array(await res.arrayBuffer());
+}
+
 async function deleteMany(keys: readonly string[]) {
   const client = new AwsClient({ ...credentials(), retries: RETRIES });
   // ponytail: one DELETE per key; a post has at most 20. Use DeleteObjects past a few hundred.
@@ -64,4 +82,4 @@ async function deleteMany(keys: readonly string[]) {
   if (failed >= 0) throw new Error(`R2 DELETE ${keys[failed]} failed: ${results[failed]!.status}`);
 }
 
-export const r2 = (): R2 => ({ presignPut, head, deleteMany });
+export const r2 = (): R2 => ({ presignPut, head, peek, deleteMany });

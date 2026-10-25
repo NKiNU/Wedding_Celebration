@@ -37,8 +37,17 @@ const photoFiles = (bytes = 3000) => [
 ];
 type Intent = { postId: string; uploads: { role: string; url: string }[] };
 
-const put = (url: string, bytes: number, type = "image/jpeg") =>
-  fetch(url, { method: "PUT", headers: { "content-type": type }, body: new Uint8Array(bytes).fill(7) });
+const JPEG_START = [0xff, 0xd8, 0xff, 0xe0];
+
+/** `bytes` bytes that start like a JPEG (the server checks the first bytes), or like nothing. */
+const body = (bytes: number, jpeg = true) => {
+  const data = new Uint8Array(bytes).fill(7);
+  if (jpeg) data.set(JPEG_START);
+  return data;
+};
+
+const put = (url: string, bytes: number, type = "image/jpeg", jpeg = true) =>
+  fetch(url, { method: "PUT", headers: { "content-type": type }, body: body(bytes, jpeg) });
 
 /** Issues an intent and uploads exactly what it declared. */
 async function uploadedIntent(phone: Awaited<ReturnType<typeof join>>, files = photoFiles()) {
@@ -51,7 +60,8 @@ async function uploadedIntent(phone: Awaited<ReturnType<typeof join>>, files = p
   return intent.body.data!;
 }
 
-describe.skipIf(!process.env.SUPABASE_INTEGRATION)("upload pipeline (real stack)", () => {
+// A cold dev server compiles each route on first use, which is slower than the default 5 s.
+describe.skipIf(!process.env.SUPABASE_INTEGRATION)("upload pipeline (real stack)", { timeout: 60_000 }, () => {
   it("posts a photo from an intent, derives the type itself, and answers a replay with the same post", async () => {
     const phone = await join();
     const { postId } = await uploadedIntent(phone);
@@ -70,6 +80,17 @@ describe.skipIf(!process.env.SUPABASE_INTEGRATION)("upload pipeline (real stack)
     const phone = await join();
     const intent = await phone.call<Intent>("POST", "/api/uploads", { files: photoFiles() });
     const res = await phone.call("POST", "/api/posts", { postId: intent.body.data!.postId });
+    expect(res.status).toBe(400);
+    expect(res.body.error!.code).toBe("upload_incomplete");
+  });
+
+  it("refuses files that are not what they claim to be, even at the declared size and type", async () => {
+    const phone = await join();
+    const intent = await phone.call<Intent>("POST", "/api/uploads", { files: photoFiles() });
+    const { postId, uploads } = intent.body.data!;
+    expect((await put(uploads.find((u) => u.role === "main")!.url, 3000, "image/jpeg", false)).status).toBe(200);
+    expect((await put(uploads.find((u) => u.role === "thumb")!.url, 1000)).status).toBe(200);
+    const res = await phone.call("POST", "/api/posts", { postId });
     expect(res.status).toBe(400);
     expect(res.body.error!.code).toBe("upload_incomplete");
   });
@@ -103,7 +124,30 @@ describe.skipIf(!process.env.SUPABASE_INTEGRATION)("upload pipeline (real stack)
     const phone = await join();
     const { postId } = await uploadedIntent(phone);
     expect((await phone.call("DELETE", `/api/uploads/${postId}`)).status).toBe(200);
-    expect((await phone.call("POST", "/api/posts", { postId })).status).toBe(404);
+    expect((await phone.call("POST", "/api/posts", { postId })).status).toBe(410); // cancelled, not forgotten
+  });
+
+  it("keeps a cancelled upload counting against the hour", async () => {
+    const phone = await join();
+    const issued: string[] = [];
+    for (let i = 0; i < POSTS_PER_HOUR; i++) {
+      const res = await phone.call<Intent>("POST", "/api/uploads", { files: photoFiles() });
+      expect(res.status).toBe(201);
+      issued.push(res.body.data!.postId);
+    }
+    expect((await phone.call("DELETE", `/api/uploads/${issued[0]}`)).status).toBe(200);
+    expect((await phone.call("POST", "/api/uploads", { files: photoFiles() })).status).toBe(429);
+    expect((await phone.call("POST", "/api/posts", { postId: issued[0] })).status).toBe(410); // and it can no longer be posted
+  });
+
+  it("holds the limit under a burst of parallel requests", async () => {
+    const phone = await join();
+    const burst = await Promise.all(
+      Array.from({ length: POSTS_PER_HOUR + 12 }, () => phone.call("POST", "/api/uploads", { files: photoFiles() })),
+    );
+    const statuses = burst.map((r) => r.status);
+    expect(statuses.filter((s) => s === 201)).toHaveLength(POSTS_PER_HOUR);
+    expect(statuses.filter((s) => s === 429)).toHaveLength(12);
   });
 
   it("needs a session to upload or post", async () => {

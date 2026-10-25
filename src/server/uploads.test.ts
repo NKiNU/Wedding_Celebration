@@ -2,7 +2,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { validEnv } from "../../tests/fixtures/env";
 import { fakeR2 } from "../../tests/fixtures/r2";
 import { fakeDb, type DbResult } from "../../tests/fixtures/supabase";
-import { INTENT_TTL_MS, MB, POSTS_PER_HOUR } from "@/lib/domain/limits";
+import { BYTES_PER_HOUR, INTENT_TTL_MS, MB, POSTS_PER_HOUR, RATE_WINDOW_MS } from "@/lib/domain/limits";
 import type { UploadFile } from "@/lib/domain/uploads";
 
 const mocks = vi.hoisted(() => ({
@@ -14,22 +14,21 @@ vi.mock("./db", () => ({ db: () => mocks.db }));
 vi.mock("./r2", () => ({ r2: () => mocks.r2 }));
 vi.mock("./event", () => ({ getEvent: async () => mocks.event }));
 
-import { assertUploadsOpen, cancelUploadIntent, createUploadIntent, discardIntent } from "./uploads";
+import { assertUploadsOpen, cancelUploadIntent, createUploadIntent, limitArgs, storedFilesOf } from "./uploads";
 
 const GUEST = { id: "g1", name: "Ali", eventId: "e1" };
 const POST_ID = "b0000000-0000-4000-8000-000000000001";
-const ok = (data: unknown, count?: number): DbResult => ({ data, count, error: null });
+const ok = (data: unknown): DbResult => ({ data, error: null });
 const failure = (code: string): DbResult => ({ data: null, error: { code, message: code } });
-const intentRow = (bytes: number) => ({ files: [{ role: "main", position: 0, mime: "image/jpeg", bytes, key: "k" }] });
 
 const photo: UploadFile[] = [
   { role: "main", position: 0, mime: "image/jpeg", bytes: 2 * MB, width: 2048, height: 1536 },
   { role: "thumb", position: 0, mime: "image/jpeg", bytes: 40_000 },
 ];
 
-function setup(queue: DbResult[], objects = {}) {
+function setup(queue: DbResult[]) {
   const fake = fakeDb(queue);
-  const r2 = fakeR2(objects);
+  const r2 = fakeR2();
   mocks.db = fake.db;
   mocks.r2 = r2.r2;
   return { ...fake, ...r2 };
@@ -51,29 +50,52 @@ describe("assertUploadsOpen", () => {
   });
 });
 
+describe("limitArgs", () => {
+  it("hands the named limits and the start of the window to the database function", () => {
+    const args = limitArgs();
+    expect(args.p_max_posts).toBe(POSTS_PER_HOUR);
+    expect(args.p_max_bytes).toBe(BYTES_PER_HOUR);
+    expect(Date.now() - Date.parse(args.p_since)).toBeGreaterThanOrEqual(RATE_WINDOW_MS - 1000);
+    expect(Date.now() - Date.parse(args.p_since)).toBeLessThanOrEqual(RATE_WINDOW_MS + 1000);
+  });
+});
+
+describe("storedFilesOf", () => {
+  it("parses stored files and treats malformed rows as a server fault, not a guest error", () => {
+    expect(storedFilesOf([{ role: "main", position: 0, mime: "image/jpeg", bytes: 1, key: "k" }])).toHaveLength(1);
+    expect(() => storedFilesOf([{ role: "main" }])).toThrow("malformed");
+  });
+});
+
 describe("createUploadIntent", () => {
-  it("stores an intent with server-built keys and returns one presigned URL per file", async () => {
-    const { calls, presigned } = setup([ok([]), ok(null, 0), ok(null)]);
+  it("spends the allowance and stores the intent in one database call, with server-built keys", async () => {
+    const { calls, presigned } = setup([ok(null)]);
 
     const result = await createUploadIntent(GUEST, photo);
 
-    const insert = calls.find((c) => c.table === "upload_intents" && c.method === "insert")!;
-    const row = insert.args[0] as Record<string, unknown> & { files: { key: string }[] };
-    expect(row).toMatchObject({ post_id: result.postId, event_id: "e1", guest_id: "g1" });
-    expect(row.files.map((f) => f.key)).toEqual([
+    const call = calls.find((c) => c.table === "rpc" && c.method === "create_upload_intent")!;
+    const args = call.args[0] as Record<string, unknown> & { p_files: { key: string }[] };
+    expect(args).toMatchObject({
+      p_post_id: result.postId,
+      p_event_id: "e1",
+      p_guest_id: "g1",
+      p_max_posts: POSTS_PER_HOUR,
+      p_max_bytes: BYTES_PER_HOUR,
+    });
+    expect(args.p_files.map((f) => f.key)).toEqual([
       `events/e1/${result.postId}/0.jpg`,
       `events/e1/${result.postId}/0_thumb.jpg`,
     ]);
-    const ttl = Date.parse(row.expires_at as string) - Date.now();
+    const ttl = Date.parse(args.p_expires_at as string) - Date.now();
     expect(ttl).toBeGreaterThan(INTENT_TTL_MS - 5000);
     expect(ttl).toBeLessThanOrEqual(INTENT_TTL_MS);
     expect(presigned).toEqual([
-      { key: row.files[0]!.key, mime: "image/jpeg", bytes: 2 * MB },
-      { key: row.files[1]!.key, mime: "image/jpeg", bytes: 40_000 },
+      { key: args.p_files[0]!.key, mime: "image/jpeg", bytes: 2 * MB },
+      { key: args.p_files[1]!.key, mime: "image/jpeg", bytes: 40_000 },
     ]);
     expect(result.uploads).toEqual([
-      { role: "main", position: 0, url: `https://r2.test/${row.files[0]!.key}` },
-      { role: "thumb", position: 0, url: `https://r2.test/${row.files[1]!.key}` },
+      { role: "main", position: 0, url: `https://r2.test/${args.p_files[0]!.key}` },
+      { role: "thumb", position: 0, url: `https://r2.test/${args.p_files[1]!.key}` },
     ]);
   });
 
@@ -84,38 +106,22 @@ describe("createUploadIntent", () => {
     expect(calls).toHaveLength(0);
   });
 
-  it("stops the 31st post of the hour, counting unfinished intents and wishes", async () => {
-    const intents = Array(POSTS_PER_HOUR - 5).fill(intentRow(10));
-    setup([ok(intents), ok(null, 5)]);
+  it("is a 429 when the database says the hour is used up, and presigns nothing", async () => {
+    const { presigned } = setup([failure("PT429")]);
     await expect(createUploadIntent(GUEST, photo)).rejects.toMatchObject({ status: 429, code: "rate_limited" });
-  });
-
-  it("stops a request that would pass 200 MB with uploads still in flight", async () => {
-    setup([ok([intentRow(99 * MB), intentRow(99 * MB)]), ok(null, 0)]);
-    await expect(createUploadIntent(GUEST, photo)).rejects.toMatchObject({ status: 429 });
-  });
-
-  it("lets the 30th post through", async () => {
-    setup([ok(Array(POSTS_PER_HOUR - 1).fill(intentRow(10))), ok(null, 0), ok(null)]);
-    await expect(createUploadIntent(GUEST, photo)).resolves.toHaveProperty("postId");
-  });
-
-  it("fails when the intent cannot be stored, and presigns nothing", async () => {
-    const { presigned } = setup([ok([]), ok(null, 0), failure("XX000")]);
-    await expect(createUploadIntent(GUEST, photo)).rejects.toThrow(/XX000/);
     expect(presigned).toHaveLength(0);
   });
 
+  it("fails loudly on any other database error", async () => {
+    setup([failure("XX000")]);
+    await expect(createUploadIntent(GUEST, photo)).rejects.toThrow(/XX000/);
+  });
+
   it("releases the intent again when presigning fails", async () => {
-    const { calls } = setup([ok([]), ok(null, 0), ok(null), ok(null)]);
+    const { calls } = setup([ok(null), ok(null)]);
     mocks.r2 = { presignPut: async () => Promise.reject(new Error("no keys")) };
     await expect(createUploadIntent(GUEST, photo)).rejects.toThrow("no keys");
     expect(calls.filter((c) => c.method === "delete")).toHaveLength(1);
-  });
-
-  it("fails loudly when the usage lookup fails", async () => {
-    setup([failure("XX000"), ok(null, 0)]);
-    await expect(createUploadIntent(GUEST, photo)).rejects.toThrow(/XX000/);
   });
 });
 
@@ -125,17 +131,18 @@ describe("cancelUploadIntent", () => {
     { role: "thumb", position: 0, mime: "image/jpeg", bytes: 5, key: "events/e1/p/0_thumb.jpg" },
   ];
 
-  it("expires the intent, deletes its objects, then its row", async () => {
-    const { calls, deleted } = setup([ok([{ files }]), ok(null)]);
+  it("marks the intent cancelled, deletes its objects, and keeps the row so it still counts", async () => {
+    const { calls, deleted } = setup([ok([{ files }])]);
 
     await cancelUploadIntent(GUEST, POST_ID);
 
     expect(deleted).toEqual(["events/e1/p/0.jpg", "events/e1/p/0_thumb.jpg"]);
-    expect(calls.map((c) => c.method).filter((m) => ["update", "delete"].includes(m))).toEqual(["update", "delete"]);
-    expect(calls.find((c) => c.method === "update")!.args[0]).toHaveProperty("expires_at");
+    expect(calls.find((c) => c.method === "update")!.args[0]).toHaveProperty("cancelled_at");
+    expect(calls.some((c) => c.method === "delete")).toBe(false);
     const claim = calls.filter((c) => c.method === "eq").map((c) => c.args);
     expect(claim).toContainEqual(["guest_id", "g1"]);
     expect(calls).toContainEqual(expect.objectContaining({ method: "is", args: ["consumed_at", null] }));
+    expect(calls).toContainEqual(expect.objectContaining({ method: "is", args: ["cancelled_at", null] }));
   });
 
   it("refuses once the post exists, and deletes nothing", async () => {
@@ -150,29 +157,23 @@ describe("cancelUploadIntent", () => {
     expect(deleted).toHaveLength(0);
   });
 
-  it("keeps the row for the sweep when R2 fails", async () => {
-    const { calls } = setup([ok([{ files }])]);
+  it("is fine to cancel twice", async () => {
+    const { deleted } = setup([ok([]), ok({ consumed_at: null })]);
+    await expect(cancelUploadIntent(GUEST, POST_ID)).resolves.toBeUndefined();
+    expect(deleted).toHaveLength(0);
+  });
+
+  it("still succeeds when R2 cannot delete right now: the sweep removes the objects later", async () => {
+    setup([ok([{ files }])]);
     mocks.r2 = { deleteMany: async () => Promise.reject(new Error("r2 down")) };
-    await expect(cancelUploadIntent(GUEST, POST_ID)).rejects.toThrow("r2 down");
-    expect(calls.some((c) => c.method === "delete")).toBe(false);
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(cancelUploadIntent(GUEST, POST_ID)).resolves.toBeUndefined();
+    expect(quiet).toHaveBeenCalled();
+    quiet.mockRestore();
   });
 
   it("fails loudly when the claim query fails", async () => {
     setup([failure("XX000")]);
     await expect(cancelUploadIntent(GUEST, POST_ID)).rejects.toThrow(/XX000/);
-  });
-});
-
-describe("discardIntent", () => {
-  it("deletes the objects, then the row", async () => {
-    const { calls, deleted } = setup([ok(null)]);
-    await discardIntent(POST_ID, ["a", "b"]);
-    expect(deleted).toEqual(["a", "b"]);
-    expect(calls.some((c) => c.method === "delete")).toBe(true);
-  });
-
-  it("fails loudly when the row cannot be deleted", async () => {
-    setup([failure("XX000")]);
-    await expect(discardIntent(POST_ID, [])).rejects.toThrow(/XX000/);
   });
 });

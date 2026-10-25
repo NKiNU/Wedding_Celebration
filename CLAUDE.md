@@ -72,6 +72,7 @@ src/
       posts/[id]/route.ts    # DELETE own post
       uploads/route.ts       # POST -> signed upload URLs
       uploads/[postId]/route.ts  # DELETE cancel an unposted upload (cleanup)
+      cron/sweep/route.ts    # GET hourly: delete objects of expired, unposted uploads
   components/
     wall/                    # Header, WishTicker, FilterBar, PostCard, AlbumStack, Fab, ActionMenu
     drawers/                 # BottomSheet + PhotoDrawer, VideoDrawer, WishDrawer, QrDrawer, WishViewDrawer, MeDrawer

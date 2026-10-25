@@ -111,14 +111,14 @@ isOneToOne: false
                   ]
                 },"upload_intents": {
                   Row: {
-                    "consumed_at": string | null,"event_id": string,"expires_at": string,"files": NonNullable<Json>,"guest_id": string,"post_id": string
+                    "cancelled_at": string | null,"consumed_at": string | null,"event_id": string,"expires_at": string,"files": NonNullable<Json>,"guest_id": string,"post_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "consumed_at"?: string | null,"event_id": string,"expires_at": string,"files": NonNullable<Json>,"guest_id": string,"post_id": string
+                    "cancelled_at"?: string | null,"consumed_at"?: string | null,"event_id": string,"expires_at": string,"files": NonNullable<Json>,"guest_id": string,"post_id": string
                   }
                   Update: {
-                    "consumed_at"?: string | null,"event_id"?: string,"expires_at"?: string,"files"?: NonNullable<Json>,"guest_id"?: string,"post_id"?: string
+                    "cancelled_at"?: string | null,"consumed_at"?: string | null,"event_id"?: string,"expires_at"?: string,"files"?: NonNullable<Json>,"guest_id"?: string,"post_id"?: string
                   }
                   Relationships: [
                     {
@@ -169,6 +169,17 @@ isOneToOne: false
           Functions: {
             "create_post_from_intent":
 { Args: { "p_caption": string,"p_guest_id": string,"p_media": Json,"p_post_id": string,"p_type": Database["public"]['Enums']["post_type"] }; Returns: undefined
+                           },
+"create_upload_intent":
+{ Args: { "p_event_id": string,"p_expires_at": string,"p_files": Json,"p_guest_id": string,"p_max_bytes": number,"p_max_posts": number,"p_post_id": string,"p_since": string }; Returns: undefined
+                           },
+"create_wish":
+{ Args: { "p_event_id": string,"p_guest_id": string,"p_max_bytes": number,"p_max_posts": number,"p_since": string,"p_text": string }; Returns: string
+                           },
+"guest_usage":
+{ Args: { "p_guest_id": string,"p_since": string }; Returns: {
+              "bytes": number,"posts": number
+            }[]
                            },
 "wall_counts":
 { Args: { "e": string }; Returns: {

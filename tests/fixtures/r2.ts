@@ -1,6 +1,13 @@
 import type { R2 } from "@/server/r2";
 
-export type StoredObject = { bytes: number; mime: string; overridden?: boolean };
+export type StoredObject = { bytes: number; mime: string; overridden?: boolean; start?: Uint8Array };
+
+const SIGNATURE: Record<string, number[]> = {
+  "image/jpeg": [0xff, 0xd8, 0xff, 0xe0],
+  "video/mp4": [0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70], // "ftyp" at offset 4
+  "video/quicktime": [0, 0, 0, 0x14, 0x66, 0x74, 0x79, 0x70],
+  "video/webm": [0x1a, 0x45, 0xdf, 0xa3],
+};
 
 /** In-memory stand-in for `r2()`: tests list the objects "uploaded" so far and read back what was deleted. */
 export function fakeR2(objects: Record<string, StoredObject> = {}) {
@@ -15,6 +22,11 @@ export function fakeR2(objects: Record<string, StoredObject> = {}) {
     head: async (key) => {
       const object = store.get(key);
       return object ? { overridden: false, ...object } : null;
+    },
+    peek: async (key) => {
+      const object = store.get(key);
+      if (!object) return null;
+      return object.start ?? new Uint8Array([...(SIGNATURE[object.mime.split(";")[0]!.trim().toLowerCase()] ?? [0]), 0, 0, 0, 0, 0, 0, 0, 0]);
     },
     deleteMany: async (keys) => {
       for (const key of keys) {

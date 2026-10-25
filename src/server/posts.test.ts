@@ -36,7 +36,8 @@ const videoFiles = [
 ];
 const uploaded = (files: typeof photoFiles) =>
   Object.fromEntries(files.map((f) => [f.key, { bytes: f.bytes, mime: f.mime }]));
-const intent = (files: unknown[], over = {}) => ok({ files, consumed_at: null, ...over });
+const intent = (files: unknown[], over = {}) =>
+  ok({ files, consumed_at: null, cancelled_at: null, expires_at: "2099-01-01T00:00:00Z", ...over });
 
 function setup(queue: DbResult[], objects = {}) {
   const fake = fakeDb(queue);
@@ -56,29 +57,34 @@ beforeEach(() => {
 });
 
 describe("createWish", () => {
-  it("inserts a wish for this guest and returns its id", async () => {
-    const { calls } = setup([ok([]), ok(null, 0), ok({ id: POST_ID })]);
+  it("creates the wish through the locked database function and returns its id", async () => {
+    const { calls } = setup([ok(POST_ID)]);
 
     expect(await createWish(GUEST, "Selamat pengantin baru!")).toEqual({ id: POST_ID });
 
-    const insert = calls.find((c) => c.method === "insert")!;
-    expect(insert.table).toBe("posts");
-    expect(insert.args[0]).toEqual({ event_id: "e1", guest_id: "g1", type: "wish", wish_text: "Selamat pengantin baru!" });
+    const call = calls.find((c) => c.table === "rpc" && c.method === "create_wish")!;
+    expect(call.args[0]).toMatchObject({
+      p_event_id: "e1",
+      p_guest_id: "g1",
+      p_text: "Selamat pengantin baru!",
+      p_max_posts: POSTS_PER_HOUR,
+    });
   });
 
   it("is a 403 while uploads are closed", async () => {
     mocks.event = { id: "e1", uploads_open: false };
-    setup([]);
+    const { calls } = setup([]);
     await expect(createWish(GUEST, "Congratulations")).rejects.toMatchObject({ status: 403 });
+    expect(calls).toHaveLength(0);
   });
 
-  it("is a 429 at the hourly post limit", async () => {
-    setup([ok([]), ok(null, POSTS_PER_HOUR)]);
-    await expect(createWish(GUEST, "Congratulations")).rejects.toMatchObject({ status: 429 });
+  it("is a 429 when the database says the hour is used up", async () => {
+    setup([failure("PT429")]);
+    await expect(createWish(GUEST, "Congratulations")).rejects.toMatchObject({ status: 429, code: "rate_limited" });
   });
 
-  it("fails loudly when the insert fails", async () => {
-    setup([ok([]), ok(null, 0), failure("23514")]);
+  it("fails loudly on any other database error", async () => {
+    setup([failure("23514")]);
     await expect(createWish(GUEST, "Congratulations")).rejects.toThrow(/23514/);
   });
 });
@@ -160,6 +166,14 @@ describe("createMediaPost", () => {
     expect(calls.some((c) => c.table === "rpc")).toBe(false);
   });
 
+  it("is a 400 when a file does not start like its declared type", async () => {
+    const html = new TextEncoder().encode("<html>not a jpeg</html>");
+    const stored = { ...uploaded(photoFiles), [K("1.jpg")]: { bytes: 1 * MB, mime: "image/jpeg", start: html } };
+    const { calls } = setup([intent(photoFiles)], stored);
+    await expect(createMediaPost(GUEST, POST_ID, null)).rejects.toMatchObject({ code: "upload_incomplete" });
+    expect(calls.some((c) => c.table === "rpc")).toBe(false);
+  });
+
   it("accepts a content type that carries parameters or other casing", async () => {
     const stored = { ...uploaded(photoFiles), [K("0.jpg")]: { bytes: 2 * MB, mime: "Image/JPEG; charset=binary" } };
     setup([intent(photoFiles), ok(null)], stored);
@@ -171,11 +185,21 @@ describe("createMediaPost", () => {
     await expect(createMediaPost(GUEST, POST_ID, null)).resolves.toEqual({ id: POST_ID });
   });
 
-  it("cleans up and answers 410 when the intent expired (PT410)", async () => {
-    const { deleted, calls } = setup([intent(photoFiles), failure("PT410"), ok(null)], uploaded(photoFiles));
+  it("frees the objects and answers 410 when the intent expired or was cancelled (PT410), keeping the row", async () => {
+    const { deleted, calls } = setup([intent(photoFiles), failure("PT410")], uploaded(photoFiles));
     await expect(createMediaPost(GUEST, POST_ID, null)).rejects.toMatchObject({ status: 410, code: "intent_expired" });
     expect(deleted).toHaveLength(photoFiles.length);
-    expect(calls.some((c) => c.method === "delete")).toBe(true);
+    expect(calls.some((c) => c.method === "delete")).toBe(false); // the tombstone still counts against the hour
+  });
+
+  it("answers 410 without checking the files when the intent was cancelled or has expired", async () => {
+    const { deleted, calls } = setup([intent(photoFiles, { cancelled_at: "2026-10-25T10:00:00Z", expires_at: "2099-01-01T00:00:00Z" })]);
+    await expect(createMediaPost(GUEST, POST_ID, null)).rejects.toMatchObject({ status: 410 });
+    expect(deleted).toHaveLength(photoFiles.length);
+    expect(calls.some((c) => c.table === "rpc")).toBe(false);
+
+    setup([intent(photoFiles, { cancelled_at: null, expires_at: "2020-01-01T00:00:00Z" })]);
+    await expect(createMediaPost(GUEST, POST_ID, null)).rejects.toMatchObject({ code: "intent_expired" });
   });
 
   it("maps PT404 to 404 and PT400 to 400, and other errors to a plain failure", async () => {
@@ -194,7 +218,7 @@ describe("createMediaPost", () => {
   });
 
   it("is a 400 when the files do not make a post", async () => {
-    const odd = [file("main", 0, "0.jpg", "image/gif", 10)];
+    const odd = [file("main", 0, "0.mp4", "video/mp4", 10), file("main", 1, "1.mp4", "video/mp4", 10)]; // two videos
     setup([intent(odd)], uploaded(odd));
     await expect(createMediaPost(GUEST, POST_ID, null)).rejects.toMatchObject({ code: "invalid_media" });
   });

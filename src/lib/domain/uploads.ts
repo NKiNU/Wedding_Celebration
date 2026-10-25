@@ -69,6 +69,28 @@ export function fitWithin(width: number, height: number, longEdge: number) {
   return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
 }
 
+const QUICKTIME_ATOMS = ["ftyp", "moov", "mdat", "wide", "free", "skip"];
+
+/**
+ * The first bytes of a stored file must match its declared type, so arbitrary bytes cannot be
+ * served from the media domain as a photo or a video. `start` is at least the first 12 bytes.
+ */
+export function looksLike(mime: string, start: Uint8Array): boolean {
+  const text = (from: number, length: number) => String.fromCharCode(...start.slice(from, from + length));
+  switch (mime) {
+    case "image/jpeg":
+      return start[0] === 0xff && start[1] === 0xd8 && start[2] === 0xff;
+    case "video/mp4":
+      return text(4, 4) === "ftyp";
+    case "video/quicktime":
+      return QUICKTIME_ATOMS.includes(text(4, 4)); // a QuickTime file need not start with ftyp
+    case "video/webm":
+      return start[0] === 0x1a && start[1] === 0x45 && start[2] === 0xdf && start[3] === 0xa3;
+    default:
+      return false;
+  }
+}
+
 export const totalBytes = (files: readonly { bytes: number }[]) =>
   files.reduce((sum, f) => sum + f.bytes, 0);
 

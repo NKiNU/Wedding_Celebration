@@ -4,6 +4,7 @@ import {
   derivePostType,
   extFromMime,
   fitWithin,
+  looksLike,
   mediaKey,
   totalBytes,
   uploadProblem,
@@ -134,4 +135,27 @@ describe("videoProblem", () => {
 
 it("totalBytes sums", () => {
   expect(totalBytes([{ bytes: 1 }, { bytes: 2 }])).toBe(3);
+});
+
+describe("looksLike", () => {
+  const bytes = (...b: number[]) => new Uint8Array([...b, ...Array(16 - b.length).fill(0)]);
+  const ftyp = (brand = "ftyp") => bytes(0, 0, 0, 0x18, ...[...brand].map((c) => c.charCodeAt(0)));
+
+  it("recognises a JPEG, an MP4, a QuickTime file and a WebM by their first bytes", () => {
+    expect(looksLike("image/jpeg", bytes(0xff, 0xd8, 0xff, 0xe0))).toBe(true);
+    expect(looksLike("video/mp4", ftyp())).toBe(true);
+    expect(looksLike("video/quicktime", ftyp())).toBe(true);
+    expect(looksLike("video/quicktime", ftyp("moov"))).toBe(true);
+    expect(looksLike("video/webm", bytes(0x1a, 0x45, 0xdf, 0xa3))).toBe(true);
+  });
+
+  it("refuses anything else, including HTML or SVG claiming to be a picture", () => {
+    const html = new TextEncoder().encode("<html><script>x</script></html>");
+    expect(looksLike("image/jpeg", html)).toBe(false);
+    expect(looksLike("video/mp4", html)).toBe(false);
+    expect(looksLike("video/mp4", ftyp("moov"))).toBe(false); // plain MP4 must start with ftyp
+    expect(looksLike("video/webm", bytes(0xff, 0xd8, 0xff))).toBe(false);
+    expect(looksLike("image/jpeg", new Uint8Array(0))).toBe(false);
+    expect(looksLike("image/svg+xml", html)).toBe(false);
+  });
 });
