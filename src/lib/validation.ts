@@ -1,5 +1,14 @@
 import { z } from "zod";
+import {
+  CAPTION_MAX,
+  MAX_PHOTOS,
+  MAX_VIDEO_BYTES,
+  MAX_VIDEO_SECONDS,
+  WISH_MAX,
+  WISH_MIN,
+} from "./domain/limits";
 import { nameProblem, normalizeName } from "./domain/names";
+import { uploadProblem } from "./domain/uploads";
 
 const envSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.url(),
@@ -37,3 +46,47 @@ const nameSchema = z
 export const createGuestBody = z.object({ name: nameSchema });
 
 export const activateGuestBody = z.object({ guestId: z.uuid() });
+
+const uploadFile = z.object({
+  role: z.enum(["main", "thumb", "poster"]),
+  position: z.int().min(0).max(MAX_PHOTOS - 1),
+  mime: z.string().max(100),
+  bytes: z.int().positive().max(MAX_VIDEO_BYTES),
+  width: z.int().positive().max(20_000).optional(),
+  height: z.int().positive().max(20_000).optional(),
+  durationS: z.number().positive().max(MAX_VIDEO_SECONDS).optional(),
+});
+
+/** POST /api/uploads: the files a guest wants to send. Keys and the post type are the server's. */
+export const createUploadBody = z
+  .object({ files: z.array(uploadFile).min(1).max(MAX_PHOTOS * 2) })
+  .superRefine(({ files }, ctx) => {
+    const problem = uploadProblem(files);
+    if (problem) ctx.addIssue({ code: "custom", message: problem });
+  });
+
+/** The `files` column of an upload intent, as the server stored it. */
+export const storedFiles = z.array(uploadFile.extend({ key: z.string().min(1) }));
+
+const caption = z
+  .string()
+  .trim()
+  .max(CAPTION_MAX, `Captions can be up to ${CAPTION_MAX} characters.`)
+  .optional()
+  .transform((c) => c || null);
+
+/** POST /api/posts: a wish, or the post an upload intent was issued for. Never a type or author. */
+export const createPostBody = z
+  .object({
+    postId: z.uuid().optional(),
+    caption,
+    wishText: z
+      .string()
+      .trim()
+      .min(WISH_MIN, `A wish needs at least ${WISH_MIN} characters.`)
+      .max(WISH_MAX, `A wish can be up to ${WISH_MAX} characters.`)
+      .optional(),
+  })
+  .refine((b) => (b.postId === undefined) !== (b.wishText === undefined), "Send a wish or a post.");
+
+export const postIdParam = z.uuid();

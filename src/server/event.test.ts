@@ -13,7 +13,7 @@ beforeAll(() => {
 
 describe("getEvent", () => {
   it("loads the event this deployment serves, by its slug", async () => {
-    const event = { id: "e1", groom_name: "Groom", bride_name: "Bride", header_message: "Hi" };
+    const event = { id: "e1", groom_name: "Groom", bride_name: "Bride", header_message: "Hi", uploads_open: true };
     const { db, calls } = fakeDb([{ data: event, error: null }]);
     mocks.db = db;
 

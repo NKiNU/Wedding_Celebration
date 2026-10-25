@@ -8,7 +8,7 @@ export const getEvent = cache(async () => {
   const slug = env().EVENT_SLUG;
   const { data, error } = await db()
     .from("events")
-    .select("id, groom_name, bride_name, header_message")
+    .select("id, groom_name, bride_name, header_message, uploads_open")
     .eq("slug", slug)
     .single();
   if (error) throw new Error(`Event "${slug}" not found: ${error.message}`);

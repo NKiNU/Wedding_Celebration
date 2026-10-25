@@ -1,10 +1,17 @@
 import type { WallCounts, WallPost } from "./domain/posts";
+import type { FileRole } from "./domain/uploads";
 
 export type KnownGuest = { guestId: string; name: string };
 export type Session = { active: KnownGuest | null; known: KnownGuest[] };
 
 /** GET /api/posts: `counts` is only sent with the first page. */
 export type WallResponse = { posts: WallPost[]; nextCursor: string | null; counts: WallCounts | null };
+
+/** POST /api/uploads: one presigned PUT URL per requested file. */
+export type UploadIntent = { postId: string; uploads: { role: FileRole; position: number; url: string }[] };
+
+/** POST /api/posts */
+export type CreatedPost = { id: string };
 
 export type ApiError = { code: string; message: string; details?: Record<string, unknown> };
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: ApiError };

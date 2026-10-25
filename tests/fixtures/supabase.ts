@@ -1,4 +1,4 @@
-export type DbResult = { data: unknown; error: { code?: string; message: string } | null };
+export type DbResult = { data: unknown; count?: number | null; error: { code?: string; message: string } | null };
 export type DbCall = { table: string; method: string; args: unknown[] };
 
 /**
