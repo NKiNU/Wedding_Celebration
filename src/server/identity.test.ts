@@ -17,6 +17,7 @@ import {
   getSession,
   hashToken,
   readTokens,
+  requireGuest,
 } from "./identity";
 
 const PEPPER = validEnv.DEVICE_TOKEN_PEPPER;
@@ -243,5 +244,34 @@ describe("clearActive", () => {
     clearActive(jar);
     expect(jar.has("wm_active")).toBe(false);
     expect(jar.has("wm_tokens")).toBe(true);
+  });
+});
+
+describe("requireGuest", () => {
+  it("returns the guest whose token hash matches the active cookie, within this event", async () => {
+    const calls = stubDb([ok({ id: "g1", name: "Ali" })]);
+
+    const guest = await requireGuest(fakeJar({ wm_active: "tok" }));
+
+    expect(guest).toEqual({ id: "g1", name: "Ali", eventId: "event-1" });
+    const eqs = calls.filter((c) => c.method === "eq").map((c) => c.args);
+    expect(eqs).toContainEqual(["event_id", "event-1"]);
+    expect(eqs).toContainEqual(["token_hash", hashToken("tok", PEPPER)]);
+  });
+
+  it("is a 401 without an active cookie, and does not query", async () => {
+    const calls = stubDb([]);
+    await expect(requireGuest(fakeJar())).rejects.toMatchObject({ status: 401, code: "no_session" });
+    expect(calls).toHaveLength(0);
+  });
+
+  it("is a 401 when no guest of this event has that token", async () => {
+    stubDb([ok(null)]);
+    await expect(requireGuest(fakeJar({ wm_active: "forged" }))).rejects.toBeInstanceOf(AppError);
+  });
+
+  it("fails loudly when the lookup itself fails", async () => {
+    stubDb([failure("XX000")]);
+    await expect(requireGuest(fakeJar({ wm_active: "tok" }))).rejects.toThrow(/XX000/);
   });
 });

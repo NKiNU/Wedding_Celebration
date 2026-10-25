@@ -1,5 +1,9 @@
+import { cookies } from "next/headers";
 import type { WallResponse } from "@/lib/api";
+import { createPostBody } from "@/lib/validation";
 import { handle } from "@/server/http";
+import { requireGuest } from "@/server/identity";
+import { createMediaPost, createWish } from "@/server/posts";
 import { getWallCounts, getWallPage } from "@/server/wall";
 
 /**
@@ -14,3 +18,15 @@ export const GET = (req: Request) => {
     return { ...page, counts };
   });
 };
+
+/** A wish, or the media post an upload intent was issued for. The type is never read from the body. */
+export const POST = (req: Request) =>
+  handle(
+    req,
+    async () => {
+      const guest = await requireGuest(await cookies());
+      const { postId, caption, wishText } = createPostBody.parse(await req.json().catch(() => null));
+      return wishText === undefined ? createMediaPost(guest, postId!, caption) : createWish(guest, wishText);
+    },
+    201,
+  );

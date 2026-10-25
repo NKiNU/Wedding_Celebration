@@ -112,6 +112,25 @@ export async function createGuest(name: string, jar: CookieJar): Promise<KnownGu
   return { guestId: data.id, name: data.name };
 }
 
+export type Guest = { id: string; name: string; eventId: string };
+
+/** The guest behind this request. Every write goes through here: ownership is by token, never by name. */
+export async function requireGuest(jar: CookieReader): Promise<Guest> {
+  const token = jar.get(ACTIVE_COOKIE)?.value;
+  const noSession = new AppError("no_session", 401, "Please enter your name again.");
+  if (!token) throw noSession;
+  const event = await getEvent();
+  const { data, error } = await db()
+    .from("guests")
+    .select("id, name")
+    .eq("event_id", event.id)
+    .eq("token_hash", hashToken(token, env().DEVICE_TOKEN_PEPPER))
+    .maybeSingle();
+  if (error) throw new Error(`Loading the guest failed: ${error.code} ${error.message}`);
+  if (!data) throw noSession;
+  return { id: data.id, name: data.name, eventId: event.id };
+}
+
 /** "Continue as X": only a guest this phone holds a token for can become the active identity. */
 export async function activateGuest(guestId: string, jar: CookieJar): Promise<KnownGuest> {
   const match = (await guestsOnThisPhone(jar)).find((h) => h.guest.guestId === guestId);
