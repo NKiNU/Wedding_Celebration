@@ -1,23 +1,32 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
+import { Wall } from "@/components/wall/Wall";
+import { getEvent } from "@/server/event";
 import { getSession } from "@/server/identity";
+import { getWallCounts, getWallPage } from "@/server/wall";
 
-// ponytail: placeholder so "Start" has somewhere to land; Phase 2 replaces it with the wall.
-export default function Wall() {
+export default function WallPage() {
   return (
     <Suspense>
-      <WhoAmI />
+      <WallContent />
     </Suspense>
   );
 }
 
-async function WhoAmI() {
+async function WallContent() {
   const { active } = await getSession(await cookies());
   if (!active) redirect("/");
+  const [event, page, counts] = await Promise.all([getEvent(), getWallPage(null), getWallCounts()]);
   return (
-    <main className="grid min-h-dvh place-items-center px-8">
-      <p className="text-base">Welcome, {active.name}</p>
-    </main>
+    <Wall
+      eventId={event.id}
+      groom={event.groom_name}
+      bride={event.bride_name}
+      headerMessage={event.header_message}
+      me={active}
+      now={new Date().toISOString()}
+      initial={{ ...page, counts }}
+    />
   );
 }

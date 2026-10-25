@@ -1,2 +1,25 @@
 @import "tailwindcss";
 @import "../styles/theme.css";
+
+/* Bottom sheets slide up and toasts rise in. A modal dialog also locks page scroll, because
+   iOS Safari keeps scrolling the page behind it. */
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+.sheet[open] {
+  animation: sheet-in 0.25s ease-out;
+}
+.toast {
+  animation: toast-in 0.2s ease-out;
+}
+html:has(dialog[open]) {
+  overflow: hidden;
+}

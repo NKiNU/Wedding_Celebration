@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nameProblem, normalizeName, suggestNames } from "./names";
+import { initialOf, nameProblem, normalizeName, suggestNames } from "./names";
 
 describe("normalizeName", () => {
   it("trims and collapses runs of whitespace", () => {
@@ -61,5 +61,13 @@ describe("suggestNames", () => {
 
   it("returns fewer than two when the name leaves no room", () => {
     expect(suggestNames("a".repeat(24), new Set())).toEqual([]);
+  });
+});
+
+describe("initialOf", () => {
+  it("takes the first letter, upper-cased, and copes with emoji and blanks", () => {
+    expect(initialOf("  aina")).toBe("A");
+    expect(initialOf("😀 Smile")).toBe("😀");
+    expect(initialOf("   ")).toBe("");
   });
 });

@@ -29,3 +29,6 @@ export function suggestNames(name: string, taken: ReadonlySet<string>): string[]
     .filter((c) => length(c) <= NAME_MAX && !taken.has(c.toLowerCase()))
     .slice(0, 2);
 }
+
+/** First letter of a name, upper-cased, for monograms and avatars. */
+export const initialOf = (name: string) => Array.from(name.trim())[0]?.toUpperCase() ?? "";

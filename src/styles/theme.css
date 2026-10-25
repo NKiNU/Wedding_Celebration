@@ -18,7 +18,19 @@
   --radius-media: 12px;
   --welcome-names-size: 38px; /* couple names on the welcome screen */
   --names-weight: 400; /* script faces are light; the wireframe system font needs bold */
+  --names-size: 46px; /* couple names on the wall header */
+  --mono-size: 30px; /* initials at the top left of the wall */
+  --feed: #e8e7e2; /* wall background */
   --feed-pattern: radial-gradient(rgba(20, 20, 20, 0.2) 1px, transparent 1.35px) 0 0 / 6px 6px; /* halftone */
+  --card-border: none;
+  --card-shadow: 0 1px 2px rgba(20, 20, 20, 0.06), 0 6px 18px rgba(20, 20, 20, 0.08);
+  --stack-shadow: 0 2px 8px rgba(20, 20, 20, 0.18); /* photos stacked in an album card */
+  --wish-bg: var(--ink); /* wish cards */
+  --wish-ink: var(--paper);
+  --wish-border: none;
+  --overlay: rgba(20, 20, 20, 0.75); /* badges and play button over media */
+  --overlay-ink: #ffffff; /* text and icons on --overlay */
+  --toast-shadow: 0 8px 24px rgba(20, 20, 20, 0.25);
 }
 
 /* Client review theme: white, grey lines, system font, no decor. */
@@ -39,7 +51,17 @@
   --radius-media: 4px;
   --welcome-names-size: 26px;
   --names-weight: 700;
+  --names-size: 28px;
+  --mono-size: 18px;
+  --feed: #f3f3f3;
   --feed-pattern: none;
+  --card-border: 1px solid var(--line);
+  --card-shadow: none;
+  --stack-shadow: none;
+  --wish-bg: #ffffff;
+  --wish-ink: var(--ink);
+  --wish-border: 1px dashed #9e9e9e;
+  --toast-shadow: none;
 }
 
 /* `reference` registers the utilities without re-emitting these vars on :root, which would
@@ -54,6 +76,9 @@
   --color-decor: var(--decor);
   --color-sheet: var(--sheet);
   --color-viewer: var(--viewer);
+  --color-feed: var(--feed);
+  --color-overlay: var(--overlay);
+  --color-overlay-ink: var(--overlay-ink);
   --font-sans: var(--font-body);
   --font-script: var(--font-script);
   --font-serif: var(--font-serif);

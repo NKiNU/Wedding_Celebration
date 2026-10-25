@@ -4,35 +4,35 @@
 
 - [x] Phase 0 — Foundation (carry-overs below)
 - [x] Phase 1 — Identity + Welcome
-- [ ] Phase 2 — Wall (read)
+- [x] Phase 2 — Wall (read)
 - [ ] Phase 3 — Create
 - [ ] Phase 4 — View + own content
 - [ ] Phase 5 — QR + Admin
 - [ ] Phase 6 — Hardening + launch
 
-Last session notes (2026-10-25, Phase 1):
+Last session notes (2026-10-25, Phase 2):
 - **Built:**
-  - Domain: `names.ts` (`normalizeName` NFKC + strips invisibles, `nameProblem`, `suggestNames`), `tokens.ts` (`addToken`, max 5). Limits `NAME_MIN/MAX`, `MAX_NAMES_PER_PHONE`.
-  - `lib/api.ts` (shared `ApiResult`, `api()` client with a 15 s timeout), `createGuestBody` / `activateGuestBody` in `validation.ts`.
-  - Server: `http.ts` (`AppError`, `handle(req, run, status)` with the same-origin guard), `db.ts`, `event.ts`, `identity.ts` (`hashToken`, `readTokens`, `createGuest`, `getSession`, `activateGuest`, `clearActive`). Routes `/api/guests` (POST) and `/api/session` (GET, POST, DELETE).
-  - UI: Welcome (static decor shell, names and "Continue as" chips stream in), `WelcomeForm` + `useJoin`, `WelcomeHeader`, `Monogram`, `Floral`, `LaceFrame`. `/wall` is a **placeholder** that shows "Welcome, name"; Phase 2 replaces it.
-  - `tests/e2e/join.spec.ts` replaces the smoke spec (taken name, suggestion, wall, Continue as; iPhone and Pixel profiles).
+  - Domain `posts.ts`: `WallPost`/`WallCounts`/filters, `matchesFilter`, `mergePosts`, `reconcileWall` (folds a fresh page 1 into the list, drops hidden or deleted posts, restarts on a gap), strict keyset cursor encode/decode, `formatDuration`, `relativeTime`, `coverOf`. `initialOf` moved to `names.ts`.
+  - Server `wall.ts` (`getWallPage` keyset over `(created_at, id)` with `PAGE_SIZE + 1` rows, `getWallCounts` via `wall_counts`; selects only `guests(name)`), `GET /api/posts?cursor=` (counts with page 1 only), `WallResponse` in `lib/api.ts`. No new migration: `wall_counts`, RLS, the Realtime publication and the `post_hidden` trigger from 0001 are used as they are.
+  - Client: `useWall` (pages, debounced page-1 refetch on Realtime events, restart after a reconnect or a 30 s absence, epoch and tombstone guards against late pages), `lib/realtime.ts` (one shared anon client; Postgres Changes plus the `post_hidden` broadcast), `Wall`, `WallHeader`, `WishTicker`, `FilterBar`, `PostCard`, `AlbumStack`, `EmptyState`, `Thumb`, `BottomSheet` (native `<dialog>`), `WishViewDrawer` (read only), `Toast`, and `lib/welcome.ts` (sessionStorage flag so the wall greets "Welcome, X!" once). `/wall` is an RSC that renders page 1 and the counts.
+  - Theme tokens: `--feed`, `--card-border`, `--card-shadow`, `--stack-shadow`, `--wish-*`, `--names-size`, `--mono-size`, `--overlay`, `--overlay-ink`, `--toast-shadow` (hi-fi and wireframe values).
+  - `tests/e2e/wall.spec.ts` (counts, filters, sticky pills, wish drawer from card and ticker, album counts).
 - **Decisions:**
-  - `POST /api/session { guestId }` is how "Continue as" works (`wm_active` is httpOnly, so the client cannot set it). Documented in CLAUDE.md.
-  - The server-rendered form is inert (`readOnly` input, disabled buttons) until hydration: React discards text typed before hydrate, and an early Start tap would submit natively. A real WebKit run caught this.
-  - A pasted name over 24 characters is not cut silently; Start explains it. Cookies are `Secure` only when `NODE_ENV=production` so a phone can test over plain http on the LAN.
-  - Names fold with NFKC and lose invisible characters, which also splits emoji ZWJ sequences (deliberate: invisible differences would allow look-alike names).
-  - Wireframe tokens in `theme.css` were corrected to the canvas values (radius 8/4 px, soft `#eee`, muted `#5c5c5c`, line `#b8b8b8`, viewer `#3a3a3a`). New tokens: `--decor`, `--welcome-names-size`, `--names-weight`.
-  - The privacy note adds "We keep only the name you enter." to the canvas copy.
-- **Checks:** lint, typecheck, test (102 tests; 99.5% statements, 97.9% branches) and build are green. Playwright spec passes on both phone profiles. Playwright MCP at 390×844 and 412×915 compared with the canvas screens Welcome, Name taken, Continue as, and the wireframe theme: matches, apart from vertical centring (about 3 px, from the extra privacy sentence) and the canvas chips using the browser font.
-- **Not verified (do first when Docker is back):** the Docker engine returned HTTP 500 all session, so nothing ran against real Supabase. The app and the E2E spec ran against a throwaway fake PostgREST kept outside the repo, so the real unique index, `ilike` and RLS paths are untested in Phase 1. Restart Docker Desktop, then `npx supabase start`, `npx supabase db reset`, put the real local keys in `.env.local` (it currently holds dummies pointing at the fake on port 54399), and run `npx playwright test`. Real iPhone and Android devices are also untested.
-- **Reviews:** code review (Sonnet): approve. Security review (Opus): warn, no CRITICAL or HIGH. Fixed before commit: cross-site form post could overwrite a phone's tokens (same-origin guard), look-alike and blank names (NFKC), `*` wildcard in the suggestion lookup, noisy error log, fetch timeout, `Secure` flag test, focus return after an error.
+  - Filters run client side over the loaded posts; the sentinel keeps loading pages while few match (`ponytail:` ceiling: a rare type on a very large wall loads everything). The empty state shows only when `counts[filter] === 0` or nothing is left to load.
+  - Any Realtime event refetches page 1 (the change payload has no media or author); counts always come from the server, never local arithmetic. A restart shortens the list (guests scroll down again).
+  - Relative times follow the server clock (offset measured at hydration), so a wrong phone clock does not shift "5 min ago".
+  - The ticker button is named by its content (no aria-label). No pause control yet (WCAG 2.2.2); it stops under reduced motion and while the tab is hidden.
+  - The prototype's name chip (chevron), FAB, ActionMenu and empty-state call-to-action buttons are not built: they belong to Phases 3 and 4. The toast says "Welcome, X!" without "Tap + to share." until the FAB exists.
+  - Photo, album and video cards link to `/p/[id]`, which 404s until Phase 4 (prefetch is off).
+- **Checks:** lint, typecheck, test (206 tests; 99.2% statements, 96.9% branches) and build are green. Playwright: join + wall specs pass on iPhone (WebKit) and Pixel (Chromium). Playwright MCP at 390x844 and 412x915 against canvas Hi03-Wall and Wf03-Wall: header, ticker, pills, album stack, video and wish cards, drawer and the wireframe theme match; measured differences were the desktop scrollbar (15 px), the missing FAB and chevron (later phases), and pill/footer sizes (footer leading tightened to 1.1 to match).
+- **Not verified (do first when Docker is back):** as in Phase 1, no real Supabase ran. Everything used a fake PostgREST (outside the repo) that understands the `or()` keyset filter, embeds, `wall_counts` and 50 generated posts. Unverified against real Postgres/PostgREST: the keyset `or(created_at.lt."…",and(created_at.eq."…",id.lt.…))` with microsecond timestamps and posts sharing a `created_at`, the `guests(name)` and `post_media` embeds, `wall_counts` as RPC, anon RLS, and Realtime (the fake has no socket, so the websocket 404s in the console are expected). Add an integration test with more than 24 posts and equal timestamps in `tests/integration/`, and the "admin hides a post, it disappears from a second browser" E2E.
+- **Reviews:** code review (Sonnet): no CRITICAL; two HIGH (hidden post surviving on a deep page after a missed broadcast; oldest post never reconciled on a short wall) and the MEDIUM race between `loadMore` and a restart, the Toast timer restart, and the clock skew are fixed with tests. Left for later: `GET /api/posts` has no session check or rate limit (anon RLS exposes the same data; add in Phase 6). No security review this phase (read-only; scheduled after Phase 3).
 - **Carry-overs:**
-  - Phase 2: replace the `/wall` placeholder. Show the "Welcome, X! Tap + to share." toast from the canvas (needs the Toast from Phase 4, or an early minimal one).
-  - Phase 4: Next keeps the Welcome page mounted but hidden after `router.replace('/wall')` (cacheComponents Activity). "Switch name" must not reuse it with a stale name and stale "Continue as" chips: hard-navigate or key the form, and check it in the browser.
-  - Phase 6: cap or rate-limit guest creation (`MAX_GUESTS_PER_EVENT` plus a Vercel Firewall rule); E2E in CI needs `supabase db reset` (each run leaves a guest) and `next start` over http drops `Secure` cookies; a guest whose 201 response is lost on bad wifi gets "name taken" with no recovery (the spec accepts this).
-  - Still open from Phase 0: R2 bucket, CORS and custom domain (the user does this); per-file `// @vitest-environment node` for server tests that need crypto or fetch; the rate limit counts existing posts, so deleting frees quota.
-- **Housekeeping:** `.claude/`, `.agents/` and `skills-lock.json` (user-installed skills) are still untracked; the user decides. The stale dev server on port 3000 from the previous session was stopped. A throwaway fake PostgREST (port 54399) and a static server for the canvas files (port 8099) may still be running; they live in the session scratchpad, not the repo.
+  - Phase 3: FAB, ActionMenu, empty-state call-to-action, "Tap + to share." in the welcome toast, drawer drag-to-dismiss, wall must show new posts without a reload (Realtime path exists).
+  - Phase 4: `/p/[id]`, the name chip as the Me drawer button (with chevron), "Delete my wish" in `WishViewDrawer`. Next keeps the Welcome page mounted but hidden after `router.replace('/wall')`: "Switch name" must not reuse it with a stale name and stale "Continue as" chips (hard-navigate or key the form).
+  - Phase 6: cap or rate-limit guest creation (`MAX_GUESTS_PER_EVENT` plus a Vercel Firewall rule) and `GET /api/posts`; CI E2E needs `supabase db reset` (each run leaves a guest) and `next start` over http drops `Secure` cookies; a guest whose 201 response is lost on bad wifi gets "name taken"; ticker pause control; real iPhone and Android checks.
+  - Still open from Phase 0 and 1: R2 bucket, CORS and custom domain (the user does this); real-DB checks of Phase 1 (unique index, `ilike`, RLS: restart Docker Desktop, `npx supabase start`, `npx supabase db reset`, real keys in `.env.local`, which currently holds dummies pointing at the fake on port 54399 and the media base URL pointing at the fake's `/media`); per-file `// @vitest-environment node` for server tests that need crypto or fetch; the rate limit counts existing posts, so deleting frees quota.
+- **Housekeeping:** `.claude/`, `.agents/` and `skills-lock.json` (user-installed skills) are still untracked; the user decides. The fake PostgREST (port 54399, `MOCK_EXTRA=40` adds 40 posts) and a static server for the canvas files (port 8099) may still be running; both live in session scratchpads, not the repo.
 
 Blocked on the user: restart Docker Desktop (its engine API returns 500; local Supabase and the real-DB checks above depend on it); Cloudflare R2 bucket, API token and media custom domain (develop against the in-memory R2 stub until then); production Supabase project (needed at launch only).
 

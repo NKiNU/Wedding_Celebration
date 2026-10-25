@@ -1,6 +1,5 @@
 import { Monogram } from "@/components/ui/Monogram";
-
-const initial = (name: string) => Array.from(name.trim())[0]?.toUpperCase() ?? "";
+import { initialOf as initial } from "@/lib/domain/names";
 
 export function WelcomeHeader({ groom, bride }: { groom: string; bride: string }) {
   return (

@@ -1,5 +1,10 @@
+import type { WallCounts, WallPost } from "./domain/posts";
+
 export type KnownGuest = { guestId: string; name: string };
 export type Session = { active: KnownGuest | null; known: KnownGuest[] };
+
+/** GET /api/posts: `counts` is only sent with the first page. */
+export type WallResponse = { posts: WallPost[]; nextCursor: string | null; counts: WallCounts | null };
 
 export type ApiError = { code: string; message: string; details?: Record<string, unknown> };
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: ApiError };

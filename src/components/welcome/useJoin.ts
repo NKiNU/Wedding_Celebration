@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore, useTransition, type FormEvent } from "react";
 import { api, type ApiResult, type KnownGuest } from "@/lib/api";
 import { nameProblem, normalizeName } from "@/lib/domain/names";
+import { flagWelcome } from "@/lib/welcome";
 
 const WALL = "/wall";
 
@@ -36,6 +37,7 @@ export function useJoin(known: readonly KnownGuest[]) {
     setRequesting(true);
     const result = await request;
     if (result.ok) {
+      flagWelcome();
       // Stay disabled until the wall has rendered; replace so Back does not return to the form.
       startNavigation(() => router.replace(WALL));
     } else {
