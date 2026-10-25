@@ -180,17 +180,17 @@ R2 client: `aws4fetch` (tiny, fetch-based) for presigning, HEAD and DeleteObject
 
 ### Subagents
 
-Only these agent types exist: `Explore`, `Plan`, `general-purpose`, `fork`, and the project's `db-model-reviewer`. The global rules name `code-reviewer`, `security-reviewer`, `tdd-guide` and `e2e-runner`, but there is no `~/.claude/agents/` folder. Those roles therefore run as `general-purpose` agents with a role prompt. `db-model-reviewer` is built for Mongoose, so it is not used here.
+Built-in agent types: `Explore`, `Plan`, `general-purpose`, `fork`. Project agents live in `.claude/agents/`: `code-reviewer`, `security-reviewer`, `tdd-guide` and `e2e-runner`. Each one sets its model in its frontmatter, and the Agent call still passes `model` explicitly (see Model policy). Project skills live in `.claude/skills/` (`mobile-native`, `mobile-app-ui-design`, the animation skills, `apple-design`, `emil-design-eng`, `prototype`, `pick-ui-library`).
 
 | Role | Agent type | Model | When | Runs |
 |---|---|---|---|---|
 | Codebase lookup | `Explore` | `sonnet` | Before changing an area that is new to the session ("where is X used", "is there already a helper for Y") | Foreground, read-only |
 | Phase planning | `Plan` | `opus` | Start of Phases 2 to 5: break the phase into tasks against the real code | Foreground, read-only |
 | Parallel builders | `general-purpose` with `isolation: "worktree"` | `sonnet` | Tasks in a phase that do not share files, for example each of the three drawers in Phase 3, or the admin pages alongside the QR drawer in Phase 5. Each builder follows the per-screen loop and ponytail, and returns a diff summary | Background, in parallel (max 3) |
-| Test writer (TDD) | `general-purpose`, role prompt "tdd-guide" | `sonnet` | Writes failing tests from the spec before the builder implements, for domain rules, route handlers and components | Foreground, before the build |
-| Code review | `general-purpose`, role prompt "code-reviewer" | `sonnet` | After each phase's code is in, before commit: correctness, the layering rules, the ponytail checklist, coverage gaps | Background, run alongside the security review |
-| Security review | `general-purpose`, role prompt "security-reviewer" | `opus` | After Phases 1, 3, 4 and 5 (identity, uploads, delete, admin), and the full Phase 6 audit: token handling, cookies, RLS, presign scope, secrets in the bundle | Background, run alongside the code review |
-| E2E runner | `general-purpose` with Playwright MCP | `sonnet` | End of each phase: walks the flows at phone viewports against the dev server, compares them with canvas screenshots, and reports failures with screenshots | Background, while I fix review findings |
+| Test writer (TDD) | `tdd-guide` | `sonnet` | Writes failing tests from the spec before the builder implements, for domain rules, route handlers and components | Foreground, before the build |
+| Code review | `code-reviewer` | `sonnet` | After each phase's code is in, before commit: correctness, the layering rules, the ponytail checklist, coverage gaps | Background, run alongside the security review |
+| Security review | `security-reviewer` | `opus` | After Phases 1, 3, 4 and 5 (identity, uploads, delete, admin), and the full Phase 6 audit: token handling, cookies, RLS, presign scope, secrets in the bundle | Background, run alongside the code review |
+| E2E runner | `e2e-runner` (Playwright MCP) | `sonnet` | End of each phase: walks the flows at phone viewports against the dev server, compares them with canvas screenshots, and reports failures with screenshots | Background, while I fix review findings |
 
 ### Model policy
 
@@ -212,7 +212,6 @@ Rules:
 - I own collection. I wait for every agent, merge the worktrees, resolve conflicts and run the full checks before committing. No agent is fire-and-forget.
 - Agents get the plan path, the CLAUDE.md rules and the exact files in scope. Builders never touch `theme.css`, migrations or `src/lib/domain/` at the same time; one owner per shared file.
 - Small or sequential tasks (Phase 0 scaffold, the Phase 1 identity core) are done inline without agents, because spawning would cost more than it saves.
-- Optional: I can create real agent files (`code-reviewer.md`, `security-reviewer.md`, `tdd-guide.md`, `e2e-runner.md`) in `.claude/agents/` so the role prompts are fixed and reusable.
 
 Per-screen loop: frontend-design spec, then mobile-native checklist, then ponytail TDD implementation, then Playwright MCP check against the canvas screenshot, then commit.
 
