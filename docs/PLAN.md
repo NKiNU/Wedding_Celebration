@@ -3,42 +3,38 @@
 ## Progress (update at the end of every session)
 
 - [x] Phase 0 — Foundation (carry-overs below)
-- [ ] Phase 1 — Identity + Welcome
+- [x] Phase 1 — Identity + Welcome
 - [ ] Phase 2 — Wall (read)
 - [ ] Phase 3 — Create
 - [ ] Phase 4 — View + own content
 - [ ] Phase 5 — QR + Admin
 - [ ] Phase 6 — Hardening + launch
 
-Last session notes (2026-10-25, Phase 0):
+Last session notes (2026-10-25, Phase 1):
 - **Built:**
-  - Next 16 + Tailwind v4 scaffold. The folder `Wedding` has capitals, so it was scaffolded in a temp dir and copied in; the package is `wedding-memories` and Node must be >= 22.12.
-  - Vitest: the 80% gate is part of `npm test`, RTL cleanup is in `tests/setup.ts`, and shared env fixtures are in `tests/fixtures/`.
-  - Playwright with iPhone 14 and Pixel 7 projects; the smoke spec passes on both.
-  - `theme.css`: default and wireframe tokens, `@theme inline reference` (avoids the self-referencing vars), and the mobile baseline in `@layer base`. Page overscroll is left on so guests can pull to refresh.
-  - Fonts and viewport in `layout.tsx`.
-  - Env validation in `validation.ts` and `server/env.ts`. `ADMIN_PASSCODE` must be at least 8 characters.
-  - `domain/limits.ts`.
-  - ESLint token rule covering strings and template literals in `src/components` and `src/app` (except `layout.tsx`).
-  - CI workflow, `supabase init`, ADRs 001–003, CLAUDE.md updates.
-- **DB:**
-  - `0001_init.sql` and `seed.sql` were written by an Opus subagent and reviewed on Opus.
-  - The default grants for future objects are revoked to anon, so each new table or function must grant explicitly.
-  - Verified on PGlite with a Supabase role stub covering RLS, grants, checks, the intent function, the hide broadcast and the query plans. Not yet verified on real Supabase.
-- **Checks:** lint, typecheck, test (100% of 3 files) and build are all green.
-- **Carry-overs (do at the start of Phase 1):**
-  1. Restart Docker Desktop; it hung when the disk filled. Then run `npx supabase start`, `npx supabase db reset`, repeat the anon checks with psql, run `npx supabase gen types typescript --local > src/lib/database.types.ts`, then `npx supabase stop`.
-  2. R2 bucket, CORS and custom domain (the user does this).
-- **Deferred review items:**
-  - Per-file `// @vitest-environment node` for server tests that touch crypto or fetch.
-  - E2E is not in CI yet; it is added when there are flows.
-  - The rate limit counts posts that exist, so deleting frees quota. Move the check to intent issuance if that is abused.
-- **Housekeeping:**
-  - C: ran out of space. The npm cache was cleared with the user's OK.
-  - `.claude/`, `.agents/` and `skills-lock.json` (user-installed skills) are left untracked; the user decides whether to commit them.
-  - A stray `C:\Users\acer\package-lock.json` exists. `turbopack.root` is pinned, so it is harmless.
+  - Domain: `names.ts` (`normalizeName` NFKC + strips invisibles, `nameProblem`, `suggestNames`), `tokens.ts` (`addToken`, max 5). Limits `NAME_MIN/MAX`, `MAX_NAMES_PER_PHONE`.
+  - `lib/api.ts` (shared `ApiResult`, `api()` client with a 15 s timeout), `createGuestBody` / `activateGuestBody` in `validation.ts`.
+  - Server: `http.ts` (`AppError`, `handle(req, run, status)` with the same-origin guard), `db.ts`, `event.ts`, `identity.ts` (`hashToken`, `readTokens`, `createGuest`, `getSession`, `activateGuest`, `clearActive`). Routes `/api/guests` (POST) and `/api/session` (GET, POST, DELETE).
+  - UI: Welcome (static decor shell, names and "Continue as" chips stream in), `WelcomeForm` + `useJoin`, `WelcomeHeader`, `Monogram`, `Floral`, `LaceFrame`. `/wall` is a **placeholder** that shows "Welcome, name"; Phase 2 replaces it.
+  - `tests/e2e/join.spec.ts` replaces the smoke spec (taken name, suggestion, wall, Continue as; iPhone and Pixel profiles).
+- **Decisions:**
+  - `POST /api/session { guestId }` is how "Continue as" works (`wm_active` is httpOnly, so the client cannot set it). Documented in CLAUDE.md.
+  - The server-rendered form is inert (`readOnly` input, disabled buttons) until hydration: React discards text typed before hydrate, and an early Start tap would submit natively. A real WebKit run caught this.
+  - A pasted name over 24 characters is not cut silently; Start explains it. Cookies are `Secure` only when `NODE_ENV=production` so a phone can test over plain http on the LAN.
+  - Names fold with NFKC and lose invisible characters, which also splits emoji ZWJ sequences (deliberate: invisible differences would allow look-alike names).
+  - Wireframe tokens in `theme.css` were corrected to the canvas values (radius 8/4 px, soft `#eee`, muted `#5c5c5c`, line `#b8b8b8`, viewer `#3a3a3a`). New tokens: `--decor`, `--welcome-names-size`, `--names-weight`.
+  - The privacy note adds "We keep only the name you enter." to the canvas copy.
+- **Checks:** lint, typecheck, test (102 tests; 99.5% statements, 97.9% branches) and build are green. Playwright spec passes on both phone profiles. Playwright MCP at 390×844 and 412×915 compared with the canvas screens Welcome, Name taken, Continue as, and the wireframe theme: matches, apart from vertical centring (about 3 px, from the extra privacy sentence) and the canvas chips using the browser font.
+- **Not verified (do first when Docker is back):** the Docker engine returned HTTP 500 all session, so nothing ran against real Supabase. The app and the E2E spec ran against a throwaway fake PostgREST kept outside the repo, so the real unique index, `ilike` and RLS paths are untested in Phase 1. Restart Docker Desktop, then `npx supabase start`, `npx supabase db reset`, put the real local keys in `.env.local` (it currently holds dummies pointing at the fake on port 54399), and run `npx playwright test`. Real iPhone and Android devices are also untested.
+- **Reviews:** code review (Sonnet): approve. Security review (Opus): warn, no CRITICAL or HIGH. Fixed before commit: cross-site form post could overwrite a phone's tokens (same-origin guard), look-alike and blank names (NFKC), `*` wildcard in the suggestion lookup, noisy error log, fetch timeout, `Secure` flag test, focus return after an error.
+- **Carry-overs:**
+  - Phase 2: replace the `/wall` placeholder. Show the "Welcome, X! Tap + to share." toast from the canvas (needs the Toast from Phase 4, or an early minimal one).
+  - Phase 4: Next keeps the Welcome page mounted but hidden after `router.replace('/wall')` (cacheComponents Activity). "Switch name" must not reuse it with a stale name and stale "Continue as" chips: hard-navigate or key the form, and check it in the browser.
+  - Phase 6: cap or rate-limit guest creation (`MAX_GUESTS_PER_EVENT` plus a Vercel Firewall rule); E2E in CI needs `supabase db reset` (each run leaves a guest) and `next start` over http drops `Secure` cookies; a guest whose 201 response is lost on bad wifi gets "name taken" with no recovery (the spec accepts this).
+  - Still open from Phase 0: R2 bucket, CORS and custom domain (the user does this); per-file `// @vitest-environment node` for server tests that need crypto or fetch; the rate limit counts existing posts, so deleting frees quota.
+- **Housekeeping:** `.claude/`, `.agents/` and `skills-lock.json` (user-installed skills) are still untracked; the user decides. The stale dev server on port 3000 from the previous session was stopped. A throwaway fake PostgREST (port 54399) and a static server for the canvas files (port 8099) may still be running; they live in the session scratchpad, not the repo.
 
-Blocked on the user: Docker Desktop running (local Supabase); Cloudflare R2 bucket, API token and media custom domain (develop against the in-memory R2 stub until then); production Supabase project (needed at launch only).
+Blocked on the user: restart Docker Desktop (its engine API returns 500; local Supabase and the real-DB checks above depend on it); Cloudflare R2 bucket, API token and media custom domain (develop against the in-memory R2 stub until then); production Supabase project (needed at launch only).
 
 Session rules:
 1. Read this file and `CLAUDE.md` first.

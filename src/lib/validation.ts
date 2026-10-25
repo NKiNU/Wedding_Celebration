@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { nameProblem, normalizeName } from "./domain/names";
 
 const envSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.url(),
@@ -24,3 +25,15 @@ export function parseEnv(source: Record<string, string | undefined>): Env {
   const names = result.error.issues.map((i) => i.path.join(".")).join(", ");
   throw new Error(`Invalid environment: ${names}`);
 }
+
+const nameSchema = z
+  .string()
+  .transform(normalizeName)
+  .superRefine((name, ctx) => {
+    const problem = nameProblem(name);
+    if (problem) ctx.addIssue({ code: "custom", message: problem });
+  });
+
+export const createGuestBody = z.object({ name: nameSchema });
+
+export const activateGuestBody = z.object({ guestId: z.uuid() });

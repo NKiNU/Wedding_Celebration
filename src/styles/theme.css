@@ -8,6 +8,7 @@
   --soft: #c9d3dc; /* inputs, secondary buttons, "You" badge */
   --muted: #62625e; /* secondary text (4.5:1 on paper) */
   --line: #dcdad3; /* borders, dividers */
+  --decor: #b5b3ac; /* floral line art */
   --sheet: #fbfaf7; /* drawers, dialogs */
   --viewer: #0e0e0e; /* full-screen viewer */
   --font-body: var(--font-poppins), system-ui, sans-serif;
@@ -15,6 +16,8 @@
   --font-serif: var(--font-cormorant), Georgia, serif; /* wish text, italic */
   --radius-card: 18px;
   --radius-media: 12px;
+  --welcome-names-size: 38px; /* couple names on the welcome screen */
+  --names-weight: 400; /* script faces are light; the wireframe system font needs bold */
   --feed-pattern: radial-gradient(rgba(20, 20, 20, 0.2) 1px, transparent 1.35px) 0 0 / 6px 6px; /* halftone */
 }
 
@@ -23,16 +26,19 @@
   --ink: #222222;
   --paper: #ffffff;
   --card: #ffffff;
-  --soft: #e6e6e6;
-  --muted: #666666;
-  --line: #bdbdbd;
+  --soft: #eeeeee;
+  --muted: #5c5c5c;
+  --line: #b8b8b8;
+  --decor: #b8b8b8;
   --sheet: #ffffff;
-  --viewer: #111111;
+  --viewer: #3a3a3a;
   --font-body: system-ui, sans-serif;
   --font-script: system-ui, sans-serif;
   --font-serif: system-ui, sans-serif;
-  --radius-card: 4px;
-  --radius-media: 2px;
+  --radius-card: 8px;
+  --radius-media: 4px;
+  --welcome-names-size: 26px;
+  --names-weight: 700;
   --feed-pattern: none;
 }
 
@@ -45,6 +51,7 @@
   --color-soft: var(--soft);
   --color-muted: var(--muted);
   --color-line: var(--line);
+  --color-decor: var(--decor);
   --color-sheet: var(--sheet);
   --color-viewer: var(--viewer);
   --font-sans: var(--font-body);
@@ -58,6 +65,14 @@
 [data-decor="off"] .decor,
 [data-theme="wireframe"] .decor {
   display: none;
+}
+
+/* Stand-ins (logo box, ...) that only the wireframe theme draws. */
+.wireframe-only {
+  display: none;
+}
+[data-theme="wireframe"] .wireframe-only {
+  display: flex;
 }
 
 /* Mobile baseline (mobile-native): feel installed, not embedded. In `base` so utilities can
@@ -75,6 +90,14 @@
     background: var(--paper);
     color: var(--ink);
     font-family: var(--font-body);
+    font-size: 14px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
   }
 
   /* 16px minimum stops iOS zooming into a focused field. */

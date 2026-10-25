@@ -65,7 +65,7 @@ src/
     admin/                   # Admin settings + moderation (passcode)
     api/
       guests/route.ts        # POST create guest (name) -> sets device cookie
-      session/route.ts       # GET who am I / DELETE switch name
+      session/route.ts       # GET who am I / POST {guestId} continue as a name on this phone / DELETE switch name
       posts/route.ts         # POST create post, GET paginated wall
       posts/[id]/route.ts    # DELETE own post
       uploads/route.ts       # POST -> signed upload URLs
@@ -73,7 +73,9 @@ src/
     wall/                    # Header, WishTicker, FilterBar, PostCard, AlbumStack, Fab, ActionMenu
     drawers/                 # BottomSheet + PhotoDrawer, VideoDrawer, WishDrawer, QrDrawer, WishViewDrawer, MeDrawer
     viewer/                  # PhotoViewer, AlbumGallery, VideoPlayer
-    ui/                      # Button, Input, Toast, ConfirmDialog
+    ui/                      # Button, Input, Toast, ConfirmDialog, Monogram
+    welcome/                 # WelcomeHeader, WelcomeForm + useJoin hook
+    decor/                   # Floral, LaceFrame (hidden by the decor flag / wireframe theme)
   lib/
     domain/                  # pure rules, no I/O: names, post type, limits.ts, rate-limit math, relative time
     media.ts                 # client-side resize, video duration + poster frame
@@ -100,6 +102,8 @@ supabase/
   - `wm_tokens`: the raw tokens of every name created on this phone (max 5).
   - `wm_active`: which of those is the current identity.
 - `GET /api/session` returns `{ active, known: [{ guestId, name }] }` so the welcome screen can show "Continue as Ali" chips. No localStorage needed.
+- `POST /api/session { guestId }` makes one of this phone's guests active ("Continue as"). The server accepts it only if `wm_tokens` holds that guest's token. Typing a name this phone already owns takes the same path; any other taken name is a `409`.
+- Every non-GET route handler goes through `handle(req, ...)`, which rejects cross-site requests (`Sec-Fetch-Site` / `Origin`) with `403`. Route handlers get no CSRF protection from Next.
 - **Ownership is by token, never by name.** Delete is allowed only when the active token's hash matches the post's guest.
 - "Switch name" only clears `wm_active`; the guest, their posts and their token stay, so "Continue as Ali" still works on this phone. Another phone typing "Ali" gets the "name taken" path.
 - iOS Safari can clear site data after 7 days of no use (ITP). That is acceptable for a one-day event; do not build account recovery.
