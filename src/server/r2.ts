@@ -12,8 +12,11 @@ export type R2 = {
   deleteMany(keys: readonly string[]): Promise<void>;
 };
 
-const objectUrl = (key: string) =>
-  `https://${env().R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${env().R2_BUCKET}/${key}`;
+const objectUrl = (key: string) => {
+  const { R2_ENDPOINT, R2_ACCOUNT_ID, R2_BUCKET } = env();
+  const base = R2_ENDPOINT?.replace(/\/$/, "") ?? `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+  return `${base}/${R2_BUCKET}/${key}`;
+};
 
 const RETRIES = 1; // aws4fetch retries 5xx up to 10 times by default; a request must not hang that long
 
@@ -21,7 +24,7 @@ const credentials = () => ({
   accessKeyId: env().R2_ACCESS_KEY_ID,
   secretAccessKey: env().R2_SECRET_ACCESS_KEY,
   service: "s3",
-  region: "auto",
+  region: env().R2_REGION,
 });
 
 async function presignPut(key: string, mime: string, bytes: number) {

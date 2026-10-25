@@ -82,6 +82,12 @@ export function useWall(initial: Initial, subscribe: SubscribeToWall = subscribe
     [refresh],
   );
 
+  /** Fetch page 1 now: the guest's own new post must not wait for Realtime or the debounce. */
+  const refreshNow = useCallback(() => {
+    clearTimeout(refreshTimer.current);
+    return refresh(false);
+  }, [refresh]);
+
   useEffect(() => {
     let connectedBefore = false;
     const stop = subscribe(initial.eventId, {
@@ -114,5 +120,5 @@ export function useWall(initial: Initial, subscribe: SubscribeToWall = subscribe
     };
   }, [initial.eventId, subscribe, scheduleRefresh]);
 
-  return { posts, counts, nextCursor, loading, loadError, loadMore };
+  return { posts, counts, nextCursor, loading, loadError, loadMore, refresh: refreshNow };
 }

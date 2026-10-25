@@ -14,6 +14,7 @@ type Props = {
 
 const ICON = { width: 22, height: 22, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round" } as const;
 
+// Photos comes first so it is the focus target and sits nearest the thumb: the list is laid out bottom-up.
 const ITEMS: { kind: ShareKind; label: string; sub: string; icon: React.ReactNode }[] = [
   {
     kind: "photos",
@@ -80,7 +81,7 @@ export function ActionMenu({ open, onPick, onClose, returnFocus }: Props) {
         id="share-menu"
         aria-label="Share something"
         inert={!open}
-        className={`fixed right-[max(1.25rem,env(safe-area-inset-right))] bottom-[calc(max(1.75rem,env(safe-area-inset-bottom))+4.625rem)] z-25 m-0 flex list-none flex-col items-end gap-3 p-0 transition-[opacity,transform] duration-200 ${
+        className={`fixed right-[max(1.25rem,env(safe-area-inset-right))] bottom-[calc(max(1.75rem,env(safe-area-inset-bottom))+4.625rem)] z-25 m-0 flex list-none flex-col-reverse items-end gap-3 p-0 transition-[opacity,transform] duration-200 ${
           open ? "translate-y-0 opacity-100" : "translate-y-2.5 opacity-0"
         }`}
       >

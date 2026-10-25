@@ -19,6 +19,19 @@ describe("presignPut", () => {
     expect(url.searchParams.get("X-Amz-Signature")).toMatch(/^[0-9a-f]{64}$/);
   });
 
+  it("uses the dev endpoint and region when set, path-style", async () => {
+    vi.resetModules(); // env() caches its first parse
+    vi.stubEnv("R2_ENDPOINT", "http://127.0.0.1:54321/storage/v1/s3/");
+    vi.stubEnv("R2_REGION", "local");
+    const fresh = await import("./r2");
+    const url = new URL(await fresh.r2().presignPut("k.jpg", "image/jpeg", 1));
+    vi.stubEnv("R2_ENDPOINT", "");
+    vi.stubEnv("R2_REGION", "");
+
+    expect(url.origin + url.pathname).toBe("http://127.0.0.1:54321/storage/v1/s3/wedding/k.jpg");
+    expect(url.searchParams.get("X-Amz-Credential")).toMatch(/\/local\/s3\/aws4_request$/);
+  });
+
   it("gives a different signature when the declared size changes", async () => {
     const sig = async (bytes: number) =>
       new URL(await r2().presignPut("k", "image/jpeg", bytes)).searchParams.get("X-Amz-Signature");

@@ -1,15 +1,29 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { image, wallPost, wishPost } from "../../../tests/fixtures/posts";
 
 const mocks = vi.hoisted(() => ({
   useWall: vi.fn(),
+  refresh: vi.fn(),
   consumeWelcome: vi.fn(),
   observe: vi.fn(),
   disconnect: vi.fn(),
   trigger: null as null | ((visible: boolean) => void),
 }));
 vi.mock("./useWall", () => ({ useWall: mocks.useWall }));
+// The drawers have their own tests: here they only show that Wall opened them and report a post.
+vi.mock("@/components/drawers/PhotoDrawer", () => ({
+  PhotoDrawer: (p: { open: boolean; onPosted: (t: string) => void }) =>
+    p.open && <button onClick={() => p.onPosted("album")}>photo drawer</button>,
+}));
+vi.mock("@/components/drawers/VideoDrawer", () => ({
+  VideoDrawer: (p: { open: boolean; onPosted: (t: string) => void }) =>
+    p.open && <button onClick={() => p.onPosted("video")}>video drawer</button>,
+}));
+vi.mock("@/components/drawers/WishDrawer", () => ({
+  WishDrawer: (p: { open: boolean; me: string; onPosted: () => void }) =>
+    p.open && <button onClick={p.onPosted}>wish drawer for {p.me}</button>,
+}));
 vi.mock("@/lib/welcome", () => ({ consumeWelcome: mocks.consumeWelcome }));
 
 import { Wall } from "./Wall";
@@ -27,8 +41,12 @@ const wallState = (over = {}) => ({
   loading: false,
   loadError: null,
   loadMore: vi.fn(),
+  refresh: mocks.refresh,
   ...over,
 });
+
+/** The post cards only: the share menu is a list too. */
+const cards = () => within(screen.getByRole("main")).getAllByRole("listitem");
 
 const show = () =>
   render(
@@ -45,6 +63,7 @@ const show = () =>
 
 beforeEach(() => {
   vi.useFakeTimers();
+  vi.stubGlobal("scrollTo", vi.fn());
   mocks.useWall.mockReturnValue(wallState());
   mocks.consumeWelcome.mockReturnValue(false);
   vi.stubGlobal(
@@ -67,7 +86,7 @@ afterEach(() => {
 describe("Wall", () => {
   it("lists every post, marks own posts, and counts memories in the header", () => {
     show();
-    expect(screen.getAllByRole("listitem")).toHaveLength(3);
+    expect(cards()).toHaveLength(3);
     expect(screen.getByText("You")).toBeInTheDocument();
     expect(screen.getByText(/3 memories shared/)).toBeInTheDocument();
   });
@@ -75,7 +94,7 @@ describe("Wall", () => {
   it("filters by type with the pills", () => {
     show();
     fireEvent.click(screen.getByRole("button", { name: "Videos 1" }));
-    expect(screen.getAllByRole("listitem")).toHaveLength(1);
+    expect(cards()).toHaveLength(1);
     expect(screen.getByRole("link", { name: "Video by Iman" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Photos 1" }));
     expect(screen.getByRole("link", { name: "Album by Nazrul, 3 photos" })).toBeInTheDocument();
@@ -132,9 +151,9 @@ describe("Wall", () => {
     mocks.consumeWelcome.mockReturnValue(true);
     show();
     act(() => void vi.advanceTimersByTime(1));
-    expect(screen.getByText("Welcome, Aina!")).toBeInTheDocument();
+    expect(screen.getByText("Welcome, Aina! Tap + to share.")).toBeInTheDocument();
     act(() => void vi.advanceTimersByTime(2600));
-    expect(screen.queryByText("Welcome, Aina!")).not.toBeInTheDocument();
+    expect(screen.queryByText("Welcome, Aina! Tap + to share.")).not.toBeInTheDocument();
   });
 
   it("advances relative times by the server's clock, whatever the phone's clock says", () => {
@@ -144,5 +163,74 @@ describe("Wall", () => {
     act(() => void vi.advanceTimersByTime(60_000));
     expect(screen.getAllByText("6 min ago").length).toBeGreaterThan(0);
     expect(screen.queryByText("5 min ago")).not.toBeInTheDocument();
+  });
+
+  describe("sharing", () => {
+    const openMenu = () => fireEvent.click(screen.getByRole("button", { name: "Share a memory" }));
+
+    it("opens the menu from the + button and the drawer for the picked kind", () => {
+      show();
+      openMenu();
+      expect(screen.getByRole("button", { name: "Close share menu" })).toHaveAttribute("aria-expanded", "true");
+      fireEvent.click(screen.getByRole("button", { name: /Write to the couple/ }));
+      expect(screen.getByRole("button", { name: "wish drawer for Aina" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Share a memory" })).toBeInTheDocument();
+    });
+
+    it.each([
+      [/1 photo or an album/, "photo drawer"],
+      [/Up to 60 seconds/, "video drawer"],
+    ])("opens the drawer for %s", (item, drawer) => {
+      show();
+      openMenu();
+      fireEvent.click(screen.getByRole("button", { name: item }));
+      expect(screen.getByRole("button", { name: drawer })).toBeInTheDocument();
+    });
+
+    it("closes the menu on a second tap of the button", () => {
+      show();
+      openMenu();
+      fireEvent.click(screen.getByRole("button", { name: "Close share menu" }));
+      expect(screen.getByRole("button", { name: "Share a memory" })).toHaveAttribute("aria-expanded", "false");
+    });
+
+    it("after a post: closes the drawer, thanks the guest, scrolls up and fetches the wall now", () => {
+      show();
+      openMenu();
+      fireEvent.click(screen.getByRole("button", { name: /1 photo or an album/ }));
+      fireEvent.click(screen.getByRole("button", { name: "photo drawer" }));
+      expect(screen.queryByRole("button", { name: "photo drawer" })).not.toBeInTheDocument();
+      expect(screen.getByText("Shared! Your photos are on the wall as an album.")).toBeInTheDocument();
+      expect(window.scrollTo).toHaveBeenCalledWith({ top: 0 });
+      expect(mocks.refresh).toHaveBeenCalledOnce();
+    });
+
+    it("shows a post that the current filter would hide by switching back to All", () => {
+      show();
+      fireEvent.click(screen.getByRole("button", { name: "Videos 1" }));
+      expect(cards()).toHaveLength(1);
+      openMenu();
+      fireEvent.click(screen.getByRole("button", { name: /Write to the couple/ }));
+      fireEvent.click(screen.getByRole("button", { name: /wish drawer/ }));
+      expect(cards()).toHaveLength(3);
+      expect(screen.getByText("Your wish has been sent to the couple.")).toBeInTheDocument();
+    });
+
+    it("keeps the filter when the new post matches it", () => {
+      show();
+      fireEvent.click(screen.getByRole("button", { name: "Videos 1" }));
+      openMenu();
+      fireEvent.click(screen.getByRole("button", { name: /Up to 60 seconds/ }));
+      fireEvent.click(screen.getByRole("button", { name: "video drawer" }));
+      expect(cards()).toHaveLength(1);
+    });
+
+    it("lets the empty state start sharing", () => {
+      mocks.useWall.mockReturnValue(wallState({ posts: [album], counts: { ...counts, wishes: 0 } }));
+      show();
+      fireEvent.click(screen.getByRole("button", { name: "Wishes 0" }));
+      fireEvent.click(screen.getByRole("button", { name: "Write a wish" }));
+      expect(screen.getByRole("button", { name: "wish drawer for Aina" })).toBeInTheDocument();
+    });
   });
 });

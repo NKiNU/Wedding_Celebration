@@ -39,6 +39,30 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
+describe("refresh", () => {
+  it("fetches page 1 right away, without the debounce, and shows the new post and counts", async () => {
+    mocks.api.mockResolvedValue(ok({ posts: [at(3), at(2)], nextCursor: null, counts: counts(2) }));
+    const { result } = setup([at(2)]);
+
+    await act(() => result.current.refresh());
+
+    expect(mocks.api).toHaveBeenCalledWith("/api/posts", "GET");
+    expect(result.current.posts.map((p) => p.id)).toEqual([at(3).id, at(2).id]);
+    expect(result.current.counts.all).toBe(2);
+  });
+
+  it("replaces a pending debounced refresh instead of fetching twice", async () => {
+    mocks.api.mockResolvedValue(ok({ posts: [at(2)], nextCursor: null, counts: counts(1) }));
+    const { result } = setup([at(2)]);
+    act(() => events.onChange());
+
+    await act(() => result.current.refresh());
+    await act(() => vi.advanceTimersByTimeAsync(1000));
+
+    expect(mocks.api).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("loadMore", () => {
   it("appends the next page using the cursor and takes the new cursor", async () => {
     mocks.api.mockResolvedValue(ok({ posts: [at(1)], nextCursor: null, counts: null }));

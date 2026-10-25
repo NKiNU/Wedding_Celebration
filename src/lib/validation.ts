@@ -20,6 +20,8 @@ const envSchema = z.object({
   R2_ACCESS_KEY_ID: z.string().min(1),
   R2_SECRET_ACCESS_KEY: z.string().min(1),
   R2_BUCKET: z.string().min(1),
+  R2_ENDPOINT: z.url().optional(), // dev only: any S3-compatible endpoint (local Supabase Storage)
+  R2_REGION: z.string().min(1).default("auto"),
   NEXT_PUBLIC_MEDIA_BASE_URL: z.url(),
   EVENT_SLUG: z.string().min(1),
   CRON_SECRET: z.string().min(16),

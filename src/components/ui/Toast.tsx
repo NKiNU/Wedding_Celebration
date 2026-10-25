@@ -23,7 +23,7 @@ export function Toast({ message, onDone }: Props) {
     <div
       role="status"
       aria-live="polite"
-      className="pointer-events-none fixed inset-x-5 bottom-[max(2.25rem,env(safe-area-inset-bottom))] z-50 flex justify-center"
+      className="pointer-events-none fixed inset-x-5 bottom-[calc(max(1.75rem,env(safe-area-inset-bottom))+4.5rem)] z-50 flex justify-center"
     >
       {message && <p className="toast rounded-2xl bg-ink px-4 py-3 text-[13px] font-medium text-paper [box-shadow:var(--toast-shadow)]">{message}</p>}
     </div>
