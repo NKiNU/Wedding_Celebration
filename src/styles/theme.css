@@ -31,6 +31,9 @@
   --overlay: rgba(20, 20, 20, 0.75); /* badges and play button over media */
   --overlay-ink: #ffffff; /* text and icons on --overlay */
   --toast-shadow: 0 8px 24px rgba(20, 20, 20, 0.25);
+  --fab-shadow: 0 8px 24px rgba(20, 20, 20, 0.28); /* the + button */
+  --dial-shadow: 0 4px 14px rgba(20, 20, 20, 0.18); /* share-menu pills and icons */
+  --dial-border: none;
 }
 
 /* Client review theme: white, grey lines, system font, no decor. */
@@ -62,6 +65,9 @@
   --wish-ink: var(--ink);
   --wish-border: 1px dashed #9e9e9e;
   --toast-shadow: none;
+  --fab-shadow: none;
+  --dial-shadow: none;
+  --dial-border: 1px solid var(--line);
 }
 
 /* `reference` registers the utilities without re-emitting these vars on :root, which would
