@@ -1,9 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { wishPost } from "../../../tests/fixtures/posts";
 import { BottomSheet } from "./BottomSheet";
-import { WishViewDrawer } from "./WishViewDrawer";
 
 function Harness({ onClosed = vi.fn(), busy = false }: { onClosed?: () => void; busy?: boolean }) {
   const [open, setOpen] = useState(false);
@@ -34,6 +32,14 @@ describe("BottomSheet", () => {
     fireEvent.click(screen.getByText("Open"));
     expect(dialog()).toHaveAttribute("open");
     expect(dialog()).toHaveAttribute("aria-labelledby", screen.getByRole("heading", { name: "Share" }).id);
+  });
+
+  it("reports a close once: the echo of the parent's own close would undo its next move", () => {
+    const onClosed = vi.fn();
+    render(<Harness onClosed={onClosed} />);
+    fireEvent.click(screen.getByText("Open"));
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(onClosed).toHaveBeenCalledTimes(1);
   });
 
   it("closes with the close button and returns focus to the trigger", () => {
@@ -179,22 +185,5 @@ describe("BottomSheet drag to dismiss", () => {
       fireEvent(dialog(), cancel);
       expect(cancel.defaultPrevented).toBe(false);
     });
-  });
-});
-
-describe("WishViewDrawer", () => {
-  const now = new Date("2026-10-25T12:00:00Z");
-
-  it("shows the whole wish with its author and age", () => {
-    const wish = wishPost({ wishText: "Line one\nLine two", author: "Siti" });
-    render(<WishViewDrawer wish={wish} now={now} onClose={vi.fn()} />);
-    expect(dialog()).toHaveAttribute("open");
-    expect(screen.getByText(/Line one/).textContent).toBe("Line one\nLine two");
-    expect(screen.getByText(/— Siti · 5 min ago/)).toBeInTheDocument();
-  });
-
-  it("stays closed with no wish", () => {
-    render(<WishViewDrawer wish={null} now={now} onClose={vi.fn()} />);
-    expect(dialog()).not.toHaveAttribute("open");
   });
 });

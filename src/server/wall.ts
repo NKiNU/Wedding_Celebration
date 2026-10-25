@@ -1,5 +1,5 @@
 import "server-only";
-import { PAGE_SIZE } from "@/lib/domain/limits";
+import { MY_POSTS_MAX, PAGE_SIZE } from "@/lib/domain/limits";
 import {
   decodeCursor,
   encodeCursor,
@@ -59,19 +59,19 @@ const toPost = (row: PostRow): WallPost => ({
 });
 
 /**
- * One page of the wall, newest first. The service role bypasses RLS, so `hidden = false` is
- * asked for explicitly; the same rule is what the anon policy enforces for Realtime.
+ * Posts guests can see. The service role bypasses RLS, so `hidden = false` is asked for
+ * explicitly; the same rule is what the anon policy enforces for Realtime.
  */
+const visiblePosts = (eventId: string) =>
+  db().from("posts").select(SELECT).eq("event_id", eventId).eq("hidden", false);
+
+/** One page of the wall, newest first. */
 export async function getWallPage(cursor: string | null) {
   const after = cursor === null ? null : decodeCursor(cursor);
   if (cursor !== null && !after) throw new AppError("invalid_cursor", 400, "That page link is not valid.");
 
   const event = await getEvent();
-  let query = db()
-    .from("posts")
-    .select(SELECT)
-    .eq("event_id", event.id)
-    .eq("hidden", false)
+  let query = visiblePosts(event.id)
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
     .order("position", { referencedTable: "post_media" })
@@ -92,6 +92,33 @@ export async function getWallPage(cursor: string | null) {
     posts: page.map(toPost),
     nextCursor: rows.length > PAGE_SIZE && last ? encodeCursor(last.created_at, last.id) : null,
   };
+}
+
+/** One visible post for the viewer; null when it is hidden, deleted or not in this event. */
+export async function getPost(id: string): Promise<WallPost | null> {
+  const event = await getEvent();
+  const { data, error } = await visiblePosts(event.id)
+    .eq("id", id)
+    .order("position", { referencedTable: "post_media" })
+    .maybeSingle();
+  if (error) throw new Error(`Loading the post failed: ${error.code} ${error.message}`);
+  return data ? toPost(data as unknown as PostRow) : null;
+}
+
+/**
+ * A guest's own visible posts for the Me drawer, newest first.
+ * ponytail: the newest MY_POSTS_MAX only; add a cursor if a guest ever shares more than that.
+ */
+export async function getMyPosts(guestId: string): Promise<WallPost[]> {
+  const event = await getEvent();
+  const { data, error } = await visiblePosts(event.id)
+    .eq("guest_id", guestId)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .order("position", { referencedTable: "post_media" })
+    .limit(MY_POSTS_MAX);
+  if (error) throw new Error(`Loading your posts failed: ${error.code} ${error.message}`);
+  return (data as unknown as PostRow[]).map(toPost);
 }
 
 /** Filter-pill counts, computed by the database so they stay right past the loaded pages. */

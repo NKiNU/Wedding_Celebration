@@ -29,6 +29,7 @@
   --wish-ink: var(--paper);
   --wish-border: none;
   --overlay: rgba(20, 20, 20, 0.75); /* badges and play button over media */
+  --overlay-soft: rgba(20, 20, 20, 0.55); /* round buttons and the counter over a photo in the viewer */
   --overlay-ink: #ffffff; /* text and icons on --overlay */
   --toast-shadow: 0 8px 24px rgba(20, 20, 20, 0.25);
   --fab-shadow: 0 8px 24px rgba(20, 20, 20, 0.28); /* the + button */
@@ -84,6 +85,7 @@
   --color-viewer: var(--viewer);
   --color-feed: var(--feed);
   --color-overlay: var(--overlay);
+  --color-overlay-soft: var(--overlay-soft);
   --color-overlay-ink: var(--overlay-ink);
   --font-sans: var(--font-body);
   --font-script: var(--font-script);

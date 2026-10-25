@@ -137,3 +137,17 @@ export function coverOf(post: Pick<WallPost, "media">, index = 0): string | null
   if (!m) return null;
   return (m.kind === "video" ? m.posterUrl : m.thumbUrl) ?? m.url;
 }
+
+/** What a post is called in the viewer header and the Me drawer. */
+export function postLabel(post: Pick<WallPost, "type" | "media">): string {
+  switch (post.type) {
+    case "album":
+      return `Album · ${post.media.length} photos`;
+    case "photo":
+      return "Photo";
+    case "video":
+      return "Video";
+    case "wish":
+      return "Wish";
+  }
+}

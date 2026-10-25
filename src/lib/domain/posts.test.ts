@@ -6,6 +6,7 @@ import {
   formatDuration,
   matchesFilter,
   mergePosts,
+  postLabel,
   reconcileWall,
   relativeTime,
   type WallPost,
@@ -161,5 +162,18 @@ describe("reconcileWall", () => {
     const { posts, restart } = reconcileWall([at(5), at(1)], [at(5)], true);
     expect(ids(posts)).toEqual(ids([at(5)]));
     expect(restart).toBe(true);
+  });
+});
+
+describe("postLabel", () => {
+  const media = (n: number) => Array.from({ length: n }, () => ({ kind: "image" as const, url: "u", thumbUrl: null, posterUrl: null, durationS: null }));
+
+  it.each([
+    [{ type: "photo" as const, media: media(1) }, "Photo"],
+    [{ type: "album" as const, media: media(3) }, "Album · 3 photos"],
+    [{ type: "video" as const, media: media(1) }, "Video"],
+    [{ type: "wish" as const, media: [] }, "Wish"],
+  ])("names %j", (post, label) => {
+    expect(postLabel(post)).toBe(label);
   });
 });

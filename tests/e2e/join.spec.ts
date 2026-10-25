@@ -24,7 +24,7 @@ test("a taken name offers suggestions, a free name reaches the wall, and this ph
   await page.getByLabel("Your name").fill(mine);
   await page.getByRole("button", { name: "Start" }).click();
   await expect(page).toHaveURL(/\/wall$/);
-  await expect(page.getByText(`Welcome, ${mine}`)).toBeVisible();
+  await expect(page.locator(".toast", { hasText: `Welcome, ${mine}` })).toBeVisible();
 
   // Back on the welcome screen the phone offers the name it remembers.
   await page.request.delete("/api/session");

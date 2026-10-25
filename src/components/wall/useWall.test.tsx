@@ -142,11 +142,27 @@ describe("realtime", () => {
     expect(result.current.counts.all).toBe(1);
   });
 
-  it("ignores the first connection, which only repeats what the server rendered", async () => {
-    setup([at(1)]);
+  it("drops a post the guest deleted here, and a late page cannot bring it back", async () => {
+    mocks.api.mockResolvedValue(ok({ posts: [at(1)], nextCursor: null, counts: counts(1) }));
+    const { result } = setup([at(2), at(1)]);
+
+    act(() => result.current.drop(at(2).id));
+    expect(result.current.posts.map((p) => p.id)).toEqual([at(1).id]);
+    await settle();
+    expect(result.current.counts.all).toBe(1);
+  });
+
+  it("refetches on the first connection too, and drops a post the stale page still showed", async () => {
+    // Back from the viewer the client router can serve a page rendered before the post was deleted.
+    mocks.api.mockResolvedValue(ok({ posts: [at(1)], nextCursor: null, counts: counts(1) }));
+    const { result } = setup([at(2), at(1)]);
+
     act(() => events.onConnected());
     await settle();
-    expect(mocks.api).not.toHaveBeenCalled();
+
+    expect(mocks.api).toHaveBeenCalledOnce();
+    expect(result.current.posts.map((p) => p.id)).toEqual([at(1).id]);
+    expect(result.current.counts.all).toBe(1);
   });
 
   it("restarts from page 1 after a reconnect, so a hide missed on a deep page is gone", async () => {

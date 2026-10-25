@@ -9,12 +9,12 @@ export default defineConfig({
   testDir: "./tests/e2e",
   use: { baseURL: "http://localhost:3000" },
   projects: [
-    ...Object.entries(phones).map(([name, device]) => ({ name, use: device, testIgnore: /create\.spec/ })),
-    // The create specs add posts, while join and wall count the seed: they run after those finish.
+    ...Object.entries(phones).map(([name, device]) => ({ name, use: device, testIgnore: /(create|view)\.spec/ })),
+    // The create and view specs add posts, while join and wall count the seed: they run after those finish.
     ...Object.entries(phones).map(([name, device]) => ({
       name: `${name}-create`,
       use: device,
-      testMatch: /create\.spec/,
+      testMatch: /(create|view)\.spec/,
       dependencies: Object.keys(phones),
     })),
   ],

@@ -61,9 +61,11 @@ export function BottomSheet({ open, title, onClose, busy = false, children }: Pr
     <dialog
       ref={dialog}
       aria-labelledby={titleId}
-      // Chrome ignores preventDefault on `cancel` without a fresh user gesture, so a busy sheet
-      // that was closed anyway is opened again instead of being cleared under a running upload.
-      onClose={() => (busy && open ? dialog.current?.showModal() : onClose())}
+      // `close` also fires after the parent set `open` to false (the effect above closes the
+      // element): reporting that would undo a parent that moved on to another sheet. Chrome ignores
+      // preventDefault on `cancel` without a fresh user gesture, so a busy sheet that was closed
+      // anyway is opened again instead of being cleared under a running upload.
+      onClose={() => open && (busy ? dialog.current?.showModal() : onClose())}
       onCancel={(e) => busy && e.preventDefault()}
       // The dialog spans the viewport width and its inner column fills it, so a click whose
       // target is the dialog itself landed on the backdrop.

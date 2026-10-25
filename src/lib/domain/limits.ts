@@ -6,6 +6,7 @@ export const MAX_VIDEO_SECONDS = 60;
 export const POSTS_PER_HOUR = 30;
 export const BYTES_PER_HOUR = 200 * MB;
 export const PAGE_SIZE = 24;
+export const MY_POSTS_MAX = 100; // the Me drawer lists the newest of a guest's own posts
 export const NAME_MIN = 2;
 export const NAME_MAX = 24;
 export const MAX_NAMES_PER_PHONE = 5;

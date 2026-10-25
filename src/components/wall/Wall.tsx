@@ -1,13 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { MeDrawer } from "@/components/drawers/MeDrawer";
 import { PhotoDrawer } from "@/components/drawers/PhotoDrawer";
+import { useDeletePost } from "@/components/drawers/useDeletePost";
+import { useMyPosts } from "@/components/drawers/useMyPosts";
 import { VideoDrawer } from "@/components/drawers/VideoDrawer";
 import { WishDrawer } from "@/components/drawers/WishDrawer";
 import { WishViewDrawer } from "@/components/drawers/WishViewDrawer";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Toast } from "@/components/ui/Toast";
 import type { KnownGuest } from "@/lib/api";
 import { matchesFilter, type PostType, type WallCounts, type WallFilter, type WallPost } from "@/lib/domain/posts";
+import { consumeFlash } from "@/lib/flash";
 import { consumeWelcome } from "@/lib/welcome";
 import { ActionMenu, type ShareKind } from "./ActionMenu";
 import { EmptyState } from "./EmptyState";
@@ -41,13 +46,20 @@ type Props = {
 };
 
 export function Wall({ eventId, groom, bride, headerMessage, me, now: serverNow, initial }: Props) {
-  const { posts, counts, nextCursor, loading, loadError, loadMore, refresh } = useWall({ eventId, ...initial });
+  const { posts, counts, nextCursor, loading, loadError, loadMore, refresh, drop } = useWall({ eventId, ...initial });
   const [filter, setFilter] = useState<WallFilter>("all");
   const [wish, setWish] = useState<WallPost | null>(null);
-  const [sheet, setSheet] = useState<"menu" | ShareKind | null>(null);
+  const [sheet, setSheet] = useState<"menu" | "me" | ShareKind | null>(null);
   const fab = useRef<HTMLButtonElement>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date(serverNow));
+  const mine = useMyPosts(sheet === "me");
+  const remove = useDeletePost((post) => {
+    drop(post.id);
+    mine.drop(post.id);
+    setWish((current) => (current?.id === post.id ? null : current));
+    setToast("Post deleted");
+  });
 
   // Follow the server's clock, not the phone's: a phone a few minutes off would otherwise make
   // "5 min ago" jump after the first tick. The offset is measured once, at hydration.
@@ -57,9 +69,14 @@ export function Wall({ eventId, groom, bride, headerMessage, me, now: serverNow,
     return () => clearInterval(timer);
   }, [serverNow]);
 
-  // Greet once after joining. Read in a timer callback: storage is not available during render.
+  // A message left by the screen we came from (the viewer after a delete), else greet once after
+  // joining. Read in a timer callback: storage is not available during render.
   useEffect(() => {
-    const timer = setTimeout(() => consumeWelcome() && setToast(`Welcome, ${me.name}! Tap + to share.`), 0);
+    const timer = setTimeout(() => {
+      const message = consumeFlash();
+      if (message) setToast(message);
+      else if (consumeWelcome()) setToast(`Welcome, ${me.name}! Tap + to share.`);
+    }, 0);
     return () => clearTimeout(timer);
   }, [me.name]);
 
@@ -95,7 +112,7 @@ export function Wall({ eventId, groom, bride, headerMessage, me, now: serverNow,
 
   return (
     <>
-      <WallHeader groom={groom} bride={bride} headerMessage={headerMessage} memories={counts.all} me={me.name}>
+      <WallHeader groom={groom} bride={bride} headerMessage={headerMessage} memories={counts.all} me={me.name} onOpenMe={() => setSheet("me")}>
         <WishTicker wishes={posts.filter((p) => p.type === "wish")} onOpen={setWish} />
       </WallHeader>
       <FilterBar counts={counts} value={filter} onChange={setFilter} />
@@ -125,7 +142,31 @@ export function Wall({ eventId, groom, bride, headerMessage, me, now: serverNow,
       <PhotoDrawer open={sheet === "photos"} onClose={closeSheet} onPosted={posted} />
       <VideoDrawer open={sheet === "video"} onClose={closeSheet} onPosted={posted} />
       <WishDrawer open={sheet === "wish"} me={me.name} onClose={closeSheet} onPosted={() => posted("wish")} />
-      <WishViewDrawer wish={wish} now={now} onClose={() => setWish(null)} />
+      {/* Before the sheets: it closes first, so focus returns to the sheet's button, not to nowhere. */}
+      <ConfirmDialog {...remove.dialog} />
+      <MeDrawer
+        open={sheet === "me"}
+        me={me.name}
+        posts={mine.posts}
+        status={mine.status}
+        now={now}
+        onRetry={mine.retry}
+        onOpenWish={(post) => {
+          setSheet(null);
+          setWish(post);
+        }}
+        onDelete={remove.ask}
+        onShare={() => setSheet("menu")}
+        onSwitchFailed={setToast}
+        onClose={closeSheet}
+      />
+      <WishViewDrawer
+        wish={wish}
+        now={now}
+        mine={wish?.guestId === me.guestId}
+        onDelete={remove.ask}
+        onClose={() => setWish(null)}
+      />
       <Toast message={toast} onDone={() => setToast(null)} />
     </>
   );

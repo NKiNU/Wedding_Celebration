@@ -13,7 +13,7 @@ vi.mock("./db", () => ({ db: () => mocks.db }));
 vi.mock("./r2", () => ({ r2: () => mocks.r2 }));
 vi.mock("./event", () => ({ getEvent: async () => mocks.event }));
 
-import { createMediaPost, createWish } from "./posts";
+import { createMediaPost, createWish, deletePost } from "./posts";
 
 const GUEST = { id: "g1", name: "Ali", eventId: "e1" };
 const POST_ID = "b0000000-0000-4000-8000-000000000001";
@@ -226,5 +226,83 @@ describe("createMediaPost", () => {
   it("fails loudly when the intent lookup fails", async () => {
     setup([failure("XX000")]);
     await expect(createMediaPost(GUEST, POST_ID, null)).rejects.toThrow(/XX000/);
+  });
+});
+
+describe("deletePost", () => {
+  const media = [
+    { path: K("0.jpg"), thumb_path: K("0_thumb.jpg"), poster_path: null },
+    { path: K("1.mp4"), thumb_path: null, poster_path: K("1_poster.jpg") },
+  ];
+  const row = (over = {}) => ok({ guest_id: "g1", post_media: media, ...over });
+
+  it("removes the stored files first, then the row, for the author", async () => {
+    const { calls, deleted } = setup([row(), ok(null), ok(null)]);
+    const order: string[] = [];
+    const deleteMany = (mocks.r2 as { deleteMany: (k: string[]) => Promise<void> }).deleteMany;
+    (mocks.r2 as { deleteMany: (k: string[]) => Promise<void> }).deleteMany = async (keys) => {
+      order.push("files");
+      await deleteMany(keys);
+    };
+    const record = calls.push.bind(calls);
+    calls.push = (...c) => (c[0]!.method === "delete" && order.push("row"), record(...c));
+
+    await deletePost(GUEST, POST_ID);
+
+    expect(order).toEqual(["files", "row"]);
+    expect(deleted).toEqual([K("0.jpg"), K("0_thumb.jpg"), K("1.mp4"), K("1_poster.jpg")]);
+    const eq = calls.filter((c) => c.method === "eq").map((c) => c.args);
+    expect(eq).toEqual([["id", POST_ID], ["event_id", "e1"], ["id", POST_ID], ["guest_id", "g1"], ["post_id", POST_ID], ["guest_id", "g1"]]);
+  });
+
+  it("turns the upload back into a tombstone so the sweep removes re-created files later", async () => {
+    const { calls } = setup([row(), ok(null), ok(null)]);
+    await deletePost(GUEST, POST_ID);
+    const update = calls.find((c) => c.table === "upload_intents" && c.method === "update")!;
+    expect(update.args[0]).toMatchObject({ consumed_at: null, cancelled_at: expect.any(String) });
+  });
+
+  it("still succeeds when the tombstone cannot be written", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    setup([row(), ok(null), failure("XX000")]);
+    await expect(deletePost(GUEST, POST_ID)).resolves.toBeUndefined();
+    expect(log).toHaveBeenCalled();
+    log.mockRestore();
+  });
+
+  it("deletes a wish, which has no files, without calling storage", async () => {
+    const { calls, deleted } = setup([row({ post_media: [] }), ok(null)]);
+    await deletePost(GUEST, POST_ID);
+    expect(deleted).toEqual([]);
+    expect(calls.some((c) => c.method === "delete")).toBe(true);
+    expect(calls.some((c) => c.method === "update")).toBe(false);
+  });
+
+  it("is a 403 for someone else's post, and touches nothing", async () => {
+    const { calls, deleted } = setup([row({ guest_id: "someone-else" })]);
+    await expect(deletePost(GUEST, POST_ID)).rejects.toMatchObject({ status: 403, code: "not_yours" });
+    expect(deleted).toEqual([]);
+    expect(calls.some((c) => c.method === "delete")).toBe(false);
+  });
+
+  it("is a 404 when the post is gone, was never in this event or never existed", async () => {
+    setup([ok(null)]);
+    await expect(deletePost(GUEST, POST_ID)).rejects.toMatchObject({ status: 404, code: "post_not_found" });
+  });
+
+  it("keeps the row when the files cannot be removed, so the guest can try again", async () => {
+    const { calls } = setup([row()]);
+    (mocks.r2 as { deleteMany: () => Promise<void> }).deleteMany = async () => {
+      throw new Error("R2 down");
+    };
+    await expect(deletePost(GUEST, POST_ID)).rejects.toThrow("R2 down");
+    expect(calls.some((c) => c.method === "delete")).toBe(false);
+  });
+
+  it("fails when the database does", async () => {
+    setup([failure("XX000")]);
+    await expect(deletePost(GUEST, POST_ID)).rejects.toThrow(/Loading the post failed/);
+    setup([row({ post_media: [] }), failure("XX000")]);
+    await expect(deletePost(GUEST, POST_ID)).rejects.toThrow(/Deleting the post failed/);
   });
 });

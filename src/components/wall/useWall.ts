@@ -88,18 +88,25 @@ export function useWall(initial: Initial, subscribe: SubscribeToWall = subscribe
     return refresh(false);
   }, [refresh]);
 
+  /** A post that was deleted or hidden: gone now, and a late page must not bring it back. */
+  const drop = useCallback(
+    (id: string) => {
+      removed.current.add(id);
+      setPosts((current) => current.filter((p) => p.id !== id));
+      scheduleRefresh(); // the pill counts come from the server
+    },
+    [scheduleRefresh],
+  );
+
   useEffect(() => {
     let connectedBefore = false;
     const stop = subscribe(initial.eventId, {
       onChange: () => scheduleRefresh(),
-      onRemove: (id) => {
-        removed.current.add(id);
-        setPosts((current) => current.filter((p) => p.id !== id));
-        scheduleRefresh(); // the pill counts come from the server
-      },
+      onRemove: drop,
       onConnected: () => {
-        // The first connection only repeats what the server just rendered.
-        if (connectedBefore) scheduleRefresh(true);
+        // Even the first connection refetches: coming back from the viewer, the client router can
+        // hand this page the payload it rendered minutes ago. A reconnect also restarts the list.
+        scheduleRefresh(connectedBefore);
         connectedBefore = true;
       },
     });
@@ -118,7 +125,7 @@ export function useWall(initial: Initial, subscribe: SubscribeToWall = subscribe
       document.removeEventListener("visibilitychange", onVisibility);
       clearTimeout(refreshTimer.current);
     };
-  }, [initial.eventId, subscribe, scheduleRefresh]);
+  }, [initial.eventId, subscribe, scheduleRefresh, drop]);
 
-  return { posts, counts, nextCursor, loading, loadError, loadMore, refresh: refreshNow };
+  return { posts, counts, nextCursor, loading, loadError, loadMore, refresh: refreshNow, drop };
 }

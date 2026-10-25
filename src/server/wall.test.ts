@@ -2,14 +2,14 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { validEnv } from "../../tests/fixtures/env";
 import { fakeDb } from "../../tests/fixtures/supabase";
 import { encodeCursor } from "@/lib/domain/posts";
-import { PAGE_SIZE } from "@/lib/domain/limits";
+import { MY_POSTS_MAX, PAGE_SIZE } from "@/lib/domain/limits";
 
 const mocks = vi.hoisted(() => ({ db: null as unknown }));
 vi.mock("./db", () => ({ db: () => mocks.db }));
 vi.mock("./event", () => ({ getEvent: async () => ({ id: "e1" }) }));
 
 import { AppError } from "./http";
-import { getWallCounts, getWallPage } from "./wall";
+import { getMyPosts, getPost, getWallCounts, getWallPage } from "./wall";
 
 beforeAll(() => {
   for (const [k, v] of Object.entries(validEnv)) vi.stubEnv(k, v);
@@ -133,6 +133,50 @@ describe("getWallPage", () => {
   it("fails when the database does", async () => {
     mocks.db = fakeDb([{ data: null, error: { code: "XX000", message: "boom" } }]).db;
     await expect(getWallPage(null)).rejects.toThrow(/boom/);
+  });
+});
+
+describe("getPost", () => {
+  it("returns one visible post of this event, with its media in album order", async () => {
+    const { db, calls } = fakeDb([{ data: row(1), error: null }]);
+    mocks.db = db;
+
+    const post = await getPost(ID);
+
+    expect(post).toMatchObject({ id: row(1).id, author: "Ali", guestId: "a1" });
+    const args = (method: string) => calls.filter((c) => c.method === method).map((c) => c.args);
+    expect(args("eq")).toEqual([["event_id", "e1"], ["hidden", false], ["id", ID]]);
+    expect(args("order")).toEqual([["position", { referencedTable: "post_media" }]]);
+  });
+
+  it("is null for a post that is hidden, deleted or from another event", async () => {
+    mocks.db = fakeDb([{ data: null, error: null }]).db;
+    expect(await getPost(ID)).toBeNull();
+  });
+
+  it("fails when the database does", async () => {
+    mocks.db = fakeDb([{ data: null, error: { code: "XX000", message: "boom" } }]).db;
+    await expect(getPost(ID)).rejects.toThrow(/boom/);
+  });
+});
+
+describe("getMyPosts", () => {
+  it("lists the guest's own visible posts, newest first and capped", async () => {
+    const { db, calls } = fakeDb([{ data: [row(2), row(1)], error: null }]);
+    mocks.db = db;
+
+    const posts = await getMyPosts("a1");
+
+    expect(posts.map((p) => p.id)).toEqual([row(2).id, row(1).id]);
+    const args = (method: string) => calls.filter((c) => c.method === method).map((c) => c.args);
+    expect(args("eq")).toEqual([["event_id", "e1"], ["hidden", false], ["guest_id", "a1"]]);
+    expect(args("order")[0]).toEqual(["created_at", { ascending: false }]);
+    expect(args("limit")).toEqual([[MY_POSTS_MAX]]);
+  });
+
+  it("fails when the database does", async () => {
+    mocks.db = fakeDb([{ data: null, error: { code: "XX000", message: "boom" } }]).db;
+    await expect(getMyPosts("a1")).rejects.toThrow(/boom/);
   });
 });
 

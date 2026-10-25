@@ -69,14 +69,15 @@ src/
       guests/route.ts        # POST create guest (name) -> sets device cookie
       session/route.ts       # GET who am I / POST {guestId} continue as a name on this phone / DELETE switch name
       posts/route.ts         # POST create post, GET paginated wall
-      posts/[id]/route.ts    # DELETE own post
+      posts/[id]/route.ts    # DELETE own post (files first, then the row)
+      me/posts/route.ts      # GET the active guest's own posts (Me drawer)
       uploads/route.ts       # POST -> signed upload URLs
       uploads/[postId]/route.ts  # DELETE cancel an unposted upload (cleanup)
       cron/sweep/route.ts    # GET hourly: delete objects of expired, unposted uploads
   components/
     wall/                    # Header, WishTicker, FilterBar, PostCard, AlbumStack, Fab, ActionMenu
     drawers/                 # BottomSheet + PhotoDrawer, VideoDrawer, WishDrawer, QrDrawer, WishViewDrawer, MeDrawer
-    viewer/                  # PhotoViewer, AlbumGallery, VideoPlayer
+    viewer/                  # PostViewer, AlbumGallery (one photo or an album), VideoPlayer
     ui/                      # Button, Input, Toast, ConfirmDialog, Monogram
     welcome/                 # WelcomeHeader, WelcomeForm + useJoin hook
     decor/                   # Floral, LaceFrame (hidden by the decor flag / wireframe theme)

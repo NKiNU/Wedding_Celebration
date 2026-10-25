@@ -47,7 +47,7 @@ test("a wish: chips fill the box, the counter counts, and the card appears witho
   await send.click();
 
   await expect(drawer).toBeHidden();
-  await expect(page.getByText("Your wish has been sent to the couple.")).toBeVisible();
+  await expect(page.locator(".toast", { hasText: "Your wish has been sent to the couple." })).toBeVisible();
   await expect(page.getByRole("main").getByText(text)).toBeVisible();
   await expect(page.getByRole("main").getByText("You", { exact: true }).first()).toBeVisible();
 });
@@ -105,6 +105,6 @@ test("three photos become one album on the wall, uploaded straight to storage", 
   expect((await puts).status()).toBe(200);
 
   await expect(drawer).toBeHidden();
-  await expect(page.getByText("Shared! Your photos are on the wall as an album.")).toBeVisible();
+  await expect(page.locator(".toast", { hasText: "Shared! Your photos are on the wall as an album." })).toBeVisible();
   await expect(page.getByRole("link", { name: `Album by ${me}, 3 photos` })).toBeVisible();
 });

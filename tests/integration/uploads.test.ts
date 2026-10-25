@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { POSTS_PER_HOUR } from "@/lib/domain/limits";
+import { BASE, JSON_HEADERS, join, photoFiles, put, uploadedIntent, type Intent } from "../fixtures/phone";
 
 /**
  * The upload pipeline against the real stack: `npm run dev`, `supabase start`, a seeded database,
@@ -8,58 +9,6 @@ import { POSTS_PER_HOUR } from "@/lib/domain/limits";
  *   SUPABASE_INTEGRATION=1 npx vitest run tests/integration
  * Each test joins as its own guest, so nothing depends on test order.
  */
-const BASE = process.env.INTEGRATION_BASE_URL ?? "http://localhost:3000";
-const JSON_HEADERS = { "content-type": "application/json", "sec-fetch-site": "same-origin" };
-
-type Api<T = Record<string, unknown>> = { status: number; body: { ok: boolean; data?: T; error?: { code: string } } };
-
-/** A phone: it keeps the cookies the server sets. */
-async function join(): Promise<{ call: <T = Record<string, unknown>>(method: string, path: string, body?: unknown) => Promise<Api<T>> }> {
-  let cookie = "";
-  const call = async <T,>(method: string, path: string, body?: unknown): Promise<Api<T>> => {
-    const res = await fetch(`${BASE}${path}`, {
-      method,
-      headers: { ...JSON_HEADERS, ...(cookie && { cookie }) },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-    const set = res.headers.getSetCookie().map((c) => c.split(";")[0]!);
-    if (set.length > 0) cookie = [...new Map([...cookie.split("; "), ...set].filter(Boolean).map((c) => [c.split("=")[0], c])).values()].join("; ");
-    return { status: res.status, body: await res.json() };
-  };
-  const name = `Int ${Math.random().toString(36).slice(2, 8)}`;
-  expect((await call("POST", "/api/guests", { name })).status).toBe(201);
-  return { call };
-}
-
-const photoFiles = (bytes = 3000) => [
-  { role: "main", position: 0, mime: "image/jpeg", bytes, width: 2048, height: 1536 },
-  { role: "thumb", position: 0, mime: "image/jpeg", bytes: 1000 },
-];
-type Intent = { postId: string; uploads: { role: string; url: string }[] };
-
-const JPEG_START = [0xff, 0xd8, 0xff, 0xe0];
-
-/** `bytes` bytes that start like a JPEG (the server checks the first bytes), or like nothing. */
-const body = (bytes: number, jpeg = true) => {
-  const data = new Uint8Array(bytes).fill(7);
-  if (jpeg) data.set(JPEG_START);
-  return data;
-};
-
-const put = (url: string, bytes: number, type = "image/jpeg", jpeg = true) =>
-  fetch(url, { method: "PUT", headers: { "content-type": type }, body: body(bytes, jpeg) });
-
-/** Issues an intent and uploads exactly what it declared. */
-async function uploadedIntent(phone: Awaited<ReturnType<typeof join>>, files = photoFiles()) {
-  const intent = await phone.call<Intent>("POST", "/api/uploads", { files });
-  expect(intent.status).toBe(201);
-  for (const target of intent.body.data!.uploads) {
-    const file = files.find((f) => f.role === target.role)!;
-    expect((await put(target.url, file.bytes)).status).toBe(200);
-  }
-  return intent.body.data!;
-}
-
 // A cold dev server compiles each route on first use, which is slower than the default 5 s.
 describe.skipIf(!process.env.SUPABASE_INTEGRATION)("upload pipeline (real stack)", { timeout: 60_000 }, () => {
   it("posts a photo from an intent, derives the type itself, and answers a replay with the same post", async () => {

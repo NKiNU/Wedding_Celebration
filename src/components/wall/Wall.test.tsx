@@ -1,11 +1,14 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { image, wallPost, wishPost } from "../../../tests/fixtures/posts";
 
 const mocks = vi.hoisted(() => ({
   useWall: vi.fn(),
   refresh: vi.fn(),
+  drop: vi.fn(),
+  api: vi.fn(),
   consumeWelcome: vi.fn(),
+  consumeFlash: vi.fn(),
   observe: vi.fn(),
   disconnect: vi.fn(),
   trigger: null as null | ((visible: boolean) => void),
@@ -25,6 +28,8 @@ vi.mock("@/components/drawers/WishDrawer", () => ({
     p.open && <button onClick={p.onPosted}>wish drawer for {p.me}</button>,
 }));
 vi.mock("@/lib/welcome", () => ({ consumeWelcome: mocks.consumeWelcome }));
+vi.mock("@/lib/flash", () => ({ consumeFlash: mocks.consumeFlash }));
+vi.mock("@/lib/api", () => ({ api: mocks.api }));
 
 import { Wall } from "./Wall";
 
@@ -42,11 +47,16 @@ const wallState = (over = {}) => ({
   loadError: null,
   loadMore: vi.fn(),
   refresh: mocks.refresh,
+  drop: mocks.drop,
   ...over,
 });
 
 /** The post cards only: the share menu is a list too. */
 const cards = () => within(screen.getByRole("main")).getAllByRole("listitem");
+const main = () => within(screen.getByRole("main"));
+/** The toast's visible copy (a live region repeats it for screen readers). */
+const toast = (text: string | RegExp) => screen.getByText(text, { selector: "p" });
+const noToast = (text: string | RegExp) => expect(screen.queryByText(text, { selector: "p" })).not.toBeInTheDocument();
 
 const show = () =>
   render(
@@ -66,6 +76,10 @@ beforeEach(() => {
   vi.stubGlobal("scrollTo", vi.fn());
   mocks.useWall.mockReturnValue(wallState());
   mocks.consumeWelcome.mockReturnValue(false);
+  mocks.consumeFlash.mockReturnValue(null);
+  mocks.api.mockImplementation(async (path: string, method: string) =>
+    path === "/api/me/posts" ? { ok: true, data: [album] } : method === "DELETE" ? { ok: true, data: null } : { ok: false, error: { code: "x", message: "x" } },
+  );
   vi.stubGlobal(
     "IntersectionObserver",
     class {
@@ -87,7 +101,7 @@ describe("Wall", () => {
   it("lists every post, marks own posts, and counts memories in the header", () => {
     show();
     expect(cards()).toHaveLength(3);
-    expect(screen.getByText("You")).toBeInTheDocument();
+    expect(main().getByText("You")).toBeInTheDocument();
     expect(screen.getByText(/3 memories shared/)).toBeInTheDocument();
   });
 
@@ -103,9 +117,9 @@ describe("Wall", () => {
   it("opens a wish in the drawer from its card and from the ticker", () => {
     show();
     fireEvent.click(screen.getByRole("button", { name: /Latest wishes/ }));
-    expect(document.querySelector("dialog")).toHaveAttribute("open");
+    expect(screen.getByRole("dialog", { name: "Wish" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
-    expect(document.querySelector("dialog")).not.toHaveAttribute("open");
+    expect(screen.queryByRole("dialog", { name: "Wish" })).not.toBeInTheDocument();
   });
 
   it("explains an empty filter once nothing is left to load", () => {
@@ -151,9 +165,18 @@ describe("Wall", () => {
     mocks.consumeWelcome.mockReturnValue(true);
     show();
     act(() => void vi.advanceTimersByTime(1));
-    expect(screen.getByText("Welcome, Aina! Tap + to share.")).toBeInTheDocument();
+    expect(toast("Welcome, Aina! Tap + to share.")).toBeInTheDocument();
     act(() => void vi.advanceTimersByTime(2600));
-    expect(screen.queryByText("Welcome, Aina! Tap + to share.")).not.toBeInTheDocument();
+    noToast("Welcome, Aina! Tap + to share.");
+  });
+
+  it("shows a message left by the screen before, in place of the greeting", () => {
+    mocks.consumeFlash.mockReturnValue("Post deleted");
+    mocks.consumeWelcome.mockReturnValue(true);
+    show();
+    act(() => void vi.advanceTimersByTime(1));
+    expect(toast("Post deleted")).toBeInTheDocument();
+    noToast(/Welcome, Aina/);
   });
 
   it("advances relative times by the server's clock, whatever the phone's clock says", () => {
@@ -207,7 +230,7 @@ describe("Wall", () => {
       fireEvent.click(screen.getByRole("button", { name: /1 photo or an album/ }));
       fireEvent.click(screen.getByRole("button", { name: "photo drawer" }));
       expect(screen.queryByRole("button", { name: "photo drawer" })).not.toBeInTheDocument();
-      expect(screen.getByText("Shared! Your photos are on the wall as an album.")).toBeInTheDocument();
+      expect(toast("Shared! Your photos are on the wall as an album.")).toBeInTheDocument();
       expect(window.scrollTo).toHaveBeenCalledWith({ top: 0 });
       expect(mocks.refresh).toHaveBeenCalledOnce();
     });
@@ -220,7 +243,7 @@ describe("Wall", () => {
       fireEvent.click(screen.getByRole("button", { name: /Write to the couple/ }));
       fireEvent.click(screen.getByRole("button", { name: /wish drawer/ }));
       expect(cards()).toHaveLength(3);
-      expect(screen.getByText("Your wish has been sent to the couple.")).toBeInTheDocument();
+      expect(toast("Your wish has been sent to the couple.")).toBeInTheDocument();
     });
 
     it("keeps the filter when the new post matches it", () => {
@@ -238,6 +261,94 @@ describe("Wall", () => {
       fireEvent.click(screen.getByRole("button", { name: "Wishes 0" }));
       fireEvent.click(screen.getByRole("button", { name: "Write a wish" }));
       expect(screen.getByRole("button", { name: "wish drawer for Aina" })).toBeInTheDocument();
+    });
+  });
+  describe("your posts and delete", () => {
+    const openMe = () => fireEvent.click(screen.getByRole("button", { name: "Your name and posts, Aina" }));
+    const confirmDelete = () => fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Delete" }));
+    const mine = wishPost({ id: "00000000-0000-4000-8000-000000000a04", wishText: "Mine!", author: "Aina", guestId: ME.guestId });
+
+    it("opens the Me drawer from the name chip and lists the guest's own posts", async () => {
+      vi.useRealTimers();
+      show();
+      openMe();
+      expect(await screen.findByRole("heading", { name: "Your posts (1)" })).toBeInTheDocument();
+      expect(mocks.api).toHaveBeenCalledWith("/api/me/posts", "GET");
+      expect(screen.getByRole("link", { name: /Album · 3 photos/ })).toHaveAttribute("href", `/p/${album.id}`);
+    });
+
+    it("deletes a post from the Me drawer after confirming, and tells the wall", async () => {
+      vi.useRealTimers();
+      show();
+      openMe();
+      fireEvent.click(await screen.findByRole("button", { name: "Delete album" }));
+      expect(screen.getByRole("alertdialog", { name: "Delete this album?" })).toBeInTheDocument();
+      expect(mocks.api).not.toHaveBeenCalledWith(expect.stringContaining("/api/posts/"), "DELETE");
+
+      confirmDelete();
+      await waitFor(() => expect(mocks.drop).toHaveBeenCalledWith(album.id));
+      expect(mocks.api).toHaveBeenCalledWith(`/api/posts/${album.id}`, "DELETE");
+      expect(toast("Post deleted")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Delete album" })).not.toBeInTheDocument();
+    });
+
+    it("keeps the post when the guest chooses Keep it", async () => {
+      vi.useRealTimers();
+      show();
+      openMe();
+      fireEvent.click(await screen.findByRole("button", { name: "Delete album" }));
+      fireEvent.click(screen.getByRole("button", { name: "Keep it" }));
+      expect(mocks.drop).not.toHaveBeenCalled();
+      expect(screen.getByRole("button", { name: "Delete album" })).toBeInTheDocument();
+    });
+
+    it("lets the author delete their own wish from its drawer, which then closes", async () => {
+      vi.useRealTimers();
+      mocks.useWall.mockReturnValue(wallState({ posts: [mine, album], counts: { ...counts, all: 2 } }));
+      show();
+      fireEvent.click(main().getByRole("button", { name: /Mine!/ }));
+      fireEvent.click(screen.getByRole("button", { name: "Delete my wish" }));
+      expect(screen.getByRole("alertdialog", { name: "Delete this wish?" })).toBeInTheDocument();
+
+      confirmDelete();
+      await waitFor(() => expect(mocks.drop).toHaveBeenCalledWith(mine.id));
+      expect(screen.queryByRole("button", { name: "Delete my wish" })).not.toBeInTheDocument();
+    });
+
+    it("offers no delete on someone else's wish", () => {
+      show();
+      fireEvent.click(main().getByRole("button", { name: /Congratulations!/ }));
+      expect(screen.queryByRole("button", { name: "Delete my wish" })).not.toBeInTheDocument();
+    });
+
+    it("opens one of the guest's wishes from the Me drawer in the wish drawer", async () => {
+      vi.useRealTimers();
+      mocks.api.mockImplementation(async (path: string) => (path === "/api/me/posts" ? { ok: true, data: [mine] } : { ok: true, data: null }));
+      show();
+      openMe();
+      fireEvent.click(await within(screen.getByRole("dialog", { name: "You" })).findByRole("button", { name: /^Wish/ }));
+      expect(screen.getByRole("dialog", { name: "Wish" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Delete my wish" })).toBeInTheDocument();
+    });
+
+    it("sends a guest with nothing yet from the Me drawer to the share menu", async () => {
+      vi.useRealTimers();
+      mocks.api.mockImplementation(async () => ({ ok: true, data: [] }));
+      show();
+      openMe();
+      fireEvent.click(await screen.findByRole("button", { name: "Share something" }));
+      expect(screen.getByRole("button", { name: "Close share menu" })).toHaveAttribute("aria-expanded", "true");
+    });
+
+    it("says so when Switch name cannot reach the server", async () => {
+      vi.useRealTimers();
+      mocks.api.mockImplementation(async (path: string, method: string) =>
+        method === "DELETE" ? { ok: false, error: { code: "network", message: "Can’t reach the server." } } : { ok: true, data: [] },
+      );
+      show();
+      openMe();
+      fireEvent.click(await screen.findByRole("button", { name: "Switch name" }));
+      expect(await screen.findByText("Can’t reach the server.", { selector: "p" })).toBeInTheDocument();
     });
   });
 });
