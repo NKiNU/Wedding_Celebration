@@ -10,11 +10,16 @@ const setup = (open: boolean) => {
 const menu = () => document.getElementById("share-menu")!;
 
 describe("ActionMenu", () => {
-  it("lists photos, video and wish with their hints, and nothing else yet", () => {
+  it("lists photos, video, wish and the DuitNow QR with their hints", () => {
     setup(true);
     expect(menu()).toHaveAttribute("aria-label", "Share something");
     const items = Array.from(menu().querySelectorAll("button")).map((b) => b.textContent);
-    expect(items).toEqual(["Photos1 photo or an album", "VideoUp to 60 seconds", "WishWrite to the couple"]);
+    expect(items).toEqual([
+      "Photos1 photo or an album",
+      "VideoUp to 60 seconds",
+      "WishWrite to the couple",
+      "DuitNow QRSend a gift",
+    ]);
   });
 
   it("stays in the DOM but out of reach while closed", () => {
@@ -54,11 +59,21 @@ describe("ActionMenu", () => {
     [/^Photos/, "photos"],
     [/^Video/, "video"],
     [/^Wish/, "wish"],
+    [/^DuitNow QR/, "qr"],
   ] as const)("picks %s after handing focus back to the FAB", (name, kind) => {
     const { onPick, returnFocus } = setup(true);
     fireEvent.click(screen.getByRole("button", { name }));
     expect(onPick).toHaveBeenCalledWith(kind);
     // the dialog that opens next must record the FAB, not a removed menu button, as its opener
     expect(returnFocus.mock.invocationCallOrder[0]).toBeLessThan(onPick.mock.invocationCallOrder[0]);
+  });
+
+  it("keeps only the DuitNow QR, with a note, while uploads are closed", () => {
+    const props = { onPick: vi.fn(), onClose: vi.fn(), returnFocus: vi.fn() };
+    render(<ActionMenu open uploadsOpen={false} {...props} />);
+    const items = Array.from(menu().querySelectorAll("button")).map((b) => b.textContent);
+    expect(items).toEqual(["DuitNow QRSend a gift"]);
+    expect(screen.getByText(/Sharing is closed/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^DuitNow QR/ })).toHaveFocus();
   });
 });

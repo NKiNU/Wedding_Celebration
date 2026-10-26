@@ -7,8 +7,40 @@
 - [x] Phase 2 — Wall (read)
 - [x] Phase 3 — Create
 - [x] Phase 4 — View + own content
-- [ ] Phase 5 — QR + Admin
+- [x] Phase 5 — QR + Admin
 - [ ] Phase 6 — Hardening + launch
+
+Last session notes (2026-10-26, Phase 5; uncommitted, the user commits):
+- **Built:**
+  - Migration `0004_admin.sql`: `admin_attempts` (hashed IP + time) with `admin_login_attempt` / `admin_login_clear` (advisory lock, attempt counted **before** the passcode is compared, 5 per 15 min). RLS on, service role only. `database.types.ts` regenerated (also picks up `wish_log`).
+  - Domain: `qrKey`, `qrProblem`, PNG in `looksLike`, `QR_MIMES`, `MAX_QR_BYTES`, `ADMIN_*` limits.
+  - Server `admin.ts`: `login` (sha256 + `timingSafeEqual`), cookie `wm_admin` = `expires.HMAC(expires)` keyed by passcode + pepper (httpOnly, **SameSite=Strict**, 24 h; changing `ADMIN_PASSCODE` signs everyone out), `requireAdmin` / `isAdmin`, `updateEvent`, `presignQr` / `confirmQr` (key must match `events/{eventId}/admin/qr-<uuid>.(png|jpg)`, HEAD + 16-byte peek + size + no header override, then the old QR file is deleted), `getQrObject`, `getModerationPage`, `setHidden`, `mediaManifest` (pages of 1000: PostgREST caps a response). `posts.ts`: `removePost` is shared by `deletePost` (owner by token) and `deletePostAsAdmin`. `event.ts` exports `EVENT_COLUMNS` and now reads the QR fields. `sweep.ts`: `purgeAdminAttempts`, called by the hourly cron.
+  - Routes: `/api/admin/session` (POST login, DELETE logout), `/event` (PATCH), `/qr` (POST presign, PUT confirm), `/posts` (GET), `/posts/[id]` (PATCH hide, DELETE), `/media` (GET manifest); public `GET /qr` streams the QR from the media domain on the app origin (`<a download>` and `navigator.share({files})` need same origin).
+  - Guest UI: `QrDrawer` + `useQrFile` (the file is fetched when the drawer opens so `navigator.share` runs inside the tap), DuitNow QR item at the visual top of `ActionMenu`, `uploadsOpen` / `qr` props on `Wall`. Uploads closed: the menu keeps only the QR with "Sharing is closed", the empty-state call to action is hidden.
+  - Admin UI `/admin` (`components/admin/`): login, couple names + header message, uploads switch, QR upload (presign, PUT, confirm) + holder + bank, posts list with Hide / Unhide / Delete (`ConfirmDialog`), "Download zip" (`client-zip` in the browser, one file at a time). Each section shows its own error. No canvas screen exists for admin: it uses the same tokens and `ui/` parts, single column up to `max-w-2xl`.
+  - Tests: unit and component (614+), `tests/e2e/admin.spec.ts` (own Playwright project `admin`, runs last, needs `ADMIN_PASSCODE` in the shell, skipped otherwise).
+- **Decisions:**
+  - Admin login lasts 24 h; throttle bucket is the hashed IP (IPv6 by its /64). `clientIp` trusts only what our own infrastructure sets: `x-vercel-forwarded-for` when `VERCEL` is set, else the reverse proxy's `x-real-ip`, else the last `x-forwarded-for` entry. Never the first entry or a Vercel header on a VPS: a client could change it on every try and switch the throttle off.
+  - Admin edits show on the next wall load (no Realtime on `events`); `getEvent` is per request, so nothing needs revalidating.
+  - Hide keeps the files (reachable by URL); Delete is the takedown, same as for guests.
+- **Verified against the real stack (local DB, the R2 bucket in `.env.local`):** wrong passcode 401, 6th try 429, no cookie 401 on every admin route, hide drops the wall count and unhide restores it, closed uploads give a guest 403 `uploads_closed`, QR presign / PUT / confirm / foreign key 400 / `GET /qr` 200 with `no-store`, manifest, logout. Browser (390x844): login, wrong passcode, dashboard, no console errors beyond the dev hydration warning. `npx playwright test --project=admin --no-deps`: 3 of 3 (login; hide, unhide and delete reach a second phone live; closing uploads leaves only the QR). Found by the browser pass: `Date.now()` in `isAdmin` failed prerendering, fixed with `await connection()` (same in `/qr`).
+- **Reviews:** security (Opus): no CRITICAL or HIGH. Fixed: IPv6 /64 bucketing, zip entry names (a guest named `..`), `admin_attempts` purge. **Not fixed, on purpose:** the passcode only needs 8 characters (`ADMIN_PASSCODE`); a longer random one is the real defence against guessing, because the admin can change the QR and the name shown under it. A shared venue network can lock the admin out for 15 min after 5 wrong tries (switch to mobile data). QR presigned URLs live 15 min and an unconfirmed QR upload is never swept (admin only, small). `/qr` is `no-store`. Admin sessions cannot be revoked except by changing the passcode. Code review (Sonnet): no HIGH. Fixed: manifest cut at 1000 posts, `/qr` dynamic, 44 px switch, per-section errors, stale QR file and a failed image never retried, trimmed compare, `EVENT_COLUMNS`, CORS message for the zip.
+- **Needs the real bucket and phones (Phase 6):**
+  1. **CORS GET on the media domain** for the app origin, or "Download zip" fails ("Check that the media domain allows downloads"). Add to the bucket checklist next to the `PUT` rule.
+  2. Real R2 must reject a PUT whose `Content-Type` / `Content-Length` differ from the signed ones, and `Content-Disposition` / `Content-Encoding` on the QR (local storage ignores them).
+  3. **Download QR** on a real iPhone (share sheet offers Save Image) and an Android Chrome; the long-press hint on iOS.
+  4. Zip download of a real event on a laptop (memory: the finished zip is held in the tab; for a very large event copy `events/<id>/` from the bucket instead).
+  5. Delete must purge the CDN copy (carry-over from Phase 3/4).
+  6. Set a long random `ADMIN_PASSCODE` in production (`openssl rand -base64 18`).
+  **Deploy target is a VPS, not Vercel (decided 2026-10-26).** Phase 6 needs, instead of the Vercel steps:
+  - HTTPS in front (Caddy, or nginx + certbot). The session cookies are `Secure`: over plain http phones cannot join at all.
+  - The reverse proxy must set the client address: nginx `proxy_set_header X-Real-IP $remote_addr;` and `proxy_set_header X-Forwarded-For $remote_addr;` (replace, do not append), or the admin login throttle sees every visitor as one address.
+  - Run `npm run build` then `npm start` (Node 22.12 or newer) under systemd or pm2, with the env vars from `.env.example` in the service's environment file (not in git). Keep `R2_ENDPOINT` empty: its production guard checks `VERCEL_ENV`, which a VPS never sets.
+  - The hourly sweep is not Vercel Cron: add a system cron line `0 * * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://<app>/api/cron/sweep`.
+  - After changing `ADMIN_PASSCODE` or any env var, restart the service.
+  - CLAUDE.md "Deploy" line now says VPS (changed with the user's yes). The older Vercel mentions below (Phase 3 cron note, Phase 6 list) are superseded by this block.
+  7. An anon-client check of `admin_attempts` and the `PT429` mapping on hosted Supabase.
+- **Checks:** lint, typecheck, test (620 unit, 15 integration skipped by default; 98.35% statements, 95.45% branches) and build green; admin e2e 3 of 3. No integration test yet for `admin_login_attempt` (a parallel burst and "anon cannot read `admin_attempts`"): add with the Phase 6 anon-client check.
 
 Last session notes (2026-10-25, Phase 4):
 - **Built:**
@@ -185,7 +217,7 @@ create function wall_counts(e uuid) returns table(all_count int, photos int, vid
 2. `POST /api/uploads { files:[{role, mime, bytes, position}] }`. The server checks limits and rate limits, creates `postId` and an `upload_intent` (15 min TTL), and returns presigned PUT URLs. The signature includes **exact `Content-Length` and `Content-Type`**, so R2 rejects anything else.
 3. Client uploads each file with XHR PUT and shows per-file progress from `upload.onprogress`.
 4. `POST /api/posts { postId, caption }` or `{ wishText }`. The server loads the intent (it must belong to the active guest and be unconsumed), runs `HEAD` on each key in R2 to verify size and type, and derives `type` from the verified main files via `derivePostType`. It then inserts `posts` and `post_media` in one transaction and marks the intent consumed.
-5. On failure, the client calls `DELETE /api/uploads/{postId}`. A safety net: a Vercel Cron job (`/api/cron/sweep`, guarded by `CRON_SECRET`, hourly) deletes R2 objects of expired, unconsumed intents.
+5. On failure, the client calls `DELETE /api/uploads/{postId}`. A safety net: an hourly cron call (a system cron line on the VPS) to `/api/cron/sweep`, guarded by `CRON_SECRET`, deletes R2 objects of expired, unconsumed intents.
 
 R2 client: `aws4fetch` (tiny, fetch-based) for presigning, HEAD and DeleteObjects. R2 bucket CORS allows PUT from the app origin.
 `ponytail:` uploads are a single PUT with no resume. If reports from the venue show failed large videos, upgrade to presigned multipart.

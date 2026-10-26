@@ -10,6 +10,27 @@ export type WallResponse = { posts: WallPost[]; nextCursor: string | null; count
 /** POST /api/uploads: one presigned PUT URL per requested file. */
 export type UploadIntent = { postId: string; uploads: { role: FileRole; position: number; url: string }[] };
 
+/** A post as the admin sees it: hidden ones are listed too. */
+export type AdminPost = WallPost & { hidden: boolean };
+export type AdminPostsResponse = { posts: AdminPost[]; nextCursor: string | null };
+
+/** The event as the admin edits it. `qrUrl` is the same-origin `/qr` while a QR exists. */
+export type AdminEvent = {
+  groomName: string;
+  brideName: string;
+  headerMessage: string;
+  uploadsOpen: boolean;
+  qrAccountName: string;
+  qrBank: string;
+  hasQr: boolean;
+};
+
+/** POST /api/admin/qr: where to PUT the image, and the key to confirm afterwards. */
+export type QrUpload = { key: string; url: string };
+
+/** One file for the "download everything" zip. */
+export type ManifestEntry = { url: string; name: string };
+
 /** POST /api/posts */
 export type CreatedPost = { id: string };
 

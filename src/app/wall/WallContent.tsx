@@ -21,6 +21,8 @@ export async function WallContent({ openWish = null }: { openWish?: WallPost | n
       now={new Date().toISOString()}
       initial={{ ...page, counts }}
       openWish={openWish}
+      uploadsOpen={event.uploads_open}
+      qr={{ available: event.qr_path !== null, accountName: event.qr_account_name, bank: event.qr_bank }}
     />
   );
 }

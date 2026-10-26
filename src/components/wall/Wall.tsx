@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { MeDrawer } from "@/components/drawers/MeDrawer";
 import { PhotoDrawer } from "@/components/drawers/PhotoDrawer";
+import { QrDrawer, type QrInfo } from "@/components/drawers/QrDrawer";
 import { useDeletePost } from "@/components/drawers/useDeletePost";
 import { useMyPosts } from "@/components/drawers/useMyPosts";
 import { VideoDrawer } from "@/components/drawers/VideoDrawer";
@@ -14,7 +15,7 @@ import type { KnownGuest } from "@/lib/api";
 import { matchesFilter, type PostType, type WallCounts, type WallFilter, type WallPost } from "@/lib/domain/posts";
 import { consumeFlash } from "@/lib/flash";
 import { consumeWelcome } from "@/lib/welcome";
-import { ActionMenu, type ShareKind } from "./ActionMenu";
+import { ActionMenu, type MenuKind } from "./ActionMenu";
 import { EmptyState } from "./EmptyState";
 import { Fab } from "./Fab";
 import { FilterBar } from "./FilterBar";
@@ -45,13 +46,18 @@ type Props = {
   initial: { posts: WallPost[]; nextCursor: string | null; counts: WallCounts };
   /** A wish named by a shared link: its drawer starts open. */
   openWish?: WallPost | null;
+  /** The admin can close uploads: the wall then only shows the DuitNow QR to share. */
+  uploadsOpen?: boolean;
+  qr?: QrInfo;
 };
 
-export function Wall({ eventId, groom, bride, headerMessage, me, now: serverNow, initial, openWish = null }: Props) {
+const NO_QR: QrInfo = { available: false, accountName: null, bank: null };
+
+export function Wall({ eventId, groom, bride, headerMessage, me, now: serverNow, initial, openWish = null, uploadsOpen = true, qr = NO_QR }: Props) {
   const { posts, counts, nextCursor, loading, loadError, loadMore, refresh, drop } = useWall({ eventId, ...initial });
   const [filter, setFilter] = useState<WallFilter>("all");
   const [wish, setWish] = useState<WallPost | null>(openWish);
-  const [sheet, setSheet] = useState<"menu" | "me" | ShareKind | null>(null);
+  const [sheet, setSheet] = useState<"menu" | "me" | MenuKind | null>(null);
   const fab = useRef<HTMLButtonElement>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date(serverNow));
@@ -129,7 +135,7 @@ export function Wall({ eventId, groom, bride, headerMessage, me, now: serverNow,
             ))}
           </ul>
         )}
-        {showEmpty && <EmptyState filter={filter} onAction={setSheet} />}
+        {showEmpty && <EmptyState filter={filter} onAction={uploadsOpen ? setSheet : undefined} />}
         <div ref={sentinel} className="flex min-h-12 items-center justify-center text-[13px] text-muted">
           {loading && <p role="status">Loading more…</p>}
           {loadError && (
@@ -139,10 +145,17 @@ export function Wall({ eventId, groom, bride, headerMessage, me, now: serverNow,
           )}
         </div>
       </main>
-      <ActionMenu open={sheet === "menu"} onPick={setSheet} onClose={closeMenu} returnFocus={() => fab.current?.focus()} />
+      <ActionMenu
+        open={sheet === "menu"}
+        onPick={setSheet}
+        onClose={closeMenu}
+        returnFocus={() => fab.current?.focus()}
+        uploadsOpen={uploadsOpen}
+      />
       <Fab ref={fab} open={sheet === "menu"} onToggle={() => setSheet((current) => (current === "menu" ? null : "menu"))} />
       <PhotoDrawer open={sheet === "photos"} onClose={closeSheet} onPosted={posted} />
       <VideoDrawer open={sheet === "video"} onClose={closeSheet} onPosted={posted} />
+      <QrDrawer open={sheet === "qr"} qr={qr} onClose={closeSheet} />
       <WishDrawer open={sheet === "wish"} me={me.name} onClose={closeSheet} onPosted={() => posted("wish")} />
       {/* Before the sheets: it closes first, so focus returns to the sheet's button, not to nowhere. */}
       <ConfirmDialog {...remove.dialog} />

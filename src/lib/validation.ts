@@ -8,7 +8,7 @@ import {
   WISH_MIN,
 } from "./domain/limits";
 import { nameProblem, normalizeName } from "./domain/names";
-import { uploadProblem } from "./domain/uploads";
+import { qrProblem, uploadProblem } from "./domain/uploads";
 
 const emptyToUndefined = (v: unknown) => (v === "" ? undefined : v);
 
@@ -105,3 +105,33 @@ export const postIdParam = z.uuid();
 
 /** Where a guest was headed before the welcome screen (`/?next=`): a post link only, so it cannot be an open redirect. */
 export const nextParam = z.string().refine((v) => v.startsWith("/p/") && postIdParam.safeParse(v.slice(3)).success);
+
+export const adminLoginBody = z.object({ passcode: z.string().min(1).max(200) });
+
+const field = (max: number) => z.string().trim().max(max);
+
+/** PATCH /api/admin/event: any subset of the editable fields; at least one. */
+export const updateEventBody = z
+  .object({
+    groomName: field(40).min(1),
+    brideName: field(40).min(1),
+    headerMessage: field(120),
+    qrAccountName: field(80),
+    qrBank: field(60),
+    uploadsOpen: z.boolean(),
+  })
+  .partial()
+  .refine((b) => Object.keys(b).length > 0, "Nothing to change.");
+
+/** POST /api/admin/qr: the QR image the admin is about to upload. */
+export const qrPresignBody = z
+  .object({ mime: z.string().max(100), bytes: z.int().positive() })
+  .superRefine(({ mime, bytes }, ctx) => {
+    const problem = qrProblem(mime, bytes);
+    if (problem) ctx.addIssue({ code: "custom", message: problem });
+  });
+
+/** PUT /api/admin/qr: the key the presign call returned, now uploaded. */
+export const qrConfirmBody = z.object({ key: z.string().min(1).max(200) });
+
+export const hideBody = z.object({ hidden: z.boolean() });

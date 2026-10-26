@@ -19,7 +19,7 @@ When behaviour in this file and the prototype disagree, this file wins. Ask befo
 - **Cloudflare R2**: all media (photos, videos, posters, thumbnails, QR); see `docs/adr/001-r2-for-media.md`
 - **Tailwind CSS v4** driven by CSS variables (see Theming); tokens are mapped with `@theme inline` in `theme.css`, so there is no `tailwind.config.ts`
 - **zod** for every input that crosses the network, and for env vars
-- Deploy: Vercel (app) + Supabase (hosted)
+- Deploy: a VPS (Node, `npm run build` + `npm start` behind an HTTPS reverse proxy) + Supabase (hosted); see `docs/PLAN.md` "Deploy target is a VPS"
 
 ## Commands
 

@@ -6,6 +6,8 @@ import {
   fitWithin,
   looksLike,
   mediaKey,
+  qrKey,
+  qrProblem,
   totalBytes,
   uploadProblem,
   videoProblem,
@@ -157,5 +159,24 @@ describe("looksLike", () => {
     expect(looksLike("video/webm", bytes(0xff, 0xd8, 0xff))).toBe(false);
     expect(looksLike("image/jpeg", new Uint8Array(0))).toBe(false);
     expect(looksLike("image/svg+xml", html)).toBe(false);
+  });
+});
+
+describe("the DuitNow QR", () => {
+  it("is keyed under the event's admin folder with the right extension", () => {
+    expect(qrKey("e1", "abc", "image/png")).toBe("events/e1/admin/qr-abc.png");
+    expect(qrKey("e1", "abc", "image/jpeg")).toBe("events/e1/admin/qr-abc.jpg");
+    expect(() => qrKey("e1", "abc", "image/gif")).toThrow();
+  });
+  it("accepts a PNG or JPEG up to 2 MB and says why otherwise", () => {
+    expect(qrProblem("image/png", 1 * MB)).toBeNull();
+    expect(qrProblem("image/jpeg", 2 * MB)).toBeNull();
+    expect(qrProblem("image/gif", 1000)).toMatch(/PNG or JPEG/);
+    expect(qrProblem("image/png", 2 * MB + 1)).toMatch(/2 MB/);
+  });
+  it("recognises PNG bytes", () => {
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
+    expect(looksLike("image/png", png)).toBe(true);
+    expect(looksLike("image/png", new Uint8Array(12))).toBe(false);
   });
 });

@@ -23,7 +23,21 @@ export type Database = {
           }
         },"public": {
           Tables: {
-            "events": {
+            "admin_attempts": {
+                  Row: {
+                    "at": string,"ip_hash": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "at"?: string,"ip_hash": string
+                  }
+                  Update: {
+                    "at"?: string,"ip_hash"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"events": {
                   Row: {
                     "bride_name": string,"created_at": string | null,"groom_name": string,"header_message": string | null,"id": string,"qr_account_name": string | null,"qr_bank": string | null,"qr_path": string | null,"slug": string,"uploads_open": boolean
                   }
@@ -141,6 +155,32 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"wish_log": {
+                  Row: {
+                    "created_at": string,"guest_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"guest_id": string
+                  }
+                  Update: {
+                    "created_at"?: string,"guest_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "wish_log_guest_id_fkey"
+      columns: ["guest_id"]
+isOneToOne: false
+      referencedRelation: "guests"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "wish_log_guest_id_fkey"
+      columns: ["guest_id"]
+isOneToOne: false
+      referencedRelation: "public_guests"
+      referencedColumns: ["id"]
+    }
+                  ]
                 }
           }
           Views: {
@@ -167,7 +207,13 @@ isOneToOne: false
                 }
           }
           Functions: {
-            "create_post_from_intent":
+            "admin_login_attempt":
+{ Args: { "p_ip_hash": string,"p_max": number,"p_since": string }; Returns: undefined
+                           },
+"admin_login_clear":
+{ Args: { "p_ip_hash": string }; Returns: undefined
+                           },
+"create_post_from_intent":
 { Args: { "p_caption": string,"p_guest_id": string,"p_media": Json,"p_post_id": string,"p_type": Database["public"]['Enums']["post_type"] }; Returns: undefined
                            },
 "create_upload_intent":

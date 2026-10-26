@@ -3,11 +3,14 @@
 import { useEffect, useRef } from "react";
 
 export type ShareKind = "photos" | "video" | "wish";
+export type MenuKind = ShareKind | "qr";
 
 type Props = {
   open: boolean;
-  onPick: (kind: ShareKind) => void;
+  onPick: (kind: MenuKind) => void;
   onClose: () => void;
+  /** The admin closed uploads: only the DuitNow QR stays, with a note. */
+  uploadsOpen?: boolean;
   /** Called before onPick: the dialog that opens next must record the FAB as its opener. */
   returnFocus: () => void;
 };
@@ -15,7 +18,7 @@ type Props = {
 const ICON = { width: 22, height: 22, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round" } as const;
 
 // Photos comes first so it is the focus target and sits nearest the thumb: the list is laid out bottom-up.
-const ITEMS: { kind: ShareKind; label: string; sub: string; icon: React.ReactNode }[] = [
+const ITEMS: { kind: MenuKind; label: string; sub: string; icon: React.ReactNode }[] = [
   {
     kind: "photos",
     label: "Photos",
@@ -45,12 +48,25 @@ const ITEMS: { kind: ShareKind; label: string; sub: string; icon: React.ReactNod
     sub: "Write to the couple",
     icon: <path d="M12 20s-7.5-4.6-7.5-10.2A4.2 4.2 0 0 1 12 7.3a4.2 4.2 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20z" />,
   },
+  {
+    kind: "qr",
+    label: "DuitNow QR",
+    sub: "Send a gift",
+    icon: (
+      <>
+        <rect x="4" y="4" width="6" height="6" rx="1" />
+        <rect x="14" y="4" width="6" height="6" rx="1" />
+        <rect x="4" y="14" width="6" height="6" rx="1" />
+        <path d="M14 14h2.5v2.5H14zM18 18h2M17.5 14H20v2" />
+      </>
+    ),
+  },
 ];
 
 const SURFACE = "bg-card [border:var(--dial-border)] [box-shadow:var(--dial-shadow)]";
 
 /** Speed-dial above the FAB. Always rendered so it can fade; `inert` keeps it out of reach while closed. */
-export function ActionMenu({ open, onPick, onClose, returnFocus }: Props) {
+export function ActionMenu({ open, onPick, onClose, returnFocus, uploadsOpen = true }: Props) {
   const list = useRef<HTMLUListElement>(null);
   // The parent passes a fresh callback every render; keep it from re-running (and re-focusing) the effect.
   const close = useRef(onClose);
@@ -85,7 +101,7 @@ export function ActionMenu({ open, onPick, onClose, returnFocus }: Props) {
           open ? "translate-y-0 opacity-100" : "translate-y-2.5 opacity-0"
         }`}
       >
-        {ITEMS.map(({ kind, label, sub, icon }) => (
+        {(uploadsOpen ? ITEMS : ITEMS.filter((item) => item.kind === "qr")).map(({ kind, label, sub, icon }) => (
           <li key={kind}>
             <button
               type="button"
@@ -107,6 +123,11 @@ export function ActionMenu({ open, onPick, onClose, returnFocus }: Props) {
             </button>
           </li>
         ))}
+        {!uploadsOpen && (
+          <li className="rounded-2xl px-3.5 py-2 text-xs text-muted bg-card [border:var(--dial-border)]">
+            Sharing is closed. Thank you for your memories!
+          </li>
+        )}
       </ul>
     </>
   );
