@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { image, wallPost, wishPost } from "../../../tests/fixtures/posts";
+import { cameFromWall } from "@/lib/fromWall";
 import { PostCard } from "./PostCard";
 
 const NOW = new Date("2026-10-25T12:00:00Z");
@@ -14,6 +15,14 @@ describe("PostCard", () => {
     expect(link).toHaveAttribute("href", "/p/b0000000-0000-4000-8000-000000000001");
     expect(screen.getByText("5 min ago")).toBeInTheDocument();
     expect(screen.queryByText("You")).not.toBeInTheDocument();
+  });
+
+  it("remembers that the viewer was reached from the wall", () => {
+    const post = wallPost();
+    show(post);
+    expect(cameFromWall(post.id)).toBe(false);
+    fireEvent.click(screen.getByRole("link", { name: "Photo by Nazrul" }));
+    expect(cameFromWall(post.id)).toBe(true);
   });
 
   it("marks the guest's own posts", () => {

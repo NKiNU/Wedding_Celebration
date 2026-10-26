@@ -5,6 +5,7 @@ import { PostViewer } from "@/components/viewer/PostViewer";
 import { postIdParam } from "@/lib/validation";
 import { getSession } from "@/server/identity";
 import { getPost } from "@/server/wall";
+import { WallContent } from "../../wall/WallContent";
 
 export default function PostPage({ params }: { params: Promise<{ id: string }> }) {
   return (
@@ -15,13 +16,16 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
 }
 
 async function PostContent({ params }: { params: Promise<{ id: string }> }) {
-  const { active } = await getSession(await cookies());
-  if (!active) redirect("/");
   // A malformed id would reach Postgres as an invalid uuid and come back as a 500.
   const id = postIdParam.safeParse((await params).id);
   if (!id.success) notFound();
+  const { active } = await getSession(await cookies());
+  // No name yet: join first, then come back to this post.
+  if (!active) redirect(`/?next=${encodeURIComponent(`/p/${id.data}`)}`);
   const post = await getPost(id.data);
   if (!post) notFound();
-  if (post.type === "wish") redirect("/wall"); // wishes open in a drawer on the wall
+  // Wishes open in a drawer on the wall. Not a redirect to `/wall?wish=`: a `/wall` that reads
+  // searchParams stalled the client navigation that follows joining (WebKit).
+  if (post.type === "wish") return <WallContent openWish={post} />;
   return <PostViewer post={post} mine={post.guestId === active.guestId} now={new Date().toISOString()} />;
 }

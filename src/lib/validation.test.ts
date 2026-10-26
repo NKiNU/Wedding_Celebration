@@ -6,6 +6,7 @@ import {
   createPostBody,
   createUploadBody,
   parseEnv,
+  nextParam,
   postIdParam,
   storedFiles,
 } from "./validation";
@@ -123,6 +124,14 @@ test("storedFiles needs a key on every file", () => {
 test("postIdParam accepts only a uuid", () => {
   expect(postIdParam.safeParse(ID).success).toBe(true);
   expect(postIdParam.safeParse("../x").success).toBe(false);
+});
+
+test("nextParam accepts only a post link on this site", () => {
+  expect(nextParam.safeParse(`/p/${ID}`).success).toBe(true);
+  for (const bad of ["https://evil.example/p/" + ID, `//evil.example/p/${ID}`, "/wall", "/p/not-a-uuid", `/p/${ID}/x`, ""]) {
+    expect(nextParam.safeParse(bad).success, bad).toBe(false);
+  }
+  expect(nextParam.safeParse(undefined).success).toBe(false);
 });
 
 describe("wish length counts characters like the database", () => {

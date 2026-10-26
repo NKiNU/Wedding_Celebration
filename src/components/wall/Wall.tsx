@@ -43,12 +43,14 @@ type Props = {
   /** Server time, so the first render matches the HTML ("5 min ago" cannot differ). */
   now: string;
   initial: { posts: WallPost[]; nextCursor: string | null; counts: WallCounts };
+  /** A wish named by a shared link: its drawer starts open. */
+  openWish?: WallPost | null;
 };
 
-export function Wall({ eventId, groom, bride, headerMessage, me, now: serverNow, initial }: Props) {
+export function Wall({ eventId, groom, bride, headerMessage, me, now: serverNow, initial, openWish = null }: Props) {
   const { posts, counts, nextCursor, loading, loadError, loadMore, refresh, drop } = useWall({ eventId, ...initial });
   const [filter, setFilter] = useState<WallFilter>("all");
-  const [wish, setWish] = useState<WallPost | null>(null);
+  const [wish, setWish] = useState<WallPost | null>(openWish);
   const [sheet, setSheet] = useState<"menu" | "me" | ShareKind | null>(null);
   const fab = useRef<HTMLButtonElement>(null);
   const [toast, setToast] = useState<string | null>(null);

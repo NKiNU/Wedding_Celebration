@@ -5,6 +5,7 @@ import { Thumb } from "@/components/ui/Thumb";
 import { TrashIcon } from "@/components/ui/TrashIcon";
 import { coverOf, postLabel, relativeTime, type WallPost } from "@/lib/domain/posts";
 import { initialOf } from "@/lib/domain/names";
+import { markFromWall } from "@/lib/fromWall";
 import { BottomSheet } from "./BottomSheet";
 import type { MyPostsStatus } from "./useMyPosts";
 import { useSwitchName } from "./useSwitchName";
@@ -55,7 +56,7 @@ function PostRow({ post, now, onOpenWish, onDelete }: { post: WallPost; now: Dat
           {body}
         </button>
       ) : (
-        <Link href={`/p/${post.id}`} prefetch={false} className={ROW}>
+        <Link href={`/p/${post.id}`} prefetch={false} className={ROW} onClick={() => markFromWall(post.id)}>
           {body}
         </Link>
       )}

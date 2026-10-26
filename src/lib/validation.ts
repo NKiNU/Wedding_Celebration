@@ -102,3 +102,6 @@ export const createPostBody = z
   .refine((b) => (b.postId === undefined) !== (b.wishText === undefined), "Send a wish or a post.");
 
 export const postIdParam = z.uuid();
+
+/** Where a guest was headed before the welcome screen (`/?next=`): a post link only, so it cannot be an open redirect. */
+export const nextParam = z.string().refine((v) => v.startsWith("/p/") && postIdParam.safeParse(v.slice(3)).success);

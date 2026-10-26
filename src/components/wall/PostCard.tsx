@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Thumb } from "@/components/ui/Thumb";
 import { coverOf, formatDuration, relativeTime, type PostType, type WallPost } from "@/lib/domain/posts";
+import { markFromWall } from "@/lib/fromWall";
 import { AlbumStack } from "./AlbumStack";
 
 const LEAD: Record<PostType, string> = {
@@ -95,7 +96,7 @@ export function PostCard({ post, mine, now, onOpenWish }: Props) {
   const label = `${LEAD[post.type]} ${post.author}${post.type === "album" ? `, ${post.media.length} photos` : ""}`;
   // The viewer page arrives in Phase 4; prefetch stays off so 24 cards do not each fetch it.
   return (
-    <Link href={`/p/${post.id}`} prefetch={false} aria-label={label} className={CARD}>
+    <Link href={`/p/${post.id}`} prefetch={false} aria-label={label} className={CARD} onClick={() => markFromWall(post.id)}>
       {body}
     </Link>
   );
