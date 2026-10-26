@@ -100,7 +100,7 @@ test("three photos become one album on the wall, uploaded straight to storage", 
     Array.from({ length: 3 }, (_, i) => ({ name: `p${i}.png`, mimeType: "image/png", buffer: PIXEL })),
   );
   await drawer.getByLabel(/Caption/).fill("Akad nikah");
-  const puts = page.waitForResponse((r) => r.request().method() === "PUT" && r.url().includes("/s3/"));
+  const puts = page.waitForResponse((r) => r.request().method() === "PUT" && r.url().includes("X-Amz-Signature"));
   await drawer.getByRole("button", { name: "Post album (3)" }).click();
   expect((await puts).status()).toBe(200);
 
