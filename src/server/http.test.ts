@@ -77,11 +77,20 @@ describe("handle: cross-site protection", () => {
     expect(ran).toBe(true);
   });
 
-  it("compares the Origin's host only, so a proxy that hides https does not refuse real guests", async () => {
-    const behindProxy = (origin: string) =>
-      handle(new Request("http://wedding.example/api/x", { method: "POST", headers: { origin } }), run);
-    expect((await behindProxy("https://wedding.example")).status).toBe(200);
-    expect((await behindProxy("https://evil.example")).status).toBe(403);
+  it("takes the scheme from the proxy's X-Forwarded-Proto, so https behind a TLS proxy is not refused", async () => {
+    const behindProxy = (origin: string, proto?: string) =>
+      handle(
+        new Request("http://wedding.example/api/x", {
+          method: "POST",
+          headers: { origin, ...(proto && { "x-forwarded-proto": proto }) },
+        }),
+        run,
+      );
+    expect((await behindProxy("https://wedding.example", "https")).status).toBe(200);
+    expect((await behindProxy("https://wedding.example", "https, http")).status).toBe(200); // the first hop
+    expect((await behindProxy("https://evil.example", "https")).status).toBe(403);
+    expect((await behindProxy("http://wedding.example", "https")).status).toBe(403); // wrong scheme
+    expect((await behindProxy("https://wedding.example")).status).toBe(403); // proxy sent no scheme: fail closed
   });
 
   it("does not guard reads", async () => {

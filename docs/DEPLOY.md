@@ -95,7 +95,9 @@ The proxy **must replace** the client address headers (`header_up` sets them; do
 login throttle and the flood guards on joining and reading the wall are counted per client address,
 and a client could otherwise send a different forwarded address on every try.
 
-nginx equivalent: `proxy_set_header X-Real-IP $remote_addr;` and
+nginx equivalent: `proxy_set_header X-Real-IP $remote_addr;`,
+`proxy_set_header X-Forwarded-Proto $scheme;` (Caddy sends it by itself; without it older iPhones, which send no
+`Sec-Fetch-Site`, are refused on every write) and
 `proxy_set_header X-Forwarded-For $remote_addr;` (not `$proxy_add_x_forwarded_for`), plus a certbot
 certificate. A venue's guests usually share one address (one Wi-Fi), which is why those guards are
 loose: see `src/lib/domain/limits.ts`.
