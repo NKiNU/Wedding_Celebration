@@ -1,10 +1,12 @@
 import { cookies } from "next/headers";
 import type { WallResponse } from "@/lib/api";
+import { WALL_READS_PER_IP_PER_WINDOW } from "@/lib/domain/limits";
 import { createPostBody } from "@/lib/validation";
 import { handle } from "@/server/http";
 import { requireGuest } from "@/server/identity";
 import { createMediaPost, createWish } from "@/server/posts";
-import { getWallCounts, getWallPage } from "@/server/wall";
+import { clientIp, rateLimit } from "@/server/rateLimit";
+import { getLatestWishes, getWallCounts, getWallPage } from "@/server/wall";
 
 /**
  * One page of the wall. The first page (no cursor) also carries the filter-pill counts.
@@ -14,8 +16,13 @@ import { getWallCounts, getWallPage } from "@/server/wall";
 export const GET = (req: Request) => {
   const cursor = new URL(req.url).searchParams.get("cursor");
   return handle(req, async (): Promise<WallResponse> => {
-    const [page, counts] = await Promise.all([getWallPage(cursor), cursor ? null : getWallCounts()]);
-    return { ...page, counts };
+    rateLimit("wall", clientIp(req.headers), WALL_READS_PER_IP_PER_WINDOW);
+    const [page, counts, wishes] = await Promise.all([
+      getWallPage(cursor),
+      cursor ? null : getWallCounts(),
+      cursor ? null : getLatestWishes(),
+    ]);
+    return { ...page, counts, wishes };
   });
 };
 

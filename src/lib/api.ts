@@ -4,8 +4,13 @@ import type { FileRole } from "./domain/uploads";
 export type KnownGuest = { guestId: string; name: string };
 export type Session = { active: KnownGuest | null; known: KnownGuest[] };
 
-/** GET /api/posts: `counts` is only sent with the first page. */
-export type WallResponse = { posts: WallPost[]; nextCursor: string | null; counts: WallCounts | null };
+/** GET /api/posts: `counts` and `wishes` (the newest wishes anywhere on the wall) are only sent with the first page. */
+export type WallResponse = {
+  posts: WallPost[];
+  nextCursor: string | null;
+  counts: WallCounts | null;
+  wishes?: WallPost[] | null;
+};
 
 /** POST /api/uploads: one presigned PUT URL per requested file. */
 export type UploadIntent = { postId: string; uploads: { role: FileRole; position: number; url: string }[] };

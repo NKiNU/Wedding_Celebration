@@ -157,4 +157,10 @@ describe("dev-only R2 endpoint", () => {
     expect(() => parseEnv({ ...withEndpoint, VERCEL_ENV: "production" })).toThrow(/R2_ENDPOINT/);
     expect(parseEnv({ ...withEndpoint, VERCEL_ENV: "preview" }).R2_ENDPOINT).toBeDefined();
   });
+  test("is refused under `next start` (NODE_ENV=production) unless a local run opts in", () => {
+    const withEndpoint = { ...valid, R2_ENDPOINT: "http://127.0.0.1:54321/storage/v1/s3" };
+    expect(() => parseEnv({ ...withEndpoint, NODE_ENV: "production" })).toThrow(/R2_ENDPOINT/);
+    expect(parseEnv({ ...withEndpoint, NODE_ENV: "production", ALLOW_DEV_R2_ENDPOINT: "1" }).R2_ENDPOINT).toBeDefined();
+    expect(parseEnv({ ...withEndpoint, NODE_ENV: "development" }).R2_ENDPOINT).toBeDefined();
+  });
 });

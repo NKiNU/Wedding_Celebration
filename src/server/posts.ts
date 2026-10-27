@@ -47,7 +47,11 @@ async function removePost(eventId: string, postId: string, ownerId?: string): Pr
   const keys = data.post_media.flatMap((m) =>
     [m.path, m.thumb_path, m.poster_path].filter((key): key is string => key !== null),
   );
-  if (keys.length > 0) await r2().deleteMany(keys);
+  if (keys.length > 0) {
+    await r2().deleteMany(keys);
+    // The files are gone either way; a cache that cannot be purged only serves them a while longer.
+    await r2().purge(keys).catch((e: unknown) => console.error("Purging deleted media failed", postId, e));
+  }
 
   const row = db().from("posts").delete().eq("id", postId);
   const { error: removing } = await (ownerId === undefined ? row : row.eq("guest_id", ownerId));

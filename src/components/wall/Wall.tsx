@@ -43,7 +43,7 @@ type Props = {
   me: KnownGuest;
   /** Server time, so the first render matches the HTML ("5 min ago" cannot differ). */
   now: string;
-  initial: { posts: WallPost[]; nextCursor: string | null; counts: WallCounts };
+  initial: { posts: WallPost[]; nextCursor: string | null; counts: WallCounts; wishes?: WallPost[] };
   /** A wish named by a shared link: its drawer starts open. */
   openWish?: WallPost | null;
   /** The admin can close uploads: the wall then only shows the DuitNow QR to share. */
@@ -54,7 +54,7 @@ type Props = {
 const NO_QR: QrInfo = { available: false, accountName: null, bank: null };
 
 export function Wall({ eventId, groom, bride, headerMessage, me, now: serverNow, initial, openWish = null, uploadsOpen = true, qr = NO_QR }: Props) {
-  const { posts, counts, nextCursor, loading, loadError, loadMore, refresh, drop } = useWall({ eventId, ...initial });
+  const { posts, counts, wishes, nextCursor, loading, loadError, loadMore, refresh, drop } = useWall({ eventId, ...initial });
   const [filter, setFilter] = useState<WallFilter>("all");
   const [wish, setWish] = useState<WallPost | null>(openWish);
   const [sheet, setSheet] = useState<"menu" | "me" | MenuKind | null>(null);
@@ -121,7 +121,7 @@ export function Wall({ eventId, groom, bride, headerMessage, me, now: serverNow,
   return (
     <>
       <WallHeader groom={groom} bride={bride} headerMessage={headerMessage} memories={counts.all} me={me.name} onOpenMe={() => setSheet("me")}>
-        <WishTicker wishes={posts.filter((p) => p.type === "wish")} onOpen={setWish} />
+        <WishTicker wishes={wishes} onOpen={setWish} />
       </WallHeader>
       <FilterBar counts={counts} value={filter} onChange={setFilter} />
       <main className="min-h-[620px] px-3 pt-3.5 pb-[120px] [background:var(--feed-pattern),var(--feed)]">

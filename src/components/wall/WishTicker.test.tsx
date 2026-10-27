@@ -44,6 +44,59 @@ describe("WishTicker", () => {
     expect(screen.getByText(/Wish a/)).toBeInTheDocument();
   });
 
+  it("pauses while the pointer is over the card or it has keyboard focus, then carries on", () => {
+    render(<WishTicker wishes={wishes} onOpen={vi.fn()} />);
+    const card = screen.getByRole("button", { name: /Latest wishes.*Wish a/ });
+
+    fireEvent.pointerEnter(card);
+    act(() => void vi.advanceTimersByTime(12000));
+    expect(screen.getByText(/Wish a/)).toBeInTheDocument();
+    fireEvent.pointerLeave(card);
+    act(() => void vi.advanceTimersByTime(4000));
+    expect(screen.getByText(/Wish b/)).toBeInTheDocument();
+
+    fireEvent.focus(card);
+    act(() => void vi.advanceTimersByTime(12000));
+    expect(screen.getByText(/Wish b/)).toBeInTheDocument();
+    fireEvent.blur(card);
+    act(() => void vi.advanceTimersByTime(4000));
+    expect(screen.getByText(/Wish c/)).toBeInTheDocument();
+  });
+
+  it("keeps hover and focus apart: leaving with the pointer does not release a card that still has focus", () => {
+    render(<WishTicker wishes={wishes} onOpen={vi.fn()} />);
+    const card = screen.getByRole("button", { name: /Latest wishes.*Wish a/ });
+    fireEvent.focus(card);
+    fireEvent.pointerEnter(card);
+    fireEvent.pointerLeave(card);
+    act(() => void vi.advanceTimersByTime(12000));
+    expect(screen.getByText(/Wish a/)).toBeInTheDocument();
+  });
+
+  it("has a button that pauses it until pressed again, shown by a pause glyph in place of the dots", () => {
+    const { container } = render(<WishTicker wishes={wishes} onOpen={vi.fn()} />);
+    const toggle = screen.getByRole("button", { name: "Pause latest wishes" });
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    expect(container.querySelectorAll("[aria-hidden] > span")).toHaveLength(3);
+
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    expect(container.querySelector("svg")).not.toBeNull();
+    fireEvent.pointerLeave(toggle); // the pointer is gone, the guest's pause stays
+    fireEvent.blur(toggle);
+    act(() => void vi.advanceTimersByTime(12000));
+    expect(screen.getByText(/Wish a/)).toBeInTheDocument();
+
+    fireEvent.click(toggle);
+    act(() => void vi.advanceTimersByTime(4000));
+    expect(screen.getByText(/Wish b/)).toBeInTheDocument();
+  });
+
+  it("offers no pause button for a single wish, which never moves", () => {
+    render(<WishTicker wishes={wishes.slice(0, 1)} onOpen={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "Pause latest wishes" })).not.toBeInTheDocument();
+  });
+
   it("does not rotate for guests who prefer reduced motion, or with a single wish", () => {
     vi.stubGlobal("matchMedia", () => ({ matches: true }));
     const { unmount } = render(<WishTicker wishes={wishes} onOpen={vi.fn()} />);

@@ -14,7 +14,8 @@ const setNavigator = (share?: (data: ShareData) => Promise<void>, canShare = tru
 };
 
 beforeEach(() => {
-  vi.stubGlobal("fetch", vi.fn(async () => new Response(png(), { status: 200, headers: { "content-type": "image/png" } })));
+  // A plain object, not a `Response`: undici's Blob is not the jsdom Blob that `new File([blob])` accepts.
+  vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, blob: async () => png() })));
   setNavigator();
 });
 afterEach(() => {
@@ -53,7 +54,6 @@ describe("QrDrawer", () => {
     setNavigator(share);
     show();
     await waitFor(() => expect(fetch).toHaveBeenCalledWith("/qr"));
-    // let the file land in state before the tap
     await act(async () => {});
     fireEvent.click(screen.getByRole("button", { name: "Download QR" }));
     await waitFor(() => expect(share).toHaveBeenCalledTimes(1));

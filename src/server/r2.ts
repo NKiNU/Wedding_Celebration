@@ -16,6 +16,12 @@ export type R2 = {
   /** The first bytes of a stored object (at most `PEEK_BYTES`), or null when it does not exist. */
   peek(key: string): Promise<Uint8Array | null>;
   deleteMany(keys: readonly string[]): Promise<void>;
+  /**
+   * Asks the media domain's CDN to forget these keys, so a deleted photo stops being served from
+   * cache. Called after `deleteMany`; a failure is logged and never blocks the delete, but the
+   * delete response waits for it, so an implementation must time out within a few seconds.
+   */
+  purge(keys: readonly string[]): Promise<void>;
 };
 
 export const PEEK_BYTES = 16;
@@ -82,4 +88,12 @@ async function deleteMany(keys: readonly string[]) {
   if (failed >= 0) throw new Error(`R2 DELETE ${keys[failed]} failed: ${results[failed]!.status}`);
 }
 
-export const r2 = (): R2 => ({ presignPut, head, peek, deleteMany });
+// PLACEHOLDER (the bucket and media domain are set up outside this repo; see docs/R2-SETUP.md,
+// "Purge on delete"). Until the CDN has a purge API wired in here, deleted media can stay in the
+// edge cache for as long as the `Cache-Control` set on the media domain allows. Replace this body
+// with the CDN's "purge by URL" call for `${NEXT_PUBLIC_MEDIA_BASE_URL}/${key}`.
+async function purge(keys: readonly string[]) {
+  void keys;
+}
+
+export const r2 = (): R2 => ({ presignPut, head, peek, deleteMany, purge });

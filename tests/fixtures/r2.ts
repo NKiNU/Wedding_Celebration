@@ -14,6 +14,7 @@ const SIGNATURE: Record<string, number[]> = {
 export function fakeR2(objects: Record<string, StoredObject> = {}) {
   const store = new Map(Object.entries(objects));
   const deleted: string[] = [];
+  const purged: string[] = [];
   const presigned: { key: string; mime: string; bytes: number }[] = [];
   const r2: R2 = {
     presignPut: async (key, mime, bytes) => {
@@ -29,6 +30,9 @@ export function fakeR2(objects: Record<string, StoredObject> = {}) {
       if (!object) return null;
       return object.start ?? new Uint8Array([...(SIGNATURE[object.mime.split(";")[0]!.trim().toLowerCase()] ?? [0]), 0, 0, 0, 0, 0, 0, 0, 0]);
     },
+    purge: async (keys) => {
+      purged.push(...keys);
+    },
     deleteMany: async (keys) => {
       for (const key of keys) {
         deleted.push(key);
@@ -36,5 +40,5 @@ export function fakeR2(objects: Record<string, StoredObject> = {}) {
       }
     },
   };
-  return { r2, store, deleted, presigned };
+  return { r2, store, deleted, purged, presigned };
 }

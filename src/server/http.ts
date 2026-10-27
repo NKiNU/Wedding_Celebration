@@ -24,7 +24,14 @@ function isCrossSite(req: Request): boolean {
   const site = req.headers.get("sec-fetch-site");
   if (site !== null) return site !== "same-origin" && site !== "none";
   const origin = req.headers.get("origin");
-  return origin !== null && origin !== new URL(req.url).origin;
+  if (origin === null) return false;
+  // Host only: behind a TLS-terminating proxy `req.url` can say http while the browser's Origin says
+  // https, and a scheme-only difference would refuse every write from an older iPhone.
+  try {
+    return new URL(origin).host !== new URL(req.url).host;
+  } catch {
+    return true; // an opaque Origin ("null")
+  }
 }
 
 const fail = (status: number, error: ApiError) => Response.json({ ok: false, error }, { status });

@@ -16,7 +16,6 @@ vi.mock("./event", () => ({ getEvent: async () => mocks.event, EVENT_COLUMNS: "i
 
 import {
   ADMIN_COOKIE,
-  clientIp,
   confirmQr,
   getAdminEvent,
   getModerationPage,
@@ -145,33 +144,6 @@ describe("login and the admin cookie", () => {
   });
 });
 
-describe("clientIp", () => {
-  const h = (init: Record<string, string>) => new Headers(init);
-
-  it("on a VPS trusts the proxy's x-real-ip, never a header the client can choose", () => {
-    expect(clientIp(h({ "x-real-ip": "9.9.9.9", "x-vercel-forwarded-for": "1.1.1.1", "x-forwarded-for": "2.2.2.2, 9.9.9.9" }), false)).toBe("9.9.9.9");
-  });
-
-  it("on a VPS without x-real-ip takes the last x-forwarded-for entry, the one the proxy appended", () => {
-    expect(clientIp(h({ "x-forwarded-for": "6.6.6.6, 9.9.9.9" }), false)).toBe("9.9.9.9");
-    expect(clientIp(h({ "x-vercel-forwarded-for": "1.1.1.1" }), false)).toBeNull();
-    expect(clientIp(h({}), false)).toBeNull();
-  });
-
-  it("on Vercel uses its own header, else the first x-forwarded-for entry", () => {
-    expect(clientIp(h({ "x-vercel-forwarded-for": "1.1.1.1", "x-real-ip": "9.9.9.9" }), true)).toBe("1.1.1.1");
-    expect(clientIp(h({ "x-forwarded-for": "2.2.2.2, 3.3.3.3" }), true)).toBe("2.2.2.2");
-    expect(clientIp(h({}), true)).toBeNull();
-  });
-
-  it("reads VERCEL from the environment by default", () => {
-    vi.stubEnv("VERCEL", "1");
-    expect(clientIp(h({ "x-vercel-forwarded-for": "1.1.1.1" }))).toBe("1.1.1.1");
-    vi.stubEnv("VERCEL", "");
-    expect(clientIp(h({ "x-vercel-forwarded-for": "1.1.1.1" }))).toBeNull();
-  });
-});
-
 describe("the event", () => {
   it("shows empty text for optional fields and whether a QR exists", async () => {
     mocks.event = eventRow({ header_message: null, qr_path: "events/x/admin/qr-1.png" });
@@ -295,7 +267,10 @@ describe("the QR", () => {
     vi.stubGlobal("fetch", fetchMock);
     const qr = await getQrObject();
     expect(qr?.mime).toBe("image/png");
-    expect(fetchMock).toHaveBeenCalledWith("https://media.example.com/events/e/admin/qr-1.png", { cache: "no-store" });
+    expect(fetchMock).toHaveBeenCalledWith("https://media.example.com/events/e/admin/qr-1.png", {
+      cache: "no-store",
+      signal: expect.any(AbortSignal),
+    });
     fetchMock.mockResolvedValueOnce(new Response("", { status: 404 }));
     expect(await getQrObject()).toBeNull();
     vi.unstubAllGlobals();

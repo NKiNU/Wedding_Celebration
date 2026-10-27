@@ -9,10 +9,17 @@ const REFRESH_DEBOUNCE_MS = 500;
 /** Away longer than this, the socket may have dropped and a hide broadcast been missed. */
 const STALE_AFTER_MS = 30_000;
 
-type Initial = { eventId: string; posts: WallPost[]; nextCursor: string | null; counts: WallCounts };
+type Initial = {
+  eventId: string;
+  posts: WallPost[];
+  nextCursor: string | null;
+  counts: WallCounts;
+  wishes?: WallPost[];
+};
 
 /**
- * The wall's data: loaded posts, the next-page cursor and the pill counts. Pages arrive by
+ * The wall's data: loaded posts, the next-page cursor, the pill counts and the newest wishes
+ * (the ticker must not depend on which posts happen to be loaded). Pages arrive by
  * cursor. Realtime events trigger one debounced refetch of page 1, folded in with
  * `reconcileWall` (it also drops posts hidden or deleted behind it). After a reconnect or a
  * long absence a missed `post_hidden` could be sitting on a deeper page, so that refetch
@@ -23,6 +30,7 @@ export function useWall(initial: Initial, subscribe: SubscribeToWall = subscribe
   const [posts, setPosts] = useState(initial.posts);
   const [nextCursor, setNextCursor] = useState(initial.nextCursor);
   const [counts, setCounts] = useState(initial.counts);
+  const [wishes, setWishes] = useState(initial.wishes ?? []);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const busy = useRef(false);
@@ -55,7 +63,7 @@ export function useWall(initial: Initial, subscribe: SubscribeToWall = subscribe
   const refresh = useCallback(async (restart: boolean) => {
     const result = await api<WallResponse>("/api/posts", "GET");
     if (!result.ok) return; // the next event or visit retries; the old wall stays usable
-    const { posts: fresh, nextCursor: freshCursor, counts: freshCounts } = result.data;
+    const { posts: fresh, nextCursor: freshCursor, counts: freshCounts, wishes: freshWishes } = result.data;
     const folded = reconcileWall(postsRef.current, fresh, restart || freshCursor === null);
     setPosts(folded.posts);
     if (folded.restart) {
@@ -65,6 +73,7 @@ export function useWall(initial: Initial, subscribe: SubscribeToWall = subscribe
       setLoadError(null);
     }
     if (freshCounts) setCounts(freshCounts);
+    if (freshWishes) setWishes(freshWishes);
   }, []);
 
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -93,7 +102,8 @@ export function useWall(initial: Initial, subscribe: SubscribeToWall = subscribe
     (id: string) => {
       removed.current.add(id);
       setPosts((current) => current.filter((p) => p.id !== id));
-      scheduleRefresh(); // the pill counts come from the server
+      setWishes((current) => current.filter((p) => p.id !== id));
+      scheduleRefresh(); // the pill counts and the ticker's next wish come from the server
     },
     [scheduleRefresh],
   );
@@ -127,5 +137,5 @@ export function useWall(initial: Initial, subscribe: SubscribeToWall = subscribe
     };
   }, [initial.eventId, subscribe, scheduleRefresh, drop]);
 
-  return { posts, counts, nextCursor, loading, loadError, loadMore, refresh: refreshNow, drop };
+  return { posts, counts, wishes, nextCursor, loading, loadError, loadMore, refresh: refreshNow, drop };
 }

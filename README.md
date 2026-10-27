@@ -1,36 +1,35 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Wedding Memories
 
-## Getting Started
+A mobile web app where wedding guests share photos, albums, videos and wishes on one live wall, and
+find the couple's DuitNow QR for a money gift. Guests join with a name only. Built for Safari (iOS)
+and Chrome (Android). Next.js (App Router), Supabase (Postgres + Realtime), Cloudflare R2 for media.
 
-First, run the development server:
+- **Rules and conventions:** [`CLAUDE.md`](./CLAUDE.md)
+- **Plan, progress and session notes:** [`docs/PLAN.md`](./docs/PLAN.md)
+- **Decisions:** [`docs/adr/`](./docs/adr)
+- **Deploying (VPS, Supabase, cron, launch checklist):** [`docs/DEPLOY.md`](./docs/DEPLOY.md)
+- **R2 bucket, CORS, media domain, cache purge:** [`docs/R2-SETUP.md`](./docs/R2-SETUP.md)
+
+## Run it locally
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env.local        # fill it in; see CLAUDE.md for each variable
+npx supabase start                # local Postgres + Realtime + S3-compatible storage (Docker)
+npx supabase db reset             # migrations + demo seed
+npm run dev                       # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+For media without an R2 bucket, point `R2_*` at local Supabase Storage and create the public bucket
+(`docs/adr/001-r2-for-media.md`, "Consequences"; `docs/PLAN.md`, "Local setup").
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Checks
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run lint
+npm run typecheck
+npm test                  # unit + component, fails below 80% coverage
+npm run build && npm run check:bundle   # no secret or server-only name in the browser bundle
+npm run test:e2e          # Playwright, iPhone Safari + Android Chrome profiles
+SUPABASE_INTEGRATION=1 npx vitest run tests/integration   # real stack: uploads, delete, anon access, 30-phone burst
+```

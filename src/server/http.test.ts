@@ -77,6 +77,13 @@ describe("handle: cross-site protection", () => {
     expect(ran).toBe(true);
   });
 
+  it("compares the Origin's host only, so a proxy that hides https does not refuse real guests", async () => {
+    const behindProxy = (origin: string) =>
+      handle(new Request("http://wedding.example/api/x", { method: "POST", headers: { origin } }), run);
+    expect((await behindProxy("https://wedding.example")).status).toBe(200);
+    expect((await behindProxy("https://evil.example")).status).toBe(403);
+  });
+
   it("does not guard reads", async () => {
     const { res } = await attempt({ method: "GET", headers: { "sec-fetch-site": "cross-site" } });
     expect(res.status).toBe(200);

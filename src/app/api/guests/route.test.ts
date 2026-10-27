@@ -5,7 +5,9 @@ const mocks = vi.hoisted(() => ({ createGuest: vi.fn() }));
 vi.mock("next/headers", () => ({ cookies: async () => fakeJar() }));
 vi.mock("@/server/identity", () => ({ createGuest: mocks.createGuest }));
 
+import { JOINS_PER_IP_PER_HOUR, JOINS_PER_IP_PER_WINDOW } from "@/lib/domain/limits";
 import { AppError } from "@/server/http";
+import { resetRateLimits } from "@/server/rateLimit";
 import { POST } from "./route";
 
 const post = (body: unknown) =>
@@ -13,6 +15,7 @@ const post = (body: unknown) =>
 
 beforeEach(() => {
   mocks.createGuest.mockReset();
+  resetRateLimits();
 });
 
 describe("POST /api/guests", () => {
@@ -43,5 +46,31 @@ describe("POST /api/guests", () => {
     const res = await post({ name: "Ali" });
     expect(res.status).toBe(409);
     expect((await res.json()).error.details).toEqual({ suggestions: ["Ali 2"] });
+  });
+
+  it("refuses with 429 once one address has joined too often in a minute", async () => {
+    mocks.createGuest.mockResolvedValue({ guestId: "g1", name: "Ali" });
+    for (let i = 0; i < JOINS_PER_IP_PER_WINDOW; i++) expect((await post({ name: "Ali" })).status).toBe(201);
+    const res = await post({ name: "Ali" });
+    expect(res.status).toBe(429);
+    expect((await res.json()).error.code).toBe("rate_limited");
+    expect(mocks.createGuest).toHaveBeenCalledTimes(JOINS_PER_IP_PER_WINDOW);
+  });
+
+  it("also caps one address per hour, however slowly it goes", async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.createGuest.mockResolvedValue({ guestId: "g1", name: "Ali" });
+      let made = 0;
+      while (made < JOINS_PER_IP_PER_HOUR) {
+        for (let i = 0; i < JOINS_PER_IP_PER_WINDOW && made < JOINS_PER_IP_PER_HOUR; i++, made++) {
+          expect((await post({ name: "Ali" })).status).toBe(201);
+        }
+        vi.advanceTimersByTime(60_001); // a new minute, still the same hour
+      }
+      expect((await post({ name: "Ali" })).status).toBe(429);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

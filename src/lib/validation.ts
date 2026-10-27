@@ -36,8 +36,11 @@ export type Env = z.infer<typeof envSchema>;
 export function parseEnv(source: Record<string, string | undefined>): Env {
   const result = envSchema.safeParse(source);
   if (result.success) {
-    // The dev endpoint would send guest uploads to whatever store it names.
-    if (result.data.R2_ENDPOINT && source.VERCEL_ENV === "production") {
+    // The dev endpoint would send guest uploads to whatever store it names. `next start` and a
+    // Vercel production deploy both count as production; a local `npm start` against local storage
+    // opts in with ALLOW_DEV_R2_ENDPOINT=1.
+    const production = source.NODE_ENV === "production" || source.VERCEL_ENV === "production";
+    if (result.data.R2_ENDPOINT && production && source.ALLOW_DEV_R2_ENDPOINT !== "1") {
       throw new Error("Invalid environment: R2_ENDPOINT must not be set in production");
     }
     return result.data;

@@ -1,5 +1,5 @@
 import "server-only";
-import { MY_POSTS_MAX, PAGE_SIZE } from "@/lib/domain/limits";
+import { MY_POSTS_MAX, PAGE_SIZE, TICKER_WISHES } from "@/lib/domain/limits";
 import {
   decodeCursor,
   encodeCursor,
@@ -93,6 +93,17 @@ export async function getWallPage(cursor: string | null) {
     posts: page.map(toPost),
     nextCursor: rows.length > PAGE_SIZE && last ? encodeCursor(last.created_at, last.id) : null,
   };
+}
+
+/** The newest visible wishes whatever else was posted since, for the wall header's ticker. */
+export async function getLatestWishes(): Promise<WallPost[]> {
+  const { data, error } = await visiblePosts((await getEvent()).id)
+    .eq("type", "wish")
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(TICKER_WISHES);
+  if (error) throw new Error(`Loading the latest wishes failed: ${error.code} ${error.message}`);
+  return (data as unknown as PostRow[]).map(toPost);
 }
 
 /** One visible post for the viewer; null when it is hidden, deleted or not in this event. */

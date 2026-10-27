@@ -262,6 +262,24 @@ describe("deletePost", () => {
     expect(update.args[0]).toMatchObject({ consumed_at: null, cancelled_at: expect.any(String) });
   });
 
+  it("asks the media domain's cache to forget the files once they are deleted", async () => {
+    const { purged } = setup([row(), ok(null), ok(null)]);
+    await deletePost(GUEST, POST_ID);
+    expect(purged).toEqual([K("0.jpg"), K("0_thumb.jpg"), K("1.mp4"), K("1_poster.jpg")]);
+  });
+
+  it("still deletes the post when the cache purge fails, and logs it", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { calls } = setup([row(), ok(null), ok(null)]);
+    (mocks.r2 as { purge: () => Promise<void> }).purge = async () => {
+      throw new Error("CDN down");
+    };
+    await expect(deletePost(GUEST, POST_ID)).resolves.toBeUndefined();
+    expect(calls.some((c) => c.method === "delete")).toBe(true);
+    expect(log).toHaveBeenCalled();
+    log.mockRestore();
+  });
+
   it("still succeeds when the tombstone cannot be written", async () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     setup([row(), ok(null), failure("XX000")]);

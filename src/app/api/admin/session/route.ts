@@ -1,7 +1,8 @@
 import { cookies } from "next/headers";
 import { adminLoginBody } from "@/lib/validation";
-import { clientIp, login, logout } from "@/server/admin";
+import { login, logout } from "@/server/admin";
 import { handle } from "@/server/http";
+import { clientIp } from "@/server/rateLimit";
 
 export const POST = (req: Request) =>
   handle(req, async () => {

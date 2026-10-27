@@ -2,7 +2,7 @@ import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
 import type { KnownGuest, Session } from "@/lib/api";
-import { MAX_NAMES_PER_PHONE } from "@/lib/domain/limits";
+import { MAX_GUESTS_PER_EVENT, MAX_NAMES_PER_PHONE } from "@/lib/domain/limits";
 import { suggestNames } from "@/lib/domain/names";
 import { addToken } from "@/lib/domain/tokens";
 import { db } from "./db";
@@ -98,6 +98,15 @@ async function nameTakenError(eventId: string, name: string) {
 /** Creates a guest from an already validated name and signs this phone in as them. */
 export async function createGuest(name: string, jar: CookieJar): Promise<KnownGuest> {
   const event = await getEvent();
+  // ponytail: a count, then an insert; a burst can overshoot the cap by a few. Fine for a flood guard.
+  const { count, error: countError } = await db()
+    .from("guests")
+    .select("id", { count: "exact", head: true })
+    .eq("event_id", event.id);
+  if (countError) throw new Error(`Counting guests failed: ${countError.code} ${countError.message}`);
+  if ((count ?? 0) >= MAX_GUESTS_PER_EVENT) {
+    throw new AppError("guest_limit", 429, "This wedding has reached its guest limit.");
+  }
   const token = randomBytes(32).toString("base64url");
   const { data, error } = await db()
     .from("guests")

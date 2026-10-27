@@ -41,6 +41,7 @@ const counts = { all: 3, photos: 1, videos: 1, wishes: 1 };
 
 const wallState = (over = {}) => ({
   posts: [album, video, wish],
+  wishes: [wish],
   counts,
   nextCursor: null,
   loading: false,
@@ -127,6 +128,18 @@ describe("Wall", () => {
     expect(screen.getByRole("dialog", { name: "Wish" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("dialog", { name: "Wish" })).not.toBeInTheDocument();
+  });
+
+  it("shows the ticker from the newest wishes, not from the posts that happen to be loaded", () => {
+    mocks.useWall.mockReturnValue(wallState({ posts: [album, video], wishes: [wish] }));
+    show();
+    expect(screen.getByRole("button", { name: /Latest wishes.*Congratulations!/ })).toBeInTheDocument();
+  });
+
+  it("leaves the ticker out when the wall has no wishes", () => {
+    mocks.useWall.mockReturnValue(wallState({ wishes: [] }));
+    show();
+    expect(screen.queryByRole("button", { name: /Latest wishes/ })).not.toBeInTheDocument();
   });
 
   it("explains an empty filter once nothing is left to load", () => {

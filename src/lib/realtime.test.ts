@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   status: null as null | ((s: string) => void),
   removeChannel: vi.fn(),
   channelName: "",
+  channelOptions: undefined as unknown,
 }));
 
 vi.mock("@supabase/supabase-js", () => {
@@ -21,8 +22,9 @@ vi.mock("@supabase/supabase-js", () => {
   };
   return {
     createClient: () => ({
-      channel: (name: string) => {
+      channel: (name: string, options?: unknown) => {
         mocks.channelName = name;
+        mocks.channelOptions = options;
         return channel;
       },
       removeChannel: mocks.removeChannel,
@@ -41,9 +43,10 @@ beforeEach(() => {
 });
 
 describe("subscribeToWall", () => {
-  it("joins the public wall topic the hide trigger broadcasts on", () => {
+  it("joins the wall topic the hide trigger broadcasts on, as a private channel only the database can send on", () => {
     subscribeToWall("e1", events);
     expect(mocks.channelName).toBe("wall:e1");
+    expect(mocks.channelOptions).toEqual({ config: { private: true } });
   });
 
   it("refetches on inserts and updates, and removes by id on deletes", () => {

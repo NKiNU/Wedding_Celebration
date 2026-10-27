@@ -17,7 +17,7 @@ export function FilterBar({ counts, value, onChange }: Props) {
             type="button"
             aria-pressed={on}
             onClick={() => onChange(id)}
-            className={`flex h-11 flex-none items-center gap-1.5 rounded-full border px-4 text-[13px] font-medium transition-colors duration-150 ${on ? "border-ink bg-ink text-paper" : "border-line bg-card text-ink"}`}
+            className={`flex h-11 flex-none items-center gap-1.5 rounded-full border px-4 text-[13px] font-medium transition-[color,background-color,border-color] duration-150 ${on ? "border-ink bg-ink text-paper" : "border-line bg-card text-ink"}`}
           >
             {label}{" "}
             <span className="text-[11px] opacity-70">{counts[id]}</span>

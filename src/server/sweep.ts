@@ -9,7 +9,7 @@ import { r2 } from "./r2";
 
 const BATCH = 100;
 
-/** Vercel Cron calls with `Authorization: Bearer $CRON_SECRET`. Compared in constant time. */
+/** The VPS cron line (docs/DEPLOY.md) calls with `Authorization: Bearer $CRON_SECRET`. Compared in constant time. */
 export function assertCronRequest(authorization: string | null): void {
   const digest = (s: string) => createHash("sha256").update(s).digest();
   const expected = digest(`Bearer ${env().CRON_SECRET}`);

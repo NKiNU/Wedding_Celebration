@@ -2,14 +2,14 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { validEnv } from "../../tests/fixtures/env";
 import { fakeDb } from "../../tests/fixtures/supabase";
 import { encodeCursor } from "@/lib/domain/posts";
-import { MY_POSTS_MAX, PAGE_SIZE } from "@/lib/domain/limits";
+import { MY_POSTS_MAX, PAGE_SIZE, TICKER_WISHES } from "@/lib/domain/limits";
 
 const mocks = vi.hoisted(() => ({ db: null as unknown }));
 vi.mock("./db", () => ({ db: () => mocks.db }));
 vi.mock("./event", () => ({ getEvent: async () => ({ id: "e1" }) }));
 
 import { AppError } from "./http";
-import { getMyPosts, getPost, getWallCounts, getWallPage } from "./wall";
+import { getLatestWishes, getMyPosts, getPost, getWallCounts, getWallPage } from "./wall";
 
 beforeAll(() => {
   for (const [k, v] of Object.entries(validEnv)) vi.stubEnv(k, v);
@@ -177,6 +177,27 @@ describe("getMyPosts", () => {
   it("fails when the database does", async () => {
     mocks.db = fakeDb([{ data: null, error: { code: "XX000", message: "boom" } }]).db;
     await expect(getMyPosts("a1")).rejects.toThrow(/boom/);
+  });
+});
+
+describe("getLatestWishes", () => {
+  it("asks for the newest visible wishes of this event, however many photos came after them", async () => {
+    const { db, calls } = fakeDb([{ data: [row(2, { type: "wish", wish_text: "Congratulations!", post_media: [] })], error: null }]);
+    mocks.db = db;
+
+    const wishes = await getLatestWishes();
+
+    expect(wishes).toHaveLength(1);
+    expect(wishes[0]).toMatchObject({ type: "wish", wishText: "Congratulations!", author: "Ali" });
+    const filters = calls.filter((c) => c.method === "eq").map((c) => c.args);
+    expect(filters).toEqual([["event_id", "e1"], ["hidden", false], ["type", "wish"]]);
+    expect(calls.find((c) => c.method === "limit")!.args).toEqual([TICKER_WISHES]);
+  });
+
+  it("fails loudly when the lookup fails", async () => {
+    const { db } = fakeDb([{ data: null, error: { code: "XX000", message: "nope" } }]);
+    mocks.db = db;
+    await expect(getLatestWishes()).rejects.toThrow(/XX000 nope/);
   });
 });
 

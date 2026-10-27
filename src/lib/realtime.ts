@@ -26,7 +26,8 @@ const anonClient = () =>
 export const subscribeToWall: SubscribeToWall = (eventId, events) => {
   const client = anonClient(); // one per page: StrictMode and remounts must not pile up auth clients
   const channel = client
-    .channel(`wall:${eventId}`)
+    // Private: only the database may send on it (migration 0005), so a visitor cannot fake `post_hidden`.
+    .channel(`wall:${eventId}`, { config: { private: true } })
     .on("postgres_changes", { event: "*", schema: "public", table: "posts" }, (change) => {
       const old = change.old as { id?: string };
       if (change.eventType === "DELETE" && old.id) events.onRemove(old.id);

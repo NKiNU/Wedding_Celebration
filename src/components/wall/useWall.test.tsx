@@ -63,6 +63,36 @@ describe("refresh", () => {
   });
 });
 
+describe("wishes for the ticker", () => {
+  const wish = (n: number) => at(n, { type: "wish", wishText: `Wish ${n}` });
+  const setupWithWishes = () =>
+    renderHook(
+      () => useWall({ eventId: "e1", posts: [at(9)], nextCursor: null, counts: counts(1), wishes: [wish(1)] }, subscribe),
+    );
+
+  it("starts from the wishes the server sent, not from the loaded posts", () => {
+    const { result } = setupWithWishes();
+    expect(result.current.wishes.map((w) => w.id)).toEqual([wish(1).id]);
+  });
+
+  it("takes the newest wishes from the first page, and keeps the old ones when a response has none", async () => {
+    mocks.api.mockResolvedValueOnce(ok({ posts: [at(9)], nextCursor: null, counts: counts(1), wishes: [wish(3), wish(2)] }));
+    const { result } = setupWithWishes();
+    await act(() => result.current.refresh());
+    expect(result.current.wishes.map((w) => w.id)).toEqual([wish(3).id, wish(2).id]);
+
+    mocks.api.mockResolvedValueOnce(ok({ posts: [at(9)], nextCursor: null, counts: null }));
+    await act(() => result.current.refresh());
+    expect(result.current.wishes).toHaveLength(2);
+  });
+
+  it("drops a wish that was deleted or hidden", () => {
+    const { result } = setupWithWishes();
+    act(() => result.current.drop(wish(1).id));
+    expect(result.current.wishes).toEqual([]);
+  });
+});
+
 describe("loadMore", () => {
   it("appends the next page using the cursor and takes the new cursor", async () => {
     mocks.api.mockResolvedValue(ok({ posts: [at(1)], nextCursor: null, counts: null }));

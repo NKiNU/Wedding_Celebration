@@ -3,7 +3,6 @@ import { AppError } from "@/server/http";
 
 const mocks = vi.hoisted(() => ({
   login: vi.fn(),
-  clientIp: vi.fn(),
   logout: vi.fn(),
   requireAdmin: vi.fn(),
   updateEvent: vi.fn(),
@@ -37,7 +36,6 @@ const ctx = { params: Promise.resolve({ id: ID }) };
 
 beforeEach(() => {
   Object.values(mocks).forEach((m) => m.mockReset());
-  mocks.clientIp.mockReturnValue("9.9.9.9");
 });
 
 describe("admin session", () => {

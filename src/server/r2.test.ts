@@ -83,6 +83,15 @@ describe("deleteMany", () => {
   });
 });
 
+describe("purge", () => {
+  it("is a placeholder until the CDN is wired in: it resolves and makes no request", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(r2().purge(["a"])).resolves.toBeUndefined();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
 describe("peek", () => {
   const bytes = (n: number) => new Uint8Array(Array.from({ length: n }, (_, i) => i));
 
