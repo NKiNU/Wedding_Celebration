@@ -1,16 +1,18 @@
 import "server-only";
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
-import type { AdminEvent, AdminPostsResponse, ManifestEntry, QrUpload } from "@/lib/api";
+import type { AdminEvent, AdminPostsResponse, ImageUpload, ManifestEntry } from "@/lib/api";
 import {
   ADMIN_LOGIN_MAX,
   ADMIN_LOGIN_WINDOW_MS,
   ADMIN_SESSION_S,
+  MAX_MONOGRAM_BYTES,
   MAX_QR_BYTES,
   QR_FETCH_TIMEOUT_MS,
   PAGE_SIZE,
 } from "@/lib/domain/limits";
+import { fontOrDefault } from "@/lib/domain/fonts";
 import { decodeCursor, encodeCursor } from "@/lib/domain/posts";
-import { looksLike, qrKey } from "@/lib/domain/uploads";
+import { looksLike, monogramKey, monogramMime, NOT_SVG, qrKey, svgBytesProblem } from "@/lib/domain/uploads";
 import type { updateEventBody } from "@/lib/validation";
 import type { z } from "zod";
 import { db } from "./db";
@@ -19,7 +21,7 @@ import { EVENT_COLUMNS, getEvent } from "./event";
 import { AppError } from "./http";
 import { ipBucket } from "./rateLimit";
 import { r2 } from "./r2";
-import { afterCursor, SELECT, toPost, type PostRow } from "./wall";
+import { afterCursor, mediaUrl, SELECT, toPost, type PostRow } from "./wall";
 
 export const ADMIN_COOKIE = "wm_admin";
 
@@ -101,6 +103,12 @@ const toAdminEvent = (e: Awaited<ReturnType<typeof getEvent>>): AdminEvent => ({
   qrAccountName: e.qr_account_name ?? "",
   qrBank: e.qr_bank ?? "",
   hasQr: e.qr_path !== null,
+  fonts: {
+    names: fontOrDefault("names", e.font_names),
+    wishes: fontOrDefault("wishes", e.font_wishes),
+    body: fontOrDefault("body", e.font_body),
+  },
+  monogramUrl: mediaUrl(e.monogram_path),
 });
 
 export async function getAdminEvent(): Promise<AdminEvent> {
@@ -117,6 +125,9 @@ export async function updateEvent(patch: z.infer<typeof updateEventBody>): Promi
     ...(patch.qrAccountName !== undefined && { qr_account_name: patch.qrAccountName || null }),
     ...(patch.qrBank !== undefined && { qr_bank: patch.qrBank || null }),
     ...(patch.uploadsOpen !== undefined && { uploads_open: patch.uploadsOpen }),
+    ...(patch.fontNames !== undefined && { font_names: patch.fontNames }),
+    ...(patch.fontWishes !== undefined && { font_wishes: patch.fontWishes }),
+    ...(patch.fontBody !== undefined && { font_body: patch.fontBody }),
   };
   const { data, error } = await db()
     .from("events")
@@ -133,7 +144,7 @@ export async function updateEvent(patch: z.infer<typeof updateEventBody>): Promi
 const QR_KEY = (eventId: string) => new RegExp(`^events/${eventId}/admin/qr-[0-9a-f-]{36}\\.(png|jpg)$`);
 
 /** A URL to PUT the QR image to. Nothing changes until `confirmQr`. */
-export async function presignQr(mime: string, bytes: number): Promise<QrUpload> {
+export async function presignQr(mime: string, bytes: number): Promise<ImageUpload> {
   const key = qrKey((await getEvent()).id, randomUUID(), mime);
   return { key, url: await r2().presignPut(key, mime, bytes) };
 }
@@ -186,6 +197,100 @@ export async function getQrObject(): Promise<{ body: ReadableStream<Uint8Array>;
   });
   if (!res.ok || !res.body) return null;
   return { body: res.body, mime: qr_path.endsWith(".png") ? "image/png" : "image/jpeg" };
+}
+
+// ---------------------------------------------------------------- monogram
+
+const MONOGRAM_KEY = (eventId: string) =>
+  new RegExp(`^events/${eventId}/admin/monogram-[0-9a-f-]{36}\\.(png|webp|svg)$`);
+const UNSAFE_SVG = "That SVG can’t be used. Export it again without scripts or links.";
+
+/** A URL to PUT the monogram image to. Nothing changes until `confirmMonogram`. */
+export async function presignMonogram(mime: string, bytes: number): Promise<ImageUpload> {
+  const key = monogramKey((await getEvent()).id, randomUUID(), mime);
+  return { key, url: await r2().presignPut(key, mime, bytes) };
+}
+
+/** Why the uploaded object cannot be the monogram, or null. Never trusts the declared type alone. */
+async function monogramUploadProblem(key: string, mime: string): Promise<AppError | null> {
+  const incomplete = new AppError(
+    "upload_incomplete",
+    400,
+    "The monogram image didn’t finish uploading. Please try again.",
+  );
+  const object = await r2().head(key);
+  if (
+    !object ||
+    object.overridden ||
+    object.mime.split(";")[0]!.trim().toLowerCase() !== mime ||
+    object.bytes > MAX_MONOGRAM_BYTES
+  ) {
+    return incomplete;
+  }
+  if (mime === "image/svg+xml") {
+    const body = await r2().read(key, MAX_MONOGRAM_BYTES);
+    if (!body) return incomplete;
+    const problem = svgBytesProblem(body);
+    if (!problem) return null;
+    // Not an SVG at all (a renamed PNG) is a broken upload, not something to "export again without scripts".
+    return problem === NOT_SVG ? incomplete : new AppError("unsafe_svg", 400, UNSAFE_SVG);
+  }
+  const start = await r2().peek(key);
+  return start && looksLike(mime, start) ? null : incomplete;
+}
+
+/**
+ * Makes an uploaded image the monogram. The key must be one this event's presign call could have
+ * made, and the stored bytes must really be that image (an SVG is scanned for script and remote
+ * links). An upload that fails any check is deleted. The old file is then removed.
+ */
+export async function confirmMonogram(key: string): Promise<AdminEvent> {
+  const event = await getEvent();
+  const mime = MONOGRAM_KEY(event.id).test(key) ? monogramMime(key) : null;
+  if (!mime) throw new AppError("invalid_key", 400, "That isn’t a monogram upload.");
+
+  // A storage error while checking is rejected the same way: the object is not trusted either.
+  const problem = await monogramUploadProblem(key, mime).catch((e: unknown) => {
+    console.error("Checking the monogram upload failed", e);
+    return new AppError("upload_incomplete", 400, "The monogram image didn’t finish uploading. Please try again.");
+  });
+  if (problem) {
+    // A retry with the live key must not delete the live monogram.
+    if (key !== event.monogram_path) {
+      await r2().deleteMany([key]).catch((e) => console.error("Removing the rejected monogram failed", e));
+    }
+    throw problem;
+  }
+
+  const { data, error } = await db()
+    .from("events")
+    .update({ monogram_path: key })
+    .eq("id", event.id)
+    .select(EVENT_COLUMNS)
+    .single();
+  if (error) throw new Error(`Saving the monogram failed: ${error.code} ${error.message}`);
+
+  // The new monogram is live either way: a leftover file only wastes space.
+  if (event.monogram_path && event.monogram_path !== key) {
+    await r2().deleteMany([event.monogram_path]).catch((e) => console.error("Removing the old monogram failed", e));
+  }
+  return toAdminEvent(data);
+}
+
+/** Back to the default "&" monogram. */
+export async function removeMonogram(): Promise<AdminEvent> {
+  const event = await getEvent();
+  if (!event.monogram_path) return toAdminEvent(event);
+
+  const { data, error } = await db()
+    .from("events")
+    .update({ monogram_path: null })
+    .eq("id", event.id)
+    .select(EVENT_COLUMNS)
+    .single();
+  if (error) throw new Error(`Removing the monogram failed: ${error.code} ${error.message}`);
+  await r2().deleteMany([event.monogram_path]).catch((e) => console.error("Removing the old monogram failed", e));
+  return toAdminEvent(data);
 }
 
 // ---------------------------------------------------------------- moderation

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { api, type AdminEvent, type QrUpload } from "@/lib/api";
+import { api, type AdminEvent, type ImageUpload } from "@/lib/api";
 import { qrProblem } from "@/lib/domain/uploads";
 import { putFile } from "@/lib/upload";
 
@@ -16,7 +16,7 @@ export function useQrUpload(onDone: (event: AdminEvent) => void) {
     setError(null);
     setProgress(0);
     try {
-      const presigned = await api<QrUpload>("/api/admin/qr", "POST", { mime: file.type, bytes: file.size });
+      const presigned = await api<ImageUpload>("/api/admin/qr", "POST", { mime: file.type, bytes: file.size });
       if (!presigned.ok) throw new Error(presigned.error.message);
       await putFile(presigned.data.url, file, file.type, (loaded) => setProgress(loaded / file.size));
       const confirmed = await api<AdminEvent>("/api/admin/qr", "PUT", { key: presigned.data.key });

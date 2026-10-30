@@ -36,7 +36,7 @@ export type PostRow = {
   post_media: MediaRow[];
 };
 
-const mediaUrl = (key: string | null) =>
+export const mediaUrl = (key: string | null) =>
   key === null ? null : `${env().NEXT_PUBLIC_MEDIA_BASE_URL.replace(/\/$/, "")}/${key}`;
 
 const toMedia = (m: MediaRow): WallMedia => ({

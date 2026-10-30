@@ -16,6 +16,7 @@ vi.mock("./event", () => ({ getEvent: async () => mocks.event, EVENT_COLUMNS: "i
 
 import {
   ADMIN_COOKIE,
+  confirmMonogram,
   confirmQr,
   getAdminEvent,
   getModerationPage,
@@ -24,7 +25,9 @@ import {
   login,
   logout,
   mediaManifest,
+  presignMonogram,
   presignQr,
+  removeMonogram,
   requireAdmin,
   setHidden,
   updateEvent,
@@ -42,6 +45,10 @@ const eventRow = (over = {}) => ({
   qr_path: null,
   qr_account_name: null,
   qr_bank: null,
+  font_names: null,
+  font_wishes: null,
+  font_body: null,
+  monogram_path: null,
   ...over,
 });
 
@@ -155,7 +162,27 @@ describe("the event", () => {
       qrAccountName: "",
       qrBank: "",
       hasQr: true,
+      fonts: { names: "pinyon-script", wishes: "cormorant-garamond", body: "poppins" },
+      monogramUrl: null,
     });
+  });
+
+  it("returns default fonts and no monogram when the columns are null", async () => {
+    const e = await getAdminEvent();
+    expect(e.fonts).toEqual({ names: "pinyon-script", wishes: "cormorant-garamond", body: "poppins" });
+    expect(e.monogramUrl).toBeNull();
+  });
+
+  it("returns the stored fonts and a media url for the monogram", async () => {
+    mocks.event = eventRow({ font_names: "great-vibes", monogram_path: "events/e/admin/monogram-1.png" });
+    const e = await getAdminEvent();
+    expect(e.fonts.names).toBe("great-vibes");
+    expect(e.monogramUrl).toBe("https://media.example.com/events/e/admin/monogram-1.png");
+  });
+
+  it("falls back to the default for a font key that is not in the list", async () => {
+    mocks.event = eventRow({ font_body: "comic-sans" });
+    expect((await getAdminEvent()).fonts.body).toBe("poppins");
   });
 
   it("updates only the fields sent, and turns empty optional text into null", async () => {
@@ -179,6 +206,17 @@ describe("the event", () => {
       groom_name: "A",
       bride_name: "B",
       qr_account_name: null,
+    });
+  });
+
+  it("writes font_names, font_wishes and font_body", async () => {
+    const { db, calls } = fakeDb([ok(eventRow())]);
+    mocks.db = db;
+    await updateEvent({ fontNames: "allura", fontWishes: "lora", fontBody: "inter" });
+    expect(calls.find((c) => c.method === "update")!.args[0]).toEqual({
+      font_names: "allura",
+      font_wishes: "lora",
+      font_body: "inter",
     });
   });
 
@@ -281,6 +319,147 @@ describe("the QR", () => {
     vi.stubGlobal("fetch", async () => new Response("x", { status: 200 }));
     expect((await getQrObject())?.mime).toBe("image/jpeg");
     vi.unstubAllGlobals();
+  });
+});
+
+describe("the monogram", () => {
+  const KEY = `events/${EVENT_ID}/admin/monogram-11111111-1111-4111-8111-111111111111.png`;
+  const SVG_KEY = `events/${EVENT_ID}/admin/monogram-11111111-1111-4111-8111-111111111111.svg`;
+  const OLD = "events/old/monogram.png";
+  const svg = (text: string) => ({ bytes: text.length, mime: "image/svg+xml", body: new TextEncoder().encode(text) });
+  const setup = (objects: Parameters<typeof fakeR2>[0], queue: DbResult[]) => {
+    const r2 = fakeR2(objects);
+    const fake = fakeDb(queue);
+    mocks.r2 = r2.r2;
+    mocks.db = fake.db;
+    return { ...r2, ...fake };
+  };
+
+  it("presigns a key under this event's admin folder for the exact size and type", async () => {
+    const { presigned } = setup({}, []);
+    const out = await presignMonogram("image/webp", 4321);
+    expect(out.key).toMatch(new RegExp(`^events/${EVENT_ID}/admin/monogram-[0-9a-f-]{36}\\.webp$`));
+    expect(presigned).toEqual([{ key: out.key, mime: "image/webp", bytes: 4321 }]);
+  });
+
+  it("makes a verified PNG the monogram and removes the old file", async () => {
+    mocks.event = eventRow({ monogram_path: OLD });
+    const { deleted, calls } = setup({ [KEY]: { bytes: 5000, mime: "image/png" } }, [ok(eventRow({ monogram_path: KEY }))]);
+    const result = await confirmMonogram(KEY);
+    expect(calls.find((c) => c.method === "update")!.args[0]).toEqual({ monogram_path: KEY });
+    expect(deleted).toEqual([OLD]);
+    expect(result.monogramUrl).toContain(KEY);
+  });
+
+  it("keeps the new monogram even when the old file cannot be removed", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.event = eventRow({ monogram_path: OLD });
+    setup({ [KEY]: { bytes: 5000, mime: "image/png" } }, [ok(eventRow({ monogram_path: KEY }))]);
+    (mocks.r2 as { deleteMany: () => Promise<void> }).deleteMany = async () => {
+      throw new Error("R2 down");
+    };
+    await expect(confirmMonogram(KEY)).resolves.toMatchObject({ monogramUrl: expect.stringContaining(KEY) });
+    expect(log).toHaveBeenCalled();
+    log.mockRestore();
+  });
+
+  it.each([
+    ["a key of another event", "events/other/admin/monogram-11111111-1111-4111-8111-111111111111.png"],
+    ["a QR key", `events/${EVENT_ID}/admin/qr-11111111-1111-4111-8111-111111111111.png`],
+    ["an unknown extension", `events/${EVENT_ID}/admin/monogram-11111111-1111-4111-8111-111111111111.gif`],
+    ["a path trick", `events/${EVENT_ID}/admin/../monogram-11111111-1111-4111-8111-111111111111.png`],
+  ])("refuses %s without touching storage", async (_name, key) => {
+    const { deleted } = setup({ [key]: { bytes: 5000, mime: "image/png" } }, []);
+    await expect(confirmMonogram(key)).rejects.toMatchObject({ status: 400, code: "invalid_key" });
+    expect(deleted).toEqual([]);
+  });
+
+  it.each([
+    ["nothing uploaded", {}],
+    ["a stored type that differs from the key", { [KEY]: { bytes: 5000, mime: "image/webp" } }],
+    ["too large", { [KEY]: { bytes: 2 * 1024 * 1024, mime: "image/png" } }],
+    ["a header override", { [KEY]: { bytes: 5000, mime: "image/png", overridden: true } }],
+    ["bytes that are not a PNG", { [KEY]: { bytes: 5000, mime: "image/png", start: new Uint8Array(16) } }],
+  ])("refuses %s, changes nothing and removes the upload", async (_name, objects) => {
+    const { calls, deleted } = setup(objects, []);
+    await expect(confirmMonogram(KEY)).rejects.toMatchObject({ status: 400, code: "upload_incomplete" });
+    expect(calls.some((c) => c.method === "update")).toBe(false);
+    expect(deleted).toEqual([KEY]);
+  });
+
+  it("refuses an SVG with a script and deletes it", async () => {
+    const { deleted, calls } = setup({ [SVG_KEY]: svg("<svg><script>alert(1)</script></svg>") }, []);
+    await expect(confirmMonogram(SVG_KEY)).rejects.toMatchObject({
+      status: 400,
+      code: "unsafe_svg",
+      message: "That SVG can’t be used. Export it again without scripts or links.",
+    });
+    expect(deleted).toEqual([SVG_KEY]);
+    expect(calls.some((c) => c.method === "update")).toBe(false);
+  });
+
+  it("refuses an SVG whose body cannot be read", async () => {
+    const { deleted } = setup({ [SVG_KEY]: { bytes: 10, mime: "image/svg+xml" } }, []);
+    await expect(confirmMonogram(SVG_KEY)).rejects.toMatchObject({ code: "upload_incomplete" });
+    expect(deleted).toEqual([SVG_KEY]);
+  });
+
+  it("does not delete the live monogram when a retry with its key hits a storage error", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.event = eventRow({ monogram_path: KEY });
+    const { deleted } = setup({ [KEY]: { bytes: 5000, mime: "image/png" } }, []);
+    (mocks.r2 as { head: () => Promise<never> }).head = async () => {
+      throw new Error("R2 down");
+    };
+    await expect(confirmMonogram(KEY)).rejects.toMatchObject({ code: "upload_incomplete" });
+    expect(deleted).toEqual([]);
+    log.mockRestore();
+  });
+
+  it("refuses an SVG in another encoding, where an ESC byte hides a script tag", async () => {
+    const text = '<?xml version="1.0" encoding="ISO-2022-JP"?><svg><scr\x1b(Bipt>x</script></svg>';
+    const { deleted } = setup({ [SVG_KEY]: svg(text) }, []);
+    await expect(confirmMonogram(SVG_KEY)).rejects.toMatchObject({ code: "unsafe_svg" });
+    expect(deleted).toEqual([SVG_KEY]);
+  });
+
+  it("calls a PNG renamed .svg an incomplete upload, not an unsafe SVG", async () => {
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0x0d]);
+    const { deleted } = setup({ [SVG_KEY]: { bytes: png.length, mime: "image/svg+xml", body: png } }, []);
+    await expect(confirmMonogram(SVG_KEY)).rejects.toMatchObject({
+      code: "upload_incomplete",
+      message: "The monogram image didn’t finish uploading. Please try again.",
+    });
+    expect(deleted).toEqual([SVG_KEY]);
+  });
+
+  it("accepts a clean SVG", async () => {
+    const { deleted } = setup({ [SVG_KEY]: svg('<svg xmlns="http://www.w3.org/2000/svg"><circle r="5"/></svg>') }, [
+      ok(eventRow({ monogram_path: SVG_KEY })),
+    ]);
+    await expect(confirmMonogram(SVG_KEY)).resolves.toMatchObject({ monogramUrl: expect.stringContaining(SVG_KEY) });
+    expect(deleted).toEqual([]);
+  });
+
+  it("fails when the database does", async () => {
+    setup({ [KEY]: { bytes: 5000, mime: "image/png" } }, [failure("XX000")]);
+    await expect(confirmMonogram(KEY)).rejects.toThrow(/Saving the monogram failed/);
+  });
+
+  it("removes the monogram and its file", async () => {
+    mocks.event = eventRow({ monogram_path: OLD });
+    const { deleted, calls } = setup({}, [ok(eventRow())]);
+    const result = await removeMonogram();
+    expect(calls.find((c) => c.method === "update")!.args[0]).toEqual({ monogram_path: null });
+    expect(deleted).toEqual([OLD]);
+    expect(result.monogramUrl).toBeNull();
+  });
+
+  it("does nothing when there is no monogram", async () => {
+    const { deleted, calls } = setup({}, []);
+    expect((await removeMonogram()).monogramUrl).toBeNull();
+    expect(deleted).toEqual([]);
+    expect(calls.some((c) => c.method === "update")).toBe(false);
   });
 });
 

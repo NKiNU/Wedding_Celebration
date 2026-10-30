@@ -7,8 +7,11 @@ import {
   WISH_MAX,
   WISH_MIN,
 } from "./domain/limits";
+import { isFontKey } from "./domain/fonts";
 import { nameProblem, normalizeName } from "./domain/names";
-import { qrProblem, uploadProblem } from "./domain/uploads";
+import { monogramProblem, qrProblem, uploadProblem } from "./domain/uploads";
+
+const fontKey = z.string().refine(isFontKey, "Choose one of the listed fonts.");
 
 const emptyToUndefined = (v: unknown) => (v === "" ? undefined : v);
 
@@ -122,6 +125,9 @@ export const updateEventBody = z
     qrAccountName: field(80),
     qrBank: field(60),
     uploadsOpen: z.boolean(),
+    fontNames: fontKey,
+    fontWishes: fontKey,
+    fontBody: fontKey,
   })
   .partial()
   .refine((b) => Object.keys(b).length > 0, "Nothing to change.");
@@ -136,5 +142,16 @@ export const qrPresignBody = z
 
 /** PUT /api/admin/qr: the key the presign call returned, now uploaded. */
 export const qrConfirmBody = z.object({ key: z.string().min(1).max(200) });
+
+/** POST /api/admin/monogram: the image the admin is about to upload. */
+export const monogramPresignBody = z
+  .object({ mime: z.string().max(100), bytes: z.int().positive() })
+  .superRefine(({ mime, bytes }, ctx) => {
+    const problem = monogramProblem(mime, bytes);
+    if (problem) ctx.addIssue({ code: "custom", message: problem });
+  });
+
+/** PUT /api/admin/monogram: the key the presign call returned, now uploaded. */
+export const monogramConfirmBody = z.object({ key: z.string().min(1).max(200) });
 
 export const hideBody = z.object({ hidden: z.boolean() });

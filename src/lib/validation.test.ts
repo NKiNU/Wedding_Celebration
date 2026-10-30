@@ -9,6 +9,7 @@ import {
   nextParam,
   postIdParam,
   storedFiles,
+  updateEventBody,
 } from "./validation";
 
 describe("parseEnv", () => {
@@ -162,5 +163,12 @@ describe("dev-only R2 endpoint", () => {
     expect(() => parseEnv({ ...withEndpoint, NODE_ENV: "production" })).toThrow(/R2_ENDPOINT/);
     expect(parseEnv({ ...withEndpoint, NODE_ENV: "production", ALLOW_DEV_R2_ENDPOINT: "1" }).R2_ENDPOINT).toBeDefined();
     expect(parseEnv({ ...withEndpoint, NODE_ENV: "development" }).R2_ENDPOINT).toBeDefined();
+  });
+});
+
+describe("updateEventBody fonts", () => {
+  test("accepts a listed font and rejects an unknown one", () => {
+    expect(updateEventBody.safeParse({ fontNames: "great-vibes", fontWishes: "lora", fontBody: "inter" }).success).toBe(true);
+    expect(msg(updateEventBody.safeParse({ fontBody: "comic-sans" }))).toMatch(/Choose one of the listed fonts/);
   });
 });

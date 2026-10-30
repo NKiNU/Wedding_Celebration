@@ -1,6 +1,7 @@
 import { act, fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AdminEvent, AdminPost } from "@/lib/api";
+import { DEFAULT_FONTS, FONT_OPTIONS } from "@/lib/domain/fonts";
 
 const mocks = vi.hoisted(() => ({
   api: vi.fn(),
@@ -22,8 +23,11 @@ vi.mock("client-zip", () => ({
 
 import { AdminDashboard } from "./AdminDashboard";
 import { AdminLogin } from "./AdminLogin";
+import { AppearanceSection } from "./AppearanceSection";
+import { FontPicker } from "./FontPicker";
 import { useAdminPosts } from "./useAdminPosts";
 import { useDownloadAll } from "./useDownloadAll";
+import { useMonogramUpload } from "./useMonogramUpload";
 import { useQrUpload } from "./useQrUpload";
 
 const ok = <T,>(data: T) => ({ ok: true as const, data });
@@ -37,6 +41,8 @@ const EVENT: AdminEvent = {
   qrAccountName: "",
   qrBank: "",
   hasQr: false,
+  fonts: { names: "pinyon-script", wishes: "cormorant-garamond", body: "poppins" },
+  monogramUrl: null,
 };
 const post = (id: string, over: Partial<AdminPost> = {}): AdminPost => ({
   id,
@@ -150,6 +156,11 @@ describe("AdminDashboard", () => {
     expect(mocks.api).not.toHaveBeenCalled();
   });
 
+  it("renders the appearance section after the QR", () => {
+    show();
+    expect(screen.getByRole("heading", { name: "Appearance" })).toBeInTheDocument();
+  });
+
   it("hides, unhides and deletes a post, with a confirmation for the delete", async () => {
     show([post("p1"), post("p2", { hidden: true, wishText: null, caption: "Cake", type: "photo" })]);
     expect(screen.getByText("Hidden")).toBeInTheDocument();
@@ -178,6 +189,167 @@ describe("AdminDashboard", () => {
   it("says when nothing has been shared", () => {
     show();
     expect(screen.getByText("Nothing has been shared yet.")).toBeInTheDocument();
+  });
+});
+
+describe("AppearanceSection", () => {
+  const WITH_IMAGE: AdminEvent = { ...EVENT, monogramUrl: "https://m.test/monogram.png" };
+  const show = (event: AdminEvent = EVENT, save = vi.fn().mockResolvedValue(null), onChanged = vi.fn()) => {
+    render(<AppearanceSection event={event} saving={false} save={save} onChanged={onChanged} />);
+    return { save, onChanged };
+  };
+  const pick = (group: string, font: string) => {
+    const fieldset = screen.getByRole("group", { name: group, hidden: true });
+    fireEvent.click(within(fieldset).getByRole("radio", { name: font, hidden: true }));
+  };
+
+  it("shows the current fonts and the text-monogram hint when there is no image", () => {
+    show();
+    const labelOf = (key: string) => FONT_OPTIONS.find((f) => f.key === key)!.label;
+    expect(screen.getByText(`Couple names · ${labelOf(DEFAULT_FONTS.names)}`)).toBeInTheDocument();
+    expect(screen.getByText(`Wishes · ${labelOf(DEFAULT_FONTS.wishes)}`)).toBeInTheDocument();
+    expect(screen.getByText(`Everything else · ${labelOf(DEFAULT_FONTS.body)}`)).toBeInTheDocument();
+    expect(screen.getByText("Text monogram")).toBeInTheDocument();
+    expect(screen.getByText("Upload image")).toBeInTheDocument();
+    expect(screen.getByText(/plain SVG with text converted to outlines/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove (use text)" })).not.toBeInTheDocument();
+    expect(document.querySelector('input[type="file"]')).toHaveAttribute("accept", "image/png,image/webp,image/svg+xml");
+  });
+
+  it("keeps Save fonts disabled until a choice changes", () => {
+    show();
+    const save = screen.getByRole("button", { name: "Save fonts" });
+    expect(save).toBeDisabled();
+    pick("Wishes", "Lora");
+    expect(save).toBeEnabled();
+    pick("Wishes", FONT_OPTIONS.find((f) => f.key === DEFAULT_FONTS.wishes)!.label);
+    expect(save).toBeDisabled();
+  });
+
+  it("choosing a font and saving sends fontNames, fontWishes and fontBody", async () => {
+    const { save } = show();
+    pick("Couple names", "Great Vibes");
+    pick("Wishes", "Lora");
+    pick("Everything else", "Inter");
+    fireEvent.click(screen.getByRole("button", { name: "Save fonts" }));
+    await waitFor(() => expect(save).toHaveBeenCalledWith({ fontNames: "great-vibes", fontWishes: "lora", fontBody: "inter" }));
+  });
+
+  it("shows why saving the fonts failed", async () => {
+    show(EVENT, vi.fn().mockResolvedValue("Nope."));
+    pick("Everything else", "Lato");
+    fireEvent.click(screen.getByRole("button", { name: "Save fonts" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Nope.");
+  });
+
+  it("uploading a PNG presigns, puts and confirms", async () => {
+    mocks.api
+      .mockResolvedValueOnce(ok({ key: "k", url: "https://r2.test/k" }))
+      .mockResolvedValueOnce(ok(WITH_IMAGE));
+    mocks.putFile.mockResolvedValue(undefined);
+    const { onChanged } = show();
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(["x"], "m.png", { type: "image/png" })] } });
+    await waitFor(() => expect(onChanged).toHaveBeenCalledWith(WITH_IMAGE));
+    expect(mocks.api).toHaveBeenCalledWith("/api/admin/monogram", "POST", { mime: "image/png", bytes: 1 });
+    expect(mocks.putFile).toHaveBeenCalledWith("https://r2.test/k", expect.any(File), "image/png", expect.any(Function));
+    expect(mocks.api).toHaveBeenCalledWith("/api/admin/monogram", "PUT", { key: "k" });
+  });
+
+  it("uploading a GIF shows the type message without calling the server", async () => {
+    show();
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(["x"], "m.gif", { type: "image/gif" })] } });
+    expect(await screen.findByText(/PNG, WebP or SVG image/, { selector: "p[role=alert]" })).toBeInTheDocument();
+    expect(mocks.api).not.toHaveBeenCalled();
+  });
+
+  it("Remove asks for confirmation, then calls DELETE and reports the updated event", async () => {
+    mocks.api.mockResolvedValue(ok(EVENT));
+    const { onChanged } = show(WITH_IMAGE);
+    expect(screen.getByAltText("Current monogram")).toHaveAttribute("src", WITH_IMAGE.monogramUrl);
+    expect(screen.getByText("Replace image")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Remove (use text)" }));
+    expect(mocks.api).not.toHaveBeenCalled();
+    fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(mocks.api).toHaveBeenCalledWith("/api/admin/monogram", "DELETE"));
+    await waitFor(() => expect(onChanged).toHaveBeenCalledWith(EVENT));
+  });
+
+  it("reports a failed remove and keeps the image", async () => {
+    mocks.api.mockResolvedValue(fail("internal", "Could not remove."));
+    const { onChanged } = show(WITH_IMAGE);
+    fireEvent.click(screen.getByRole("button", { name: "Remove (use text)" }));
+    fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Remove" }));
+    expect(await screen.findByText("Could not remove.", { selector: "p[role=alert]" })).toBeInTheDocument();
+    expect(onChanged).not.toHaveBeenCalled();
+  });
+});
+
+describe("FontPicker", () => {
+  it("lists every font by kind and draws the sample in the current font", () => {
+    render(<FontPicker label="Wishes" value="lora" onChange={vi.fn()} sampleText="Congratulations" />);
+    expect(screen.getByText("Congratulations")).toHaveStyle({ fontFamily: "var(--font-lora)" });
+    expect(screen.getAllByRole("radio", { hidden: true })).toHaveLength(18);
+    expect(screen.getByRole("radio", { name: "Lora", hidden: true })).toBeChecked();
+    expect(screen.getByText("Script")).toBeInTheDocument();
+  });
+
+  const open = (value = "lora") => {
+    const onChange = vi.fn();
+    const { container } = render(<FontPicker label="Wishes" value={value} onChange={onChange} sampleText="Hi" />);
+    const details = container.querySelector("details")!;
+    details.setAttribute("open", "");
+    return { onChange, details };
+  };
+
+  it("a pointer choice calls onChange, closes the list and returns focus to the summary", () => {
+    const { onChange, details } = open();
+    const radio = screen.getByRole("radio", { name: "Allura" });
+    fireEvent.pointerUp(radio.closest("label")!);
+    fireEvent.click(radio);
+    expect(onChange).toHaveBeenCalledWith("allura");
+    expect(details).not.toHaveAttribute("open");
+    expect(details.querySelector("summary")).toHaveFocus();
+  });
+
+  it("an arrow-key choice calls onChange and leaves the list open", () => {
+    const { onChange, details } = open();
+    fireEvent.click(screen.getByRole("radio", { name: "Allura" })); // the click browsers fire on arrow selection
+    expect(onChange).toHaveBeenCalledWith("allura");
+    expect(details).toHaveAttribute("open");
+  });
+
+  it("tapping the font already chosen still closes the list", () => {
+    const { onChange, details } = open();
+    fireEvent.pointerUp(screen.getByRole("radio", { name: "Lora" }).closest("label")!);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(details).not.toHaveAttribute("open");
+  });
+});
+
+describe("useMonogramUpload", () => {
+  const file = new File(["x"], "m.png", { type: "image/png" });
+
+  it("reports a failed presign, upload and confirm", async () => {
+    const onDone = vi.fn();
+    const { result } = renderHook(() => useMonogramUpload(onDone));
+
+    mocks.api.mockResolvedValueOnce(fail("invalid_input", "Too big."));
+    await act(() => result.current.upload(file));
+    expect(result.current.error).toBe("Too big.");
+
+    mocks.api.mockResolvedValueOnce(ok({ key: "k", url: "u" }));
+    mocks.putFile.mockRejectedValueOnce(new Error("Upload failed (403)"));
+    await act(() => result.current.upload(file));
+    expect(result.current.error).toBe("Upload failed (403)");
+
+    mocks.api.mockResolvedValueOnce(ok({ key: "k", url: "u" })).mockResolvedValueOnce(fail("upload_incomplete", "Try again."));
+    mocks.putFile.mockResolvedValueOnce(undefined);
+    await act(() => result.current.upload(file));
+    expect(result.current.error).toBe("Try again.");
+    expect(onDone).not.toHaveBeenCalled();
+    expect(result.current.progress).toBeNull();
   });
 });
 

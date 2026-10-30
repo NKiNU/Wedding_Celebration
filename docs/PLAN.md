@@ -10,6 +10,14 @@
 - [x] Phase 5 — QR + Admin
 - [x] Phase 6 — Hardening + launch (hardening done; launch steps listed in the notes below)
 
+Admin appearance (2026-10-28, after Phase 6; commits 786c376..0fb37fe): the admin can pick three fonts (couple names, wishes, body) from 18 curated Google Fonts and upload a monogram image that replaces the text initials, from a new Appearance section in `/admin`. Migration `0006_appearance.sql`; `src/lib/domain/fonts.ts` (keys), `src/app/fonts.ts` (loaders), `src/app/ThemeStyle.tsx` (`--font-choice-*`). Spec: `docs/superpowers/specs/2026-10-28-admin-appearance-design.md`. Not yet checked on real devices:
+- **To verify on a real device (pending; an agent cannot do this).** On an iPhone (Safari) and an Android (Chrome):
+  1. Change each of the three fonts in `/admin`, then reload `/`, `/wall` and a wish drawer: each shows the chosen font.
+  2. Open the font picker (`<details>`): all 18 fonts draw, and the list opens and closes by tap.
+  3. Upload a transparent PNG, a WebP and a plain SVG: check both monogram spots (welcome and wall header), including a very wide image at 375 px with no horizontal scroll.
+  4. Remove the monogram: the text initials return.
+  5. Wireframe theme (`data-theme="wireframe"`) still shows the system font.
+
 Last session notes (2026-10-28, Phase 6; the hardening is done and committed, the launch steps are for the user and the R2 friends):
 - **Built:**
   - Flood guards (`src/server/rateLimit.ts`, in the process's memory, one VPS): `rateLimit(bucket, address, max, windowMs)`, `ipBucket` (IPv6 by its /64 **after expanding `::`**), `clientIp` (moved here from `admin.ts`). Wired into `POST /api/guests` (300 / min and 600 / h per address) and `GET /api/posts` (6000 / min); limits in `limits.ts` are ceilings sized for a venue where every guest shares one Wi-Fi address, because every open phone refetches the wall on each new post. Bounded: a pass drops ended windows at most every 10 s, and past 50 000 live addresses the oldest tenth is forgotten (fails open; the proxy is the defence at that scale).
@@ -223,6 +231,7 @@ create view public_guests as select id, event_id, name from guests;   -- never e
 create function wall_counts(e uuid) returns table(all_count int, photos int, videos int, wishes int) ... -- deterministic filter counts
 ```
 
+- Later migration `0006_appearance.sql` adds four nullable text columns to `events`: `font_names`, `font_wishes`, `font_body` (font keys) and `monogram_path` (storage path of the monogram image).
 - RLS is on for every table. `anon` may select `events`, `posts where not hidden`, the `post_media` of visible posts, and `public_guests`. There are no anon write policies: all writes go through the service role.
 - Realtime publication on `posts`. Clients handle INSERT, DELETE (PK only) and UPDATE (upsert; unhide arrives this way). RLS stops a `hidden=true` UPDATE from reaching anon, so hiding is sent as a Broadcast instead: a trigger calls `realtime.send({id}, 'post_hidden', 'wall:<event_id>', private=false)` and clients drop that id. If the broadcast fails, the post stays visible until the next refetch.
 - Writes with several statements (post + media + consume intent) go through `create_post_from_intent(...)`, a security definer function callable only by service_role. It raises `PT404/PT409/PT410/PT400`.

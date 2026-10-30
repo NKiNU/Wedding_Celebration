@@ -11,9 +11,9 @@
   --decor: #b5b3ac; /* floral line art */
   --sheet: #fbfaf7; /* drawers, dialogs */
   --viewer: #0e0e0e; /* full-screen viewer */
-  --font-body: var(--font-poppins), system-ui, sans-serif;
-  --font-script: var(--font-pinyon), cursive; /* monogram + couple names only */
-  --font-serif: var(--font-cormorant), Georgia, serif; /* wish text, italic */
+  --font-body: var(--font-choice-body, var(--font-poppins)), system-ui, sans-serif;
+  --font-script: var(--font-choice-names, var(--font-pinyon-script)), cursive; /* monogram + couple names only */
+  --font-serif: var(--font-choice-wishes, var(--font-cormorant-garamond)), Georgia, serif; /* wish text, italic */
   --radius-card: 18px;
   --radius-media: 12px;
   --welcome-names-size: 38px; /* couple names on the welcome screen */

@@ -7,6 +7,7 @@ import { WelcomeHeader } from "@/components/welcome/WelcomeHeader";
 import { nextParam } from "@/lib/validation";
 import { getEvent } from "@/server/event";
 import { getSession } from "@/server/identity";
+import { mediaUrl } from "@/server/wall";
 
 // The decor is the static shell; names and "Continue as" chips stream in per request.
 export default function Welcome({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
@@ -27,7 +28,7 @@ async function WelcomeContent({ searchParams }: { searchParams: Promise<{ next?:
   const next = nextParam.safeParse(query.next).data;
   return (
     <div className="relative flex w-full max-w-sm flex-col">
-      <WelcomeHeader groom={event.groom_name} bride={event.bride_name} />
+      <WelcomeHeader groom={event.groom_name} bride={event.bride_name} monogramUrl={mediaUrl(event.monogram_path)} />
       <WelcomeForm known={session.known} next={next} />
     </div>
   );

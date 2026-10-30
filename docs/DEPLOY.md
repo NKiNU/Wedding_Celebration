@@ -7,7 +7,7 @@ the launch checklist at the end. The R2 bucket and media domain are set up by fo
 ## 1. Supabase (production project)
 
 1. Create a project. Copy the URL, the publishable (anon) key and the **secret / service-role** key.
-2. Apply the schema: `npx supabase link --project-ref <ref>` then `npx supabase db push`.
+2. Apply the schema: `npx supabase link --project-ref <ref>` then `npx supabase db push` (includes `0006_appearance.sql`: the font and monogram columns on `events`).
 3. Create the event row. The seed is for local demos only, so run this once in the SQL editor:
 
    ```sql
@@ -32,7 +32,7 @@ http a phone cannot join at all.
 git clone <repo> /srv/wedding && cd /srv/wedding
 npm ci
 set -a; . /etc/wedding.env; set +a   # `next build` reads NEXT_PUBLIC_* from the shell or ./.env*, not from /etc
-npm run build
+npm run build          # downloads the 18 curated Google Fonts (next/font), so the build host needs network access
 npm run check:bundle   # must print "Bundle clean ... 6 secret values": fewer means the secrets were not exported
 npm start -- -H 127.0.0.1   # :3000, local only (add -p to change the port); systemd runs the same below
 ```
@@ -156,6 +156,8 @@ HEVC `.mov` on Android, and a delete followed by reopening the exact image URL f
 (needs the cache purge from `R2-SETUP.md`).
 
 ## Hardening
+
+Uploaded monogram SVGs are shown with `<img>` and rely on the media domain sending `nosniff` and `Content-Security-Policy: default-src 'none'; sandbox` (see `R2-SETUP.md`, media-domain headers). Without them a directly opened SVG could run script.
 
 The app sends `X-Frame-Options: DENY`, `frame-ancestors 'none'`, `nosniff`, a strict referrer policy and
 an empty Permissions-Policy (`next.config.ts`). Add HSTS in Caddy once HTTPS works:

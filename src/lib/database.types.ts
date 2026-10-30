@@ -39,14 +39,14 @@ export type Database = {
                   ]
                 },"events": {
                   Row: {
-                    "bride_name": string,"created_at": string | null,"groom_name": string,"header_message": string | null,"id": string,"qr_account_name": string | null,"qr_bank": string | null,"qr_path": string | null,"slug": string,"uploads_open": boolean
+                    "bride_name": string,"created_at": string | null,"font_body": string | null,"font_names": string | null,"font_wishes": string | null,"groom_name": string,"header_message": string | null,"id": string,"monogram_path": string | null,"qr_account_name": string | null,"qr_bank": string | null,"qr_path": string | null,"slug": string,"uploads_open": boolean
                   }
                   ComputedFields: never
                   Insert: {
-                    "bride_name": string,"created_at"?: string | null,"groom_name": string,"header_message"?: string | null,"id"?: string,"qr_account_name"?: string | null,"qr_bank"?: string | null,"qr_path"?: string | null,"slug": string,"uploads_open"?: boolean
+                    "bride_name": string,"created_at"?: string | null,"font_body"?: string | null,"font_names"?: string | null,"font_wishes"?: string | null,"groom_name": string,"header_message"?: string | null,"id"?: string,"monogram_path"?: string | null,"qr_account_name"?: string | null,"qr_bank"?: string | null,"qr_path"?: string | null,"slug": string,"uploads_open"?: boolean
                   }
                   Update: {
-                    "bride_name"?: string,"created_at"?: string | null,"groom_name"?: string,"header_message"?: string | null,"id"?: string,"qr_account_name"?: string | null,"qr_bank"?: string | null,"qr_path"?: string | null,"slug"?: string,"uploads_open"?: boolean
+                    "bride_name"?: string,"created_at"?: string | null,"font_body"?: string | null,"font_names"?: string | null,"font_wishes"?: string | null,"groom_name"?: string,"header_message"?: string | null,"id"?: string,"monogram_path"?: string | null,"qr_account_name"?: string | null,"qr_bank"?: string | null,"qr_path"?: string | null,"slug"?: string,"uploads_open"?: boolean
                   }
                   Relationships: [
                     

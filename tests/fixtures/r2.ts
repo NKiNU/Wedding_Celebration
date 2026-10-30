@@ -1,6 +1,6 @@
 import type { R2 } from "@/server/r2";
 
-export type StoredObject = { bytes: number; mime: string; overridden?: boolean; start?: Uint8Array };
+export type StoredObject = { bytes: number; mime: string; overridden?: boolean; start?: Uint8Array; body?: Uint8Array };
 
 const SIGNATURE: Record<string, number[]> = {
   "image/jpeg": [0xff, 0xd8, 0xff, 0xe0],
@@ -29,6 +29,12 @@ export function fakeR2(objects: Record<string, StoredObject> = {}) {
       const object = store.get(key);
       if (!object) return null;
       return object.start ?? new Uint8Array([...(SIGNATURE[object.mime.split(";")[0]!.trim().toLowerCase()] ?? [0]), 0, 0, 0, 0, 0, 0, 0, 0]);
+    },
+    read: async (key, maxBytes) => {
+      const object = store.get(key);
+      if (!object?.body) return null;
+      if (object.body.length > maxBytes) throw new Error("too large");
+      return object.body;
     },
     purge: async (keys) => {
       purged.push(...keys);

@@ -15,6 +15,8 @@ export type R2 = {
   head(key: string): Promise<{ bytes: number; mime: string; overridden: boolean } | null>;
   /** The first bytes of a stored object (at most `PEEK_BYTES`), or null when it does not exist. */
   peek(key: string): Promise<Uint8Array | null>;
+  /** A whole small object, or null when it does not exist. Throws when it is larger than `maxBytes`. */
+  read(key: string, maxBytes: number): Promise<Uint8Array | null>;
   deleteMany(keys: readonly string[]): Promise<void>;
   /**
    * Asks the media domain's CDN to forget these keys, so a deleted photo stops being served from
@@ -80,6 +82,38 @@ async function peek(key: string) {
   return new Uint8Array(await res.arrayBuffer());
 }
 
+async function read(key: string, maxBytes: number) {
+  const res = await new AwsClient({ ...credentials(), retries: RETRIES }).fetch(objectUrl(key));
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`R2 GET ${key} failed: ${res.status}`);
+  const tooBig = () => new Error(`R2 object ${key} is larger than ${maxBytes} bytes`);
+  if (Number(res.headers.get("content-length")) > maxBytes) {
+    void res.body?.cancel();
+    throw tooBig();
+  }
+  // content-length can be missing (chunked), so also count while reading instead of trusting the header.
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  const reader = res.body?.getReader();
+  while (reader) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.length;
+    if (total > maxBytes) {
+      void reader.cancel();
+      throw tooBig();
+    }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(total);
+  let at = 0;
+  for (const c of chunks) {
+    out.set(c, at);
+    at += c.length;
+  }
+  return out;
+}
+
 async function deleteMany(keys: readonly string[]) {
   const client = new AwsClient({ ...credentials(), retries: RETRIES });
   // ponytail: one DELETE per key; a post has at most 20. Use DeleteObjects past a few hundred.
@@ -96,4 +130,4 @@ async function purge(keys: readonly string[]) {
   void keys;
 }
 
-export const r2 = (): R2 => ({ presignPut, head, peek, deleteMany, purge });
+export const r2 = (): R2 => ({ presignPut, head, peek, read, deleteMany, purge });

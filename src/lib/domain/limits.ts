@@ -29,6 +29,8 @@ export const IMAGE_MIMES = ["image/jpeg"] as const; // the client always re-enco
 export const VIDEO_MIMES = ["video/mp4", "video/quicktime", "video/webm"] as const;
 export const QR_MIMES = ["image/png", "image/jpeg"] as const;
 export const MAX_QR_BYTES = 2 * MB;
+export const MONOGRAM_MIMES = ["image/png", "image/webp", "image/svg+xml"] as const;
+export const MAX_MONOGRAM_BYTES = 1 * MB;
 /**
  * Flood guards, per client address. A venue's guests share one Wi-Fi address and every open phone
  * refetches the wall on each new post, so these are ceilings against floods, not fairness limits.

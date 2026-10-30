@@ -40,6 +40,7 @@ type Props = {
   groom: string;
   bride: string;
   headerMessage: string | null;
+  monogramUrl?: string | null;
   me: KnownGuest;
   /** Server time, so the first render matches the HTML ("5 min ago" cannot differ). */
   now: string;
@@ -53,7 +54,7 @@ type Props = {
 
 const NO_QR: QrInfo = { available: false, accountName: null, bank: null };
 
-export function Wall({ eventId, groom, bride, headerMessage, me, now: serverNow, initial, openWish = null, uploadsOpen = true, qr = NO_QR }: Props) {
+export function Wall({ eventId, groom, bride, headerMessage, monogramUrl, me, now: serverNow, initial, openWish = null, uploadsOpen = true, qr = NO_QR }: Props) {
   const { posts, counts, wishes, nextCursor, loading, loadError, loadMore, refresh, drop } = useWall({ eventId, ...initial });
   const [filter, setFilter] = useState<WallFilter>("all");
   const [wish, setWish] = useState<WallPost | null>(openWish);
@@ -120,7 +121,7 @@ export function Wall({ eventId, groom, bride, headerMessage, me, now: serverNow,
 
   return (
     <>
-      <WallHeader groom={groom} bride={bride} headerMessage={headerMessage} memories={counts.all} me={me.name} onOpenMe={() => setSheet("me")}>
+      <WallHeader groom={groom} bride={bride} headerMessage={headerMessage} memories={counts.all} me={me.name} monogramUrl={monogramUrl} onOpenMe={() => setSheet("me")}>
         <WishTicker wishes={wishes} onOpen={setWish} />
       </WallHeader>
       <FilterBar counts={counts} value={filter} onChange={setFilter} />

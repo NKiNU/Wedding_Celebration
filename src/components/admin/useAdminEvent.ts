@@ -10,6 +10,9 @@ export type EventPatch = Partial<{
   qrAccountName: string;
   qrBank: string;
   uploadsOpen: boolean;
+  fontNames: string;
+  fontWishes: string;
+  fontBody: string;
 }>;
 
 /** The event as the admin sees it, and one `save` for every editable field. */

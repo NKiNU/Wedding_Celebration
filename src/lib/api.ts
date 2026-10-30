@@ -1,3 +1,4 @@
+import type { FontRole } from "./domain/fonts";
 import type { WallCounts, WallPost } from "./domain/posts";
 import type { FileRole } from "./domain/uploads";
 
@@ -28,10 +29,13 @@ export type AdminEvent = {
   qrAccountName: string;
   qrBank: string;
   hasQr: boolean;
+  /** Font key per role, with defaults filled in. */
+  fonts: Record<FontRole, string>;
+  monogramUrl: string | null;
 };
 
-/** POST /api/admin/qr: where to PUT the image, and the key to confirm afterwards. */
-export type QrUpload = { key: string; url: string };
+/** POST /api/admin/qr and /api/admin/monogram: where to PUT the image, and the key to confirm afterwards. */
+export type ImageUpload = { key: string; url: string };
 
 /** One file for the "download everything" zip. */
 export type ManifestEntry = { url: string; name: string };

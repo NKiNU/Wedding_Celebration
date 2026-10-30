@@ -8,6 +8,9 @@ const mocks = vi.hoisted(() => ({
   updateEvent: vi.fn(),
   presignQr: vi.fn(),
   confirmQr: vi.fn(),
+  presignMonogram: vi.fn(),
+  confirmMonogram: vi.fn(),
+  removeMonogram: vi.fn(),
   getModerationPage: vi.fn(),
   setHidden: vi.fn(),
   mediaManifest: vi.fn(),
@@ -21,6 +24,7 @@ vi.mock("next/headers", () => ({ cookies: async () => ({}) }));
 import { DELETE as deleteSession, POST as postSession } from "./session/route";
 import { PATCH as patchEvent } from "./event/route";
 import { POST as postQr, PUT as putQr } from "./qr/route";
+import { DELETE as deleteMonogram, POST as postMonogram, PUT as putMonogram } from "./monogram/route";
 import { GET as getPosts } from "./posts/route";
 import { DELETE as deletePost, PATCH as patchPost } from "./posts/[id]/route";
 import { GET as getMedia } from "./media/route";
@@ -67,6 +71,9 @@ describe("routes behind the admin cookie", () => {
     ["PATCH event", () => patchEvent(json("PATCH", { uploadsOpen: false }))],
     ["POST qr", () => postQr(json("POST", { mime: "image/png", bytes: 1000 }))],
     ["PUT qr", () => putQr(json("PUT", { key: "k" }))],
+    ["POST monogram", () => postMonogram(json("POST", { mime: "image/png", bytes: 1000 }))],
+    ["PUT monogram", () => putMonogram(json("PUT", { key: "k" }))],
+    ["DELETE monogram", () => deleteMonogram(json("DELETE"))],
     ["GET posts", () => getPosts(json("GET"))],
     ["PATCH post", () => patchPost(json("PATCH", { hidden: true }), ctx)],
     ["DELETE post", () => deletePost(json("DELETE"), ctx)],
@@ -93,6 +100,7 @@ describe("routes behind the admin cookie", () => {
   it("rejects an empty or invalid event update", async () => {
     expect((await patchEvent(json("PATCH", {}))).status).toBe(400);
     expect((await patchEvent(json("PATCH", { groomName: "" }))).status).toBe(400);
+    expect((await patchEvent(json("PATCH", { fontNames: "comic-sans" }))).status).toBe(400);
     expect(mocks.updateEvent).not.toHaveBeenCalled();
   });
 
@@ -110,6 +118,25 @@ describe("routes behind the admin cookie", () => {
     expect((await putQr(json("PUT", { key: "k" }))).status).toBe(200);
     expect(mocks.confirmQr).toHaveBeenCalledWith("k");
     expect((await putQr(json("PUT", {}))).status).toBe(400);
+  });
+
+  it("presigns a monogram (201) and rejects the wrong type or size", async () => {
+    mocks.presignMonogram.mockResolvedValue({ key: "k", url: "u" });
+    const res = await postMonogram(json("POST", { mime: "image/svg+xml", bytes: 1000 }));
+    expect(res.status).toBe(201);
+    expect(mocks.presignMonogram).toHaveBeenCalledWith("image/svg+xml", 1000);
+    expect((await postMonogram(json("POST", { mime: "image/gif", bytes: 1000 }))).status).toBe(400);
+    expect((await postMonogram(json("POST", { mime: "image/png", bytes: 2 * 1024 * 1024 }))).status).toBe(400);
+  });
+
+  it("confirms and removes a monogram", async () => {
+    mocks.confirmMonogram.mockResolvedValue({ monogramUrl: "u" });
+    expect((await putMonogram(json("PUT", { key: "k" }))).status).toBe(200);
+    expect(mocks.confirmMonogram).toHaveBeenCalledWith("k");
+    expect((await putMonogram(json("PUT", {}))).status).toBe(400);
+    mocks.removeMonogram.mockResolvedValue({ monogramUrl: null });
+    expect((await deleteMonogram(json("DELETE"))).status).toBe(200);
+    expect(mocks.removeMonogram).toHaveBeenCalled();
   });
 
   it("lists posts from a cursor", async () => {

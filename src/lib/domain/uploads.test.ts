@@ -6,8 +6,14 @@ import {
   fitWithin,
   looksLike,
   mediaKey,
+  monogramKey,
+  monogramMime,
+  monogramProblem,
   qrKey,
   qrProblem,
+  NOT_SVG,
+  svgBytesProblem,
+  svgProblem,
   totalBytes,
   uploadProblem,
   videoProblem,
@@ -178,5 +184,91 @@ describe("the DuitNow QR", () => {
     const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
     expect(looksLike("image/png", png)).toBe(true);
     expect(looksLike("image/png", new Uint8Array(12))).toBe(false);
+  });
+});
+
+describe("the monogram image", () => {
+  it("monogramKey builds png, webp and svg keys and rejects gif", () => {
+    expect(monogramKey("e1", "abc", "image/png")).toBe("events/e1/admin/monogram-abc.png");
+    expect(monogramKey("e1", "abc", "image/webp")).toBe("events/e1/admin/monogram-abc.webp");
+    expect(monogramKey("e1", "abc", "image/svg+xml")).toBe("events/e1/admin/monogram-abc.svg");
+    expect(() => monogramKey("e1", "abc", "image/gif")).toThrow();
+  });
+  it("monogramMime reads the type back from the key", () => {
+    expect(monogramMime("events/e1/admin/monogram-abc.webp")).toBe("image/webp");
+    expect(monogramMime("events/e1/admin/monogram-abc.svg")).toBe("image/svg+xml");
+    expect(monogramMime("events/e1/admin/monogram-abc.gif")).toBeNull();
+  });
+  it("monogramProblem accepts the three types and rejects gif and files over 1 MB", () => {
+    for (const mime of ["image/png", "image/webp", "image/svg+xml"]) {
+      expect(monogramProblem(mime, 1 * MB)).toBeNull();
+    }
+    expect(monogramProblem("image/gif", 1000)).toBe("The monogram must be a PNG, WebP or SVG image.");
+    expect(monogramProblem("image/png", 1 * MB + 1)).toBe("The monogram image must be under 1 MB.");
+  });
+  it("looksLike accepts a WebP header and rejects RIFF without WEBP", () => {
+    const riff = (kind: string) => new Uint8Array([...Buffer.from(`RIFF    ${kind}`, "latin1")]);
+    expect(looksLike("image/webp", riff("WEBP"))).toBe(true);
+    expect(looksLike("image/webp", riff("WAVE"))).toBe(false);
+    expect(looksLike("image/webp", new Uint8Array(12))).toBe(false);
+  });
+});
+
+describe("svgProblem", () => {
+  it("accepts a plain path svg and one using #id and data: hrefs", () => {
+    expect(svgProblem('<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0h10v10z"/></svg>')).toBeNull();
+    const refs =
+      '<svg><use href="#a"/><use xlink:href="#a"/><image href="data:image/png;base64,AAAA"/><rect fill="url(#g)"/></svg>';
+    expect(svgProblem(refs)).toBeNull();
+  });
+  it.each([
+    ["a script element", "<svg><script>x</script></svg>"],
+    ["an event attribute", '<svg onload="x()">'],
+    ["a foreignObject", "<svg><foreignObject/></svg>"],
+    ["a prefixed script", '<svg xmlns:s="http://www.w3.org/2000/svg"><s:script>alert(1)</s:script></svg>'],
+    ["an xhtml-prefixed script", '<svg xmlns:h="http://www.w3.org/1999/xhtml"><h:script>alert(1)</h:script></svg>'],
+    ["a prefixed foreignObject", "<svg><x:foreignObject/></svg>"],
+    ["a character-reference href", '<svg><image href="&#104;ttps://evil.test/a.png"/></svg>'],
+    ["a character-reference javascript:", '<svg><a href="&#106;avascript:x"/></svg>'],
+    ["a javascript: link", '<svg><a href="javascript:x"/></svg>'],
+    ["an https href", '<svg><image href="https://evil.test/a.png"/></svg>'],
+    ["a protocol-relative xlink:href", '<svg><image xlink:href="//evil.test/a.png"/></svg>'],
+    ["an external url()", '<svg style="fill:url(https://evil.test/x)">'],
+    ["an entity declaration", '<!DOCTYPE svg [<!ENTITY x "y">]><svg/>'],
+    ["an @import", "<svg><style>@import 'x.css';</style></svg>"],
+    ["upper-case markup", "<SVG ONLOAD=x>"],
+    ["no svg element", "<html><body>hi</body></html>"],
+  ])("rejects %s", (_name, text) => {
+    expect(svgProblem(text)).toEqual(expect.any(String));
+  });
+});
+
+describe("svgBytesProblem", () => {
+  const bytes = (...parts: (string | number[])[]) =>
+    Uint8Array.from(parts.flatMap((p) => (typeof p === "string" ? [...new TextEncoder().encode(p)] : p)));
+
+  it("accepts a utf-8 svg, with or without a utf-8 declaration", () => {
+    expect(svgBytesProblem(bytes('<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0"/></svg>'))).toBeNull();
+    expect(svgBytesProblem(bytes('<?xml version="1.0" encoding="UTF-8"?><svg/>'))).toBeNull();
+  });
+
+  it("rejects an ESC byte, which can split a keyword in ISO-2022-JP", () => {
+    expect(svgBytesProblem(bytes("<svg><scr", [0x1b], "(Bipt>x</script></svg>"))).toEqual(expect.any(String));
+  });
+
+  it("rejects a NUL byte and bytes that are not utf-8", () => {
+    expect(svgBytesProblem(bytes("<svg>", [0], "</svg>"))).toEqual(expect.any(String));
+    expect(svgBytesProblem(bytes("<svg>", [0xff, 0xfe], "</svg>"))).toEqual(expect.any(String));
+  });
+
+  it("rejects a declared encoding other than utf-8", () => {
+    expect(svgBytesProblem(bytes('<?xml version="1.0" encoding="ISO-2022-JP"?><svg/>'))).toEqual(expect.any(String));
+    expect(svgBytesProblem(bytes("<?xml version='1.0' encoding='latin1'?><svg/>"))).toEqual(expect.any(String));
+  });
+
+  it("says NOT_SVG for binary or non-svg text, and something else for an unsafe svg", () => {
+    expect(svgBytesProblem(bytes([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0]))).toBe(NOT_SVG);
+    expect(svgBytesProblem(bytes("<html></html>"))).toBe(NOT_SVG);
+    expect(svgBytesProblem(bytes("<svg><script/></svg>"))).not.toBe(NOT_SVG);
   });
 });

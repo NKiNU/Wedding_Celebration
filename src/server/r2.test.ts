@@ -117,3 +117,41 @@ describe("peek", () => {
     await expect(r2().peek("k")).rejects.toThrow(/ignored the Range/);
   });
 });
+
+describe("read", () => {
+  const chunked = (...parts: number[]) =>
+    new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          for (const n of parts) controller.enqueue(new Uint8Array(n).fill(1));
+          controller.close();
+        },
+      }),
+      { status: 200 },
+    );
+
+  it("returns the whole body, or null when missing", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(new Uint8Array([1, 2, 3]), { status: 200 })));
+    expect([...(await r2().read("k", 10))!]).toEqual([1, 2, 3]);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 404 })));
+    expect(await r2().read("k", 10)).toBeNull();
+  });
+
+  it("throws on other failures", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 403 })));
+    await expect(r2().read("k", 10)).rejects.toThrow(/403/);
+  });
+
+  it("refuses a body whose content-length is over the cap", async () => {
+    const res = new Response(new Uint8Array(20), { status: 200, headers: { "content-length": "20" } });
+    vi.stubGlobal("fetch", vi.fn(async () => res));
+    await expect(r2().read("k", 10)).rejects.toThrow(/larger than 10/);
+  });
+
+  it("stops reading a stream without content-length once it passes the cap", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => chunked(6, 6)));
+    await expect(r2().read("k", 10)).rejects.toThrow(/larger than 10/);
+    vi.stubGlobal("fetch", vi.fn(async () => chunked(4, 4)));
+    expect((await r2().read("k", 10))!.length).toBe(8);
+  });
+});

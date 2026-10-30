@@ -5,7 +5,7 @@ import { env } from "./env";
 
 /** Every column the app reads from `events`. */
 export const EVENT_COLUMNS =
-  "id, groom_name, bride_name, header_message, uploads_open, qr_path, qr_account_name, qr_bank";
+  "id, groom_name, bride_name, header_message, uploads_open, qr_path, qr_account_name, qr_bank, font_names, font_wishes, font_body, monogram_path";
 
 /** The wedding this deployment serves (docs/adr/002). Deduplicated within one render. */
 export const getEvent = cache(async () => {

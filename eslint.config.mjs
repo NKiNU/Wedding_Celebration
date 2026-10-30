@@ -23,7 +23,7 @@ const eslintConfig = defineConfig([
   {
     files: ["src/components/**/*.{ts,tsx}", "src/app/**/*.tsx"],
     // layout.tsx is where next/font and the status-bar colour are wired to the tokens.
-    ignores: ["src/app/layout.tsx"],
+    ignores: ["src/app/layout.tsx", "src/app/fonts.ts"],
     rules: { "no-restricted-syntax": tokenRule },
   },
   globalIgnores([".next/**", "out/**", "build/**", "coverage/**", "next-env.d.ts"]),
