@@ -1,6 +1,8 @@
 import { z } from "zod";
 import {
   CAPTION_MAX,
+  GUEST_JOINS_PER_IP,
+  MAX_EVENT_MB,
   MAX_PHOTOS,
   MAX_VIDEO_BYTES,
   MAX_VIDEO_SECONDS,
@@ -8,9 +10,14 @@ import {
   WISH_MIN,
 } from "./domain/limits";
 import { nameProblem, normalizeName } from "./domain/names";
-import { uploadProblem } from "./domain/uploads";
+import { qrProblem, uploadProblem } from "./domain/uploads";
 
 const emptyToUndefined = (v: unknown) => (v === "" ? undefined : v);
+/** An optional whole number with a default from limits.ts; empty means unset. The ceiling keeps a typo
+ * from overflowing the database's integer parameters (every join or upload would then fail). */
+const limit = (fallback: number) =>
+  z.preprocess(emptyToUndefined, z.coerce.number().int().positive().max(1_000_000).default(fallback));
+const isLoopback = (url: string) => ["localhost", "127.0.0.1", "[::1]"].includes(new URL(url).hostname);
 
 const envSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.url(),
@@ -28,6 +35,9 @@ const envSchema = z.object({
   NEXT_PUBLIC_MEDIA_BASE_URL: z.url(),
   EVENT_SLUG: z.string().min(1),
   CRON_SECRET: z.string().min(16),
+  // Optional: raise GUEST_JOINS_PER_IP for local test runs, which create many guests from one address.
+  GUEST_JOINS_PER_IP: limit(GUEST_JOINS_PER_IP),
+  MAX_EVENT_MB: limit(MAX_EVENT_MB),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -36,8 +46,9 @@ export type Env = z.infer<typeof envSchema>;
 export function parseEnv(source: Record<string, string | undefined>): Env {
   const result = envSchema.safeParse(source);
   if (result.success) {
-    // The dev endpoint would send guest uploads to whatever store it names.
-    if (result.data.R2_ENDPOINT && source.VERCEL_ENV === "production") {
+    // The dev endpoint would send guest uploads to whatever store it names. A production build
+    // (NODE_ENV=production, also `next build` on a laptop) may only use one on this machine.
+    if (result.data.R2_ENDPOINT && source.NODE_ENV === "production" && !isLoopback(result.data.R2_ENDPOINT)) {
       throw new Error("Invalid environment: R2_ENDPOINT must not be set in production");
     }
     return result.data;
@@ -77,7 +88,20 @@ export const createUploadBody = z
   });
 
 /** The `files` column of an upload intent, as the server stored it. */
-export const storedFiles = z.array(uploadFile.extend({ key: z.string().min(1) }));
+// No size or duration maxima: an intent stored under older, larger limits must still parse
+// (the sweep and a cancel read it) after the limits are lowered.
+export const storedFiles = z.array(
+  z.object({
+    role: z.enum(["main", "thumb", "poster"]),
+    position: z.int().min(0),
+    mime: z.string(),
+    bytes: z.int().positive(),
+    key: z.string().min(1),
+    width: z.int().positive().optional(),
+    height: z.int().positive().optional(),
+    durationS: z.number().positive().optional(),
+  }),
+);
 
 const caption = z
   .string()
@@ -102,3 +126,36 @@ export const createPostBody = z
   .refine((b) => (b.postId === undefined) !== (b.wishText === undefined), "Send a wish or a post.");
 
 export const postIdParam = z.uuid();
+
+/** Where a guest was headed before the welcome screen (`/?next=`): a post link only, so it cannot be an open redirect. */
+export const nextParam = z.string().refine((v) => v.startsWith("/p/") && postIdParam.safeParse(v.slice(3)).success);
+
+export const adminLoginBody = z.object({ passcode: z.string().min(1).max(200) });
+
+const field = (max: number) => z.string().trim().max(max);
+
+/** PATCH /api/admin/event: any subset of the editable fields; at least one. */
+export const updateEventBody = z
+  .object({
+    groomName: field(40).min(1),
+    brideName: field(40).min(1),
+    headerMessage: field(120),
+    qrAccountName: field(80),
+    qrBank: field(60),
+    uploadsOpen: z.boolean(),
+  })
+  .partial()
+  .refine((b) => Object.keys(b).length > 0, "Nothing to change.");
+
+/** POST /api/admin/qr: the QR image the admin is about to upload. */
+export const qrPresignBody = z
+  .object({ mime: z.string().max(100), bytes: z.int().positive() })
+  .superRefine(({ mime, bytes }, ctx) => {
+    const problem = qrProblem(mime, bytes);
+    if (problem) ctx.addIssue({ code: "custom", message: problem });
+  });
+
+/** PUT /api/admin/qr: the key the presign call returned, now uploaded. */
+export const qrConfirmBody = z.object({ key: z.string().min(1).max(200) });
+
+export const hideBody = z.object({ hidden: z.boolean() });

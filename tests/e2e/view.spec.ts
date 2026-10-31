@@ -90,7 +90,49 @@ test("a post that is gone says so, and a guest without a name is sent to enter o
 
   await context.clearCookies();
   await page.goto("/p/00000000-0000-4000-8000-000000000999");
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/\?next=/);
+});
+
+// Seed posts: ...0003 is Ali's photo, ...0002 is a wish.
+const SEED_PHOTO = "/p/b0000000-0000-4000-8000-000000000003";
+const SEED_WISH = "b0000000-0000-4000-8000-000000000002";
+
+test("a shared link survives joining, and Back from it goes to the wall, not out of the app", async ({ page, context }) => {
+  await context.clearCookies();
+  await page.goto("about:blank"); // the page before the link, as WhatsApp would be
+  await page.goto(SEED_PHOTO);
+  await expect(page).toHaveURL(/\/\?next=/);
+
+  await page.getByLabel("Your name").fill(unique("Aina"));
+  await page.getByRole("button", { name: "Start" }).click();
+  await expect(page).toHaveURL(new RegExp(`${SEED_PHOTO}$`));
+  await expect(page.getByRole("heading", { name: "Ali" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Back to memories" }).click();
+  await expect(page).toHaveURL(/\/wall$/);
+});
+
+test("Back from a post opened with a card tap returns to the wall as it was", async ({ page }) => {
+  await page.getByRole("link", { name: "Photo by Ali" }).click();
+  await expect(page).toHaveURL(new RegExp(`${SEED_PHOTO}$`));
+  await page.getByRole("button", { name: "Back to memories" }).click();
+  await expect(page).toHaveURL(/\/wall$/);
+  await expect(page.getByRole("link", { name: "Photo by Ali" })).toBeVisible();
+});
+
+test("a shared wish link opens that wish on the wall", async ({ page }) => {
+  await page.goto(`/p/${SEED_WISH}`);
+  await expect(page.getByRole("dialog", { name: "Wish" })).toContainText("Selamat pengantin baru");
+  await expect(page.getByRole("heading", { name: "Memories" })).toBeAttached(); // the wall is behind it
+});
+
+test("a next parameter that is not a post link is ignored", async ({ page }) => {
+  await page.getByRole("button", { name: `Your name and posts, ${me}` }).click();
+  await page.getByRole("dialog", { name: "You" }).getByRole("button", { name: "Switch name" }).click();
+  await expect(page).toHaveURL(/\/$/); // Switch name does a full load of "/": let it finish before navigating
+  await page.goto("/?next=https%3A%2F%2Fevil.example%2F");
+  await page.getByRole("button", { name: `Continue as ${me}` }).click();
+  await expect(page).toHaveURL(/\/wall$/);
 });
 
 test("an album opens in the viewer, swipes by button and thumbnail, and its author can delete it", async ({ page }) => {

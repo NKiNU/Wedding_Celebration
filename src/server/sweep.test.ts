@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({ db: null as unknown, r2: null as unknown }));
 vi.mock("./db", () => ({ db: () => mocks.db }));
 vi.mock("./r2", () => ({ r2: () => mocks.r2 }));
 
-import { assertCronRequest, sweepUploads } from "./sweep";
+import { assertCronRequest, purgeAdminAttempts, purgeRateAttempts, sweepUploads } from "./sweep";
 
 const ok = (data: unknown): DbResult => ({ data, error: null });
 const failure = (code: string): DbResult => ({ data: null, error: { code, message: code } });
@@ -75,5 +75,41 @@ describe("sweepUploads", () => {
     mocks.db = fakeDb([failure("XX000")]).db;
     mocks.r2 = fakeR2().r2;
     await expect(sweepUploads()).rejects.toThrow(/XX000/);
+  });
+});
+
+describe("purgeAdminAttempts", () => {
+  it("deletes attempts older than the throttle window", async () => {
+    const fake = fakeDb([ok(null)]);
+    mocks.db = fake.db;
+    await purgeAdminAttempts(new Date("2026-10-26T12:00:00Z"));
+    expect(fake.calls.map((c) => [c.table, c.method])).toEqual([["admin_attempts", "delete"], ["admin_attempts", "lt"]]);
+    expect(fake.calls[1]!.args).toEqual(["at", "2026-10-26T11:45:00.000Z"]);
+  });
+
+  it("only logs when it fails: the sweep itself must not fail over it", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.db = fakeDb([failure("XX000")]).db;
+    await expect(purgeAdminAttempts()).resolves.toBeUndefined();
+    expect(log).toHaveBeenCalled();
+    log.mockRestore();
+  });
+});
+
+describe("purgeRateAttempts", () => {
+  it("deletes counts older than the longest rate window", async () => {
+    const fake = fakeDb([ok(null)]);
+    mocks.db = fake.db;
+    await purgeRateAttempts(new Date("2026-10-26T12:00:00Z"));
+    expect(fake.calls.map((c) => [c.table, c.method])).toEqual([["rate_attempts", "delete"], ["rate_attempts", "lt"]]);
+    expect(fake.calls[1]!.args).toEqual(["at", "2026-10-26T11:50:00.000Z"]);
+  });
+
+  it("only logs when it fails", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.db = fakeDb([failure("XX000")]).db;
+    await expect(purgeRateAttempts()).resolves.toBeUndefined();
+    expect(log).toHaveBeenCalled();
+    log.mockRestore();
   });
 });

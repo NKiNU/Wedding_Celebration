@@ -4,9 +4,11 @@ import {
   MAX_AUX_IMAGE_BYTES,
   MAX_PHOTO_BYTES,
   MAX_PHOTOS,
+  MAX_QR_BYTES,
   MAX_VIDEO_BYTES,
   MAX_VIDEO_SECONDS,
   MB,
+  QR_MIMES,
   VIDEO_MIMES,
 } from "./limits";
 
@@ -49,6 +51,21 @@ const EXT: Record<string, "jpg" | "mp4" | "mov" | "webm"> = {
 
 export const extFromMime = (mime: string) => EXT[mime] ?? null;
 
+const QR_EXT: Record<string, "png" | "jpg"> = { "image/png": "png", "image/jpeg": "jpg" };
+
+/** `events/{event}/admin/qr-{id}.{ext}`: the DuitNow QR the admin uploads. */
+export const qrKey = (eventId: string, id: string, mime: string): string => {
+  const ext = QR_EXT[mime];
+  if (!ext) throw new Error(`No extension for ${mime}`);
+  return `events/${eventId}/admin/qr-${id}.${ext}`;
+};
+
+/** Why this file cannot be the QR, or null when it can. */
+export function qrProblem(mime: string, bytes: number): string | null {
+  if (!(QR_MIMES as readonly string[]).includes(mime)) return "The QR must be a PNG or JPEG image.";
+  return bytes > MAX_QR_BYTES ? "The QR image must be under 2 MB." : null;
+}
+
 /** `events/{event}/{post}/{position}.{ext}`, `{position}_thumb.jpg`, `{position}_poster.jpg`. */
 export function mediaKey(
   eventId: string,
@@ -80,6 +97,8 @@ export function looksLike(mime: string, start: Uint8Array): boolean {
   switch (mime) {
     case "image/jpeg":
       return start[0] === 0xff && start[1] === 0xd8 && start[2] === 0xff;
+    case "image/png":
+      return [0x89, 0x50, 0x4e, 0x47].every((b, i) => start[i] === b);
     case "video/mp4":
       return text(4, 4) === "ftyp";
     case "video/quicktime":
@@ -99,10 +118,10 @@ const mbLabel = (bytes: number) => `${(bytes / MB).toFixed(1)} MB`;
 /** Friendly text for a video that is over the limits, or null. */
 export function videoProblem(bytes: number, durationS: number): string | null {
   if (bytes > MAX_VIDEO_BYTES) {
-    return `That video is ${mbLabel(bytes)}. Please choose one under 100 MB (about 60 seconds).`;
+    return `That video is ${mbLabel(bytes)}. Please choose one under ${MAX_VIDEO_BYTES / MB} MB (about ${MAX_VIDEO_SECONDS} seconds). Tip: record in 1080p, not 4K.`;
   }
   if (durationS > MAX_VIDEO_SECONDS) {
-    return `That video is ${Math.round(durationS)} s. Please choose one up to ${MAX_VIDEO_SECONDS} seconds.`;
+    return `That video is ${Math.round(durationS)} s. Please choose one up to ${MAX_VIDEO_SECONDS} seconds. You can trim it in your phone’s Photos or Gallery app first.`;
   }
   return null;
 }

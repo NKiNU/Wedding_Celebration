@@ -18,7 +18,7 @@ const suggestionsFrom = (details?: Record<string, unknown>): string[] =>
     : [];
 
 /** State and requests behind the welcome form: join with a new name, or continue as a known one. */
-export function useJoin(known: readonly KnownGuest[]) {
+export function useJoin(known: readonly KnownGuest[], next?: string) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [error, setError] = useState("");
@@ -37,9 +37,10 @@ export function useJoin(known: readonly KnownGuest[]) {
     setRequesting(true);
     const result = await request;
     if (result.ok) {
-      flagWelcome();
-      // Stay disabled until the wall has rendered; replace so Back does not return to the form.
-      startNavigation(() => router.replace(WALL));
+      // The "Tap + to share" greeting belongs to the wall: a guest sent to a shared post does not get it.
+      if (!next) flagWelcome();
+      // Stay disabled until the page has rendered; replace so Back does not return to the form.
+      startNavigation(() => router.replace(next ?? WALL));
     } else {
       setError(result.error.message);
       setSuggestions(suggestionsFrom(result.error.details));

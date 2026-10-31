@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { markFromWall } from "@/lib/fromWall";
 import { image, wallPost } from "../../../tests/fixtures/posts";
 
 const mocks = vi.hoisted(() => ({ api: vi.fn(), back: vi.fn(), replace: vi.fn(), flash: vi.fn(), load: vi.fn() }));
@@ -61,15 +62,35 @@ describe("PostViewer", () => {
   });
 
   describe("back", () => {
-    it("returns to the page before when there is one", () => {
+    afterEach(() => sessionStorage.clear());
+
+    it("returns to the wall when a card on it opened this post", () => {
       vi.stubGlobal("history", { length: 3 });
+      markFromWall(album.id);
       show();
       fireEvent.click(screen.getByRole("button", { name: "Back to memories" }));
       expect(mocks.back).toHaveBeenCalledOnce();
     });
 
-    it("goes to the wall when the guest opened the link cold", () => {
+    it("goes to the wall, not back into another app, when the link came from outside", () => {
+      vi.stubGlobal("history", { length: 3 }); // the tab has history, but it is WhatsApp's
+      show();
+      fireEvent.click(screen.getByRole("button", { name: "Back to memories" }));
+      expect(mocks.replace).toHaveBeenCalledWith("/wall");
+      expect(mocks.back).not.toHaveBeenCalled();
+    });
+
+    it("ignores a card tap on a different post", () => {
+      vi.stubGlobal("history", { length: 3 });
+      markFromWall("00000000-0000-4000-8000-000000000999"); // the fixtures share one default id
+      show();
+      fireEvent.click(screen.getByRole("button", { name: "Back to memories" }));
+      expect(mocks.replace).toHaveBeenCalledWith("/wall");
+    });
+
+    it("goes to the wall when the tab has no history, even after a card tap", () => {
       vi.stubGlobal("history", { length: 1 });
+      markFromWall(album.id);
       show();
       fireEvent.click(screen.getByRole("button", { name: "Back to memories" }));
       expect(mocks.replace).toHaveBeenCalledWith("/wall");

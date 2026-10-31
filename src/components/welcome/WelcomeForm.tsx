@@ -7,8 +7,8 @@ import { useJoin } from "./useJoin";
 const CHIP =
   "inline-flex h-11 max-w-full items-center rounded-full border bg-card px-4 text-sm transition-transform duration-100 active:scale-[0.97] data-pending:opacity-60";
 
-export function WelcomeForm({ known }: { known: readonly KnownGuest[] }) {
-  const { name, edit, error, suggestions, ready, pending, submit, continueAs } = useJoin(known);
+export function WelcomeForm({ known, next }: { known: readonly KnownGuest[]; next?: string }) {
+  const { name, edit, error, suggestions, ready, pending, submit, continueAs } = useJoin(known, next);
   // Until React hydrates, text typed into the controlled input is discarded and Start would submit
   // the form natively, so the server-rendered form ignores input.
   const busy = pending || !ready;

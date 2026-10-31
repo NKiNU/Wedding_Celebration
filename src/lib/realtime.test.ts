@@ -63,13 +63,12 @@ describe("subscribeToWall", () => {
     expect(events.onRemove).not.toHaveBeenCalled();
   });
 
-  it("drops a post when it is hidden, ignoring malformed broadcasts", () => {
+  it("treats a hide broadcast as a hint to refetch, never as a removal: anyone can send one", () => {
     subscribeToWall("e1", events);
     mocks.handlers.broadcast!({ payload: { id: "p2" } });
-    expect(events.onRemove).toHaveBeenCalledWith("p2");
-    mocks.handlers.broadcast!({ payload: { id: 7 } });
     mocks.handlers.broadcast!({ payload: null });
-    expect(events.onRemove).toHaveBeenCalledTimes(1);
+    expect(events.onChange).toHaveBeenCalledTimes(2);
+    expect(events.onRemove).not.toHaveBeenCalled();
   });
 
   it("reports each (re)connection, and cleans up", () => {

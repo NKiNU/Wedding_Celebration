@@ -13,7 +13,7 @@ vi.mock("./db", () => ({ db: () => mocks.db }));
 vi.mock("./r2", () => ({ r2: () => mocks.r2 }));
 vi.mock("./event", () => ({ getEvent: async () => mocks.event }));
 
-import { createMediaPost, createWish, deletePost } from "./posts";
+import { createMediaPost, createWish, deletePost, deletePostAsAdmin } from "./posts";
 
 const GUEST = { id: "g1", name: "Ali", eventId: "e1" };
 const POST_ID = "b0000000-0000-4000-8000-000000000001";
@@ -304,5 +304,22 @@ describe("deletePost", () => {
     await expect(deletePost(GUEST, POST_ID)).rejects.toThrow(/Loading the post failed/);
     setup([row({ post_media: [] }), failure("XX000")]);
     await expect(deletePost(GUEST, POST_ID)).rejects.toThrow(/Deleting the post failed/);
+  });
+});
+
+describe("deletePostAsAdmin", () => {
+  const media = [{ path: K("0.jpg"), thumb_path: K("0_thumb.jpg"), poster_path: null }];
+
+  it("removes anyone's post: files, then the row, then the tombstone, without an owner check", async () => {
+    const { calls, deleted } = setup([ok({ guest_id: "someone-else", post_media: media }), ok(null), ok(null)]);
+    await deletePostAsAdmin("e1", POST_ID);
+    expect(deleted).toEqual([K("0.jpg"), K("0_thumb.jpg")]);
+    const eq = calls.filter((c) => c.method === "eq").map((c) => c.args);
+    expect(eq).toEqual([["id", POST_ID], ["event_id", "e1"], ["id", POST_ID], ["post_id", POST_ID]]);
+  });
+
+  it("is a 404 when the post is gone or belongs to another event", async () => {
+    setup([ok(null)]);
+    await expect(deletePostAsAdmin("e1", POST_ID)).rejects.toMatchObject({ status: 404 });
   });
 });

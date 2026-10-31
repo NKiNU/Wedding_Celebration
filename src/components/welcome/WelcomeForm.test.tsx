@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { KnownGuest } from "@/lib/api";
+import { consumeWelcome } from "@/lib/welcome";
 import { WelcomeForm } from "./WelcomeForm";
 
 const router = vi.hoisted(() => ({ replace: vi.fn() }));
@@ -19,6 +20,7 @@ const fail = (status: number, error: object) => json({ ok: false, error }, statu
 let fetchMock: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   router.replace.mockReset();
+  sessionStorage.clear(); // an earlier join leaves the welcome flag behind
   fetchMock = vi.fn();
   vi.stubGlobal("fetch", fetchMock);
 });
@@ -54,6 +56,28 @@ describe("WelcomeForm", () => {
     expect(fetchMock.mock.calls[0][0]).toBe("/api/guests");
     expect(body()).toEqual({ name: "Aina from Kajang" });
     await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/wall"));
+  });
+
+  it("goes to the shared post it was sent from, without the wall's greeting", async () => {
+    const next = "/p/b0000000-0000-4000-8000-000000000001";
+    fetchMock.mockResolvedValue(ok({ guestId: "g1", name: "Aina" }));
+    render(<WelcomeForm known={[]} next={next} />);
+
+    await userEvent.type(nameInput(), "Aina");
+    await userEvent.click(start());
+
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith(next));
+    expect(consumeWelcome()).toBe(false);
+  });
+
+  it("continues as a known name straight to the shared post", async () => {
+    const next = "/p/b0000000-0000-4000-8000-000000000001";
+    fetchMock.mockResolvedValue(ok(ALI));
+    render(<WelcomeForm known={[ALI]} next={next} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Continue as Ali" }));
+
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith(next));
   });
 
   it("joins when the guest presses Enter", async () => {

@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { image, wallPost, wishPost } from "../../../tests/fixtures/posts";
+import { cameFromWall } from "@/lib/fromWall";
 import { PostCard } from "./PostCard";
 
 const NOW = new Date("2026-10-25T12:00:00Z");
@@ -14,6 +15,21 @@ describe("PostCard", () => {
     expect(link).toHaveAttribute("href", "/p/b0000000-0000-4000-8000-000000000001");
     expect(screen.getByText("5 min ago")).toBeInTheDocument();
     expect(screen.queryByText("You")).not.toBeInTheDocument();
+  });
+
+  it("remembers that the viewer was reached from the wall", () => {
+    const post = wallPost();
+    show(post);
+    expect(cameFromWall(post.id)).toBe(false);
+    fireEvent.click(screen.getByRole("link", { name: "Photo by Nazrul" }));
+    expect(cameFromWall(post.id)).toBe(true);
+  });
+
+  it("keeps the footer outside the link, so its words are read and the link name stays its label", () => {
+    show(wallPost(), true);
+    const link = screen.getByRole("link", { name: "Photo by Nazrul" });
+    expect(link).not.toContainElement(screen.getByText("You"));
+    expect(link).not.toContainElement(screen.getByText("5 min ago"));
   });
 
   it("marks the guest's own posts", () => {
@@ -31,7 +47,7 @@ describe("PostCard", () => {
   it("shows a video's duration over its poster", () => {
     const media = [{ kind: "video" as const, url: "v.mp4", thumbUrl: null, posterUrl: "p.jpg", durationS: 42 }];
     const { container } = show(wallPost({ type: "video", media }));
-    expect(screen.getByRole("link", { name: "Video by Nazrul" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Video by Nazrul, 0:42" })).toBeInTheDocument();
     expect(screen.getByText("0:42")).toBeInTheDocument();
     expect(container.querySelector("img")).toHaveAttribute("src", "p.jpg");
   });
