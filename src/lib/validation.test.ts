@@ -151,10 +151,29 @@ describe("dev-only R2 endpoint", () => {
     expect(env.R2_ENDPOINT).toBeUndefined();
     expect(env.R2_REGION).toBe("auto");
   });
-  test("is accepted outside production and refused in production", () => {
-    const withEndpoint = { ...valid, R2_ENDPOINT: "http://127.0.0.1:54321/storage/v1/s3" };
-    expect(parseEnv(withEndpoint).R2_ENDPOINT).toBe("http://127.0.0.1:54321/storage/v1/s3");
-    expect(() => parseEnv({ ...withEndpoint, VERCEL_ENV: "production" })).toThrow(/R2_ENDPOINT/);
-    expect(parseEnv({ ...withEndpoint, VERCEL_ENV: "preview" }).R2_ENDPOINT).toBeDefined();
+  test("is accepted outside production", () => {
+    const withEndpoint = { ...valid, R2_ENDPOINT: "https://store.example.com/s3" };
+    expect(parseEnv(withEndpoint).R2_ENDPOINT).toBe("https://store.example.com/s3");
+    expect(parseEnv({ ...withEndpoint, NODE_ENV: "development" }).R2_ENDPOINT).toBeDefined();
+  });
+  test("in production only points at this machine (a local build), never at another store", () => {
+    expect(() => parseEnv({ ...valid, NODE_ENV: "production", R2_ENDPOINT: "https://store.example.com/s3" })).toThrow(/R2_ENDPOINT/);
+    for (const local of ["http://127.0.0.1:54321/storage/v1/s3", "http://localhost:9000", "http://[::1]:9000"]) {
+      expect(parseEnv({ ...valid, NODE_ENV: "production", R2_ENDPOINT: local }).R2_ENDPOINT).toBe(local);
+    }
+    expect(parseEnv({ ...valid, NODE_ENV: "production" }).R2_ENDPOINT).toBeUndefined();
+  });
+});
+
+describe("optional limits", () => {
+  test("default to limits.ts and can be raised", () => {
+    expect(parseEnv(valid)).toMatchObject({ GUEST_JOINS_PER_IP: 300, MAX_EVENT_MB: 9 * 1024 });
+    expect(parseEnv({ ...valid, GUEST_JOINS_PER_IP: "5000" }).GUEST_JOINS_PER_IP).toBe(5000);
+    expect(parseEnv({ ...valid, MAX_EVENT_MB: "" }).MAX_EVENT_MB).toBe(9 * 1024);
+  });
+  test("refuse a value that is not a positive whole number", () => {
+    for (const bad of ["0", "-1", "1.5", "lots", "99999999999"]) {
+      expect(() => parseEnv({ ...valid, GUEST_JOINS_PER_IP: bad })).toThrow(/GUEST_JOINS_PER_IP/);
+    }
   });
 });

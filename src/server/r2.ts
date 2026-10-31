@@ -67,7 +67,7 @@ async function peek(key: string) {
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`R2 GET ${key} failed: ${res.status}`);
   if (res.status !== 206) {
-    // A store that ignored Range would send the whole file (up to 100 MB): never read that.
+    // A store that ignored Range would send the whole file (a whole video): never read that.
     void res.body?.cancel();
     throw new Error(`R2 GET ${key} ignored the Range header`);
   }

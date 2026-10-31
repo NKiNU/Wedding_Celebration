@@ -16,6 +16,7 @@ import { db } from "./db";
 import { env } from "./env";
 import { EVENT_COLUMNS, getEvent } from "./event";
 import { AppError } from "./http";
+import { ipHash } from "./ip";
 import { r2 } from "./r2";
 import { afterCursor, SELECT, toPost, type PostRow } from "./wall";
 
@@ -56,29 +57,6 @@ export function isAdmin(jar: CookieReader): boolean {
 export function requireAdmin(jar: CookieReader): void {
   if (!isAdmin(jar)) throw notAdmin();
 }
-
-/**
- * The caller's address, hashed: enough to throttle guesses without keeping an IP. An IPv6 user
- * owns a whole /64, so its first four groups are the bucket, not the full address.
- */
-/**
- * Who is calling, for the login throttle. Only a header our own infrastructure sets can be
- * trusted: on Vercel that is `x-vercel-forwarded-for`; on a VPS it is the `x-real-ip` the reverse
- * proxy writes (nginx: `proxy_set_header X-Real-IP $remote_addr;`, which replaces anything the
- * client sent), else the last `x-forwarded-for` entry, the one the proxy appended. A client can
- * set any other header to a new value on every try, which would switch the throttle off.
- */
-export function clientIp(headers: Pick<Headers, "get">, onVercel = Boolean(process.env.VERCEL)): string | null {
-  const forwarded = (headers.get("x-forwarded-for") ?? "").split(",").map((p) => p.trim()).filter(Boolean);
-  if (onVercel) return headers.get("x-vercel-forwarded-for") ?? forwarded[0] ?? null;
-  return headers.get("x-real-ip") ?? forwarded.at(-1) ?? null;
-}
-
-const ipHash = (address: string | null) => {
-  const ip = address || "unknown";
-  const bucket = ip.includes(":") ? ip.split(":").slice(0, 4).join(":") : ip;
-  return createHash("sha256").update(`${bucket}:${env().DEVICE_TOKEN_PEPPER}`).digest("hex");
-};
 
 /**
  * Checks the passcode. The attempt is counted before it is compared, so parallel guesses cannot

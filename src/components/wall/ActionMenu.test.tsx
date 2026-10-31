@@ -16,7 +16,7 @@ describe("ActionMenu", () => {
     const items = Array.from(menu().querySelectorAll("button")).map((b) => b.textContent);
     expect(items).toEqual([
       "Photos1 photo or an album",
-      "VideoUp to 60 seconds",
+      "VideoUp to 30 seconds",
       "WishWrite to the couple",
       "DuitNow QRSend a gift",
     ]);

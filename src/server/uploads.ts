@@ -2,10 +2,11 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import type { UploadIntent } from "@/lib/api";
 import type { Json } from "@/lib/database.types";
-import { BYTES_PER_HOUR, INTENT_TTL_MS, POSTS_PER_HOUR, RATE_WINDOW_MS } from "@/lib/domain/limits";
+import { BYTES_PER_HOUR, INTENT_TTL_MS, MB, POSTS_PER_HOUR, RATE_WINDOW_MS } from "@/lib/domain/limits";
 import { mediaKey, type StoredFile, type UploadFile } from "@/lib/domain/uploads";
 import { storedFiles } from "@/lib/validation";
 import { db } from "./db";
+import { env } from "./env";
 import { getEvent } from "./event";
 import { AppError } from "./http";
 import type { Guest } from "./identity";
@@ -58,8 +59,13 @@ export async function createUploadIntent(guest: Guest, files: UploadFile[]): Pro
     p_files: stored as unknown as Json,
     p_expires_at: new Date(Date.now() + INTENT_TTL_MS).toISOString(),
     ...limitArgs(),
+    // The whole event's stored media, so it stays inside the R2 free tier (migration 0005).
+    p_max_event_bytes: env().MAX_EVENT_MB * MB,
   });
   if (error?.code === "PT429") throw rateLimited();
+  if (error?.code === "PT507") {
+    throw new AppError("storage_full", 507, "The photo space for this wedding is full. You can still send a wish.");
+  }
   if (error) throw new Error(`Creating the upload intent failed: ${error.code} ${error.message}`);
 
   const signer = r2();

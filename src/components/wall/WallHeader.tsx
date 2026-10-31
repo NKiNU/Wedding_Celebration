@@ -28,9 +28,12 @@ export function WallHeader({ groom, bride, headerMessage, memories, me, onOpenMe
           aria-label={`Your name and posts, ${me}`}
           className="flex h-11 items-center gap-2 rounded-full border border-line bg-card pr-2.5 pl-1.5 transition-transform duration-100 active:scale-[0.97]"
         >
-          <span aria-hidden="true" className="flex size-8 items-center justify-center rounded-full bg-ink text-[13px] font-semibold text-paper">
-            {initialOf(me)}
-          </span>
+          {/* Drawn with CSS so the initial is not text: the button's name must contain all its visible text (WCAG 2.5.3). */}
+          <span
+            aria-hidden="true"
+            data-initial={initialOf(me)}
+            className="flex size-8 items-center justify-center rounded-full bg-ink text-[13px] font-semibold text-paper before:content-[attr(data-initial)]"
+          />
           <span className="max-w-[110px] truncate text-[13px] font-medium">{me}</span>
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M6 9l6 6 6-6" />

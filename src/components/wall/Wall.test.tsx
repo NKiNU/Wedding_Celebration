@@ -209,7 +209,7 @@ describe("Wall", () => {
 
     it.each([
       [/1 photo or an album/, "photo drawer"],
-      [/Up to 60 seconds/, "video drawer"],
+      [/Up to 30 seconds/, "video drawer"],
     ])("opens the drawer for %s", (item, drawer) => {
       show();
       openMenu();
@@ -257,7 +257,7 @@ describe("Wall", () => {
       show();
       fireEvent.click(screen.getByRole("button", { name: "Videos 1" }));
       openMenu();
-      fireEvent.click(screen.getByRole("button", { name: /Up to 60 seconds/ }));
+      fireEvent.click(screen.getByRole("button", { name: /Up to 30 seconds/ }));
       fireEvent.click(screen.getByRole("button", { name: "video drawer" }));
       expect(cards()).toHaveLength(1);
     });

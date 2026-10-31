@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   deletePostAsAdmin: vi.fn(),
 }));
 vi.mock("@/server/admin", () => mocks);
+vi.mock("@/server/ip", () => ({ clientIp: mocks.clientIp }));
 vi.mock("@/server/posts", () => ({ deletePostAsAdmin: mocks.deletePostAsAdmin }));
 vi.mock("@/server/event", () => ({ getEvent: async () => ({ id: "e1" }) }));
 vi.mock("next/headers", () => ({ cookies: async () => ({}) }));

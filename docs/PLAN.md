@@ -10,6 +10,31 @@
 - [x] Phase 5 — QR + Admin
 - [ ] Phase 6 — Hardening + launch
 
+Last session notes (2026-10-31, Phase 6 code-only part; uncommitted, the user commits). Phase 6 stays unticked until deploy and the real-phone tests are done:
+- **Built:**
+  - Migration `0005_rate_limits.sql`: `rate_attempts` + `rate_limit_hit(p_scope, p_key, p_window_s, p_max)` (window measured by the database clock, cleanup only of the caller's own old rows, per (scope, key) lock, `PT429`); `create_upload_intent` gains `p_max_event_bytes` and raises `PT507` when the event's **posted** media plus this upload would pass the cap (event lock, then guest lock). Index `upload_intents_event`.
+  - Server: `ip.ts` (`clientIp`, `ipHash`, `bucketOf`: IPv6 expanded before taking the /64, IPv4-mapped treated as IPv4; Vercel branch removed), `rateLimit.ts` (`throttle("guest_join")`, 300 new names per address per 10 min), `POST /api/guests` throttled, `uploads.ts` maps `PT507` to 507 `storage_full` ("You can still send a wish"), `sweep.ts` `purgeRateAttempts` (hourly).
+  - Limits: videos **30 s / 80 MB** (was 60 s / 100 MB; tried 60 MB first, raised to 80 MB because a full 30 s of default 1080p on Android is up to about 65 MB; the user also considered keeping 60 s and decided on 30 s; messages read the constants, with a "record in 1080p" tip and a "trim it in your Photos or Gallery app" tip), event cap `MAX_EVENT_MB` 9216 (inside the R2 free tier), optional env `GUEST_JOINS_PER_IP` and `MAX_EVENT_MB` (positive whole numbers up to 1,000,000). `storedFiles` has no maxima, so intents stored under older, larger limits still parse.
+  - `R2_ENDPOINT` guard: refused when `NODE_ENV=production` unless it is a loopback address (a local `npm run build` with local storage still works).
+  - The guest list is closed: `revoke select on public_guests from anon, authenticated` (end of 0005, the user's yes; CLAUDE.md RLS line changed). Nothing in the app read it; with it, the public anon key could download every name, including guests who never posted. Author names on the wall come from the server.
+  - Realtime: the `post_hidden` broadcast is only a hint to refetch page 1, never a removal (anyone with the anon key can send on the public topic). A hidden post below page 1 disappears from open phones on their next reload.
+  - Tests: `tests/integration/rls.test.ts` (28: anon cannot read or write the private tables or the `public_guests` view, hidden posts invisible to anon, every security definer function denied to anon with a service-role positive control, `wall_counts` excludes hidden posts, the storage cap on its own event, parallel bursts for `admin_login_attempt` and `rate_limit_hit`); `tests/fixtures/anon.ts` (clients built only when `SUPABASE_INTEGRATION` is set). `scripts/check-bundle.mjs` (`npm run check:bundle`, `--strict` in CI with canary secrets): secret values, service-role JWTs and `sb_secret_` keys in `.next/static` and the prerendered `.next/server/app` pages. Secure-cookie tests for `wm_tokens`, `wm_active` and `wm_admin`. `tests/e2e/a11y.spec.ts` (`@axe-core/playwright`, WCAG 2.1 A/AA, both themes: welcome incl. the taken-name error, wall, + menu, every drawer, Me, wish view, viewer, /admin login).
+  - A11y fixes: name chip initial drawn with CSS; media cards keep the footer (author, age, "You") outside the link with a stretched `::after` and a card-wide focus ring; video label includes the duration; the wishes ticker pauses on pointer-over and keyboard focus (not on tap focus). No token or design change. No touch target under 44 px found.
+  - Docs: `docs/DEPLOY.md` (VPS step by step: production Supabase, R2 checklist for the friends, systemd, Caddy or nginx, Cloudflare "DNS only" for the app record, cron with a root-only header file, smoke test). CLAUDE.md media rules and limits, ADR 003 note.
+- **Decisions (after the security audit and code review):**
+  - **No limit on reading the wall** (planned, then dropped): every phone refetches page 1 on each new post, so a venue on one Wi-Fi address would freeze its own live wall at the busiest moment, and the same rows are readable with the public anon key anyway.
+  - **No guest cap** (planned 500, then dropped): one person could fill it days before the wedding and lock real guests out. The join throttle slows a name flood from one address; the storage cap bounds media.
+  - The storage cap counts **posted** media only: counting reserved uploads let 47 throwaway names fill 9 GB without uploading anything. Uploads in flight can overshoot a little (bounded, temporary). Deleting a post frees its space.
+  - Join limit 300 per 10 min per address (planned 30): guests join together when the MC says "scan now".
+- **Verified:** lint, typecheck, test (647 unit; 98.39% statements, 95.41% branches) and build green; `check:bundle --strict` 43 files, 6 secrets, none found (a planted pepper is caught). `SUPABASE_INTEGRATION=1 npx vitest run tests/integration`: 43 of 43. `E2E_UPLOADS=1 npx playwright test` on a fresh `db reset`: all pass, incl. a11y on both phones and admin 3 of 3 (the album spec's PUT check now matches `/events/` in the path, since `.env.local` points at the real R2 bucket, not local storage).
+- **Not fixed, on purpose (recorded for later):**
+  - One person can still flood the wall with wishes (many names from rotating addresses) and the admin can only hide or delete one post at a time. Ideas: a per-address limit on posting, "hide all posts by this guest" and "remove name" in admin.
+  - The `post_hidden` hint can be forged to make phones refetch page 1 (load, no data change). Proper fix: a private Realtime channel with Realtime Authorization (anon may receive, not send).
+  - No HSTS, CSP or frame-ancestors headers (cookies are Secure and Lax/Strict, so the impact is small); a 429 has no `Retry-After`.
+  - The storage sum scans the event's intents under the event lock: measure in the 30-phone load test.
+- **Test order:** after `supabase db reset`, run the e2e suite **before** the integration tests: the integration tests add posts and the wall specs count the seed.
+- **Note for the user:** test runs now upload (tiny) files to the real R2 bucket, under the seed event `events/e0000000-0000-4000-8000-000000000001/`. A `db reset` forgets them, so the hourly sweep never removes them. Before the wedding, empty that prefix in the R2 dashboard (the real event has a different id), or point `.env.local` back at local storage for testing.
+
 Last session notes (2026-10-26, Phase 5; uncommitted, the user commits):
 - **Built:**
   - Migration `0004_admin.sql`: `admin_attempts` (hashed IP + time) with `admin_login_attempt` / `admin_login_clear` (advisory lock, attempt counted **before** the passcode is compared, 5 per 15 min). RLS on, service role only. `database.types.ts` regenerated (also picks up `wish_log`).
@@ -20,7 +45,7 @@ Last session notes (2026-10-26, Phase 5; uncommitted, the user commits):
   - Admin UI `/admin` (`components/admin/`): login, couple names + header message, uploads switch, QR upload (presign, PUT, confirm) + holder + bank, posts list with Hide / Unhide / Delete (`ConfirmDialog`), "Download zip" (`client-zip` in the browser, one file at a time). Each section shows its own error. No canvas screen exists for admin: it uses the same tokens and `ui/` parts, single column up to `max-w-2xl`.
   - Tests: unit and component (614+), `tests/e2e/admin.spec.ts` (own Playwright project `admin`, runs last, needs `ADMIN_PASSCODE` in the shell, skipped otherwise).
 - **Decisions:**
-  - Admin login lasts 24 h; throttle bucket is the hashed IP (IPv6 by its /64). `clientIp` trusts only what our own infrastructure sets: `x-vercel-forwarded-for` when `VERCEL` is set, else the reverse proxy's `x-real-ip`, else the last `x-forwarded-for` entry. Never the first entry or a Vercel header on a VPS: a client could change it on every try and switch the throttle off.
+  - Admin login lasts 24 h; throttle bucket is the hashed IP (IPv6 by its /64). `clientIp` trusts only what our own infrastructure sets: `x-vercel-forwarded-for` when `VERCEL` is set, else the reverse proxy's `x-real-ip`, else the last `x-forwarded-for` entry. Never the first entry or a Vercel header on a VPS: a client could change it on every try and switch the throttle off. *(Phase 6: the Vercel branch is gone; `clientIp` now lives in `src/server/ip.ts` and trusts only `x-real-ip`, else the last `x-forwarded-for` entry; IPv6 is expanded before taking the /64.)*
   - Admin edits show on the next wall load (no Realtime on `events`); `getEvent` is per request, so nothing needs revalidating.
   - Hide keeps the files (reachable by URL); Delete is the takedown, same as for guests.
 - **Verified against the real stack (local DB, the R2 bucket in `.env.local`):** wrong passcode 401, 6th try 429, no cookie 401 on every admin route, hide drops the wall count and unhide restores it, closed uploads give a guest 403 `uploads_closed`, QR presign / PUT / confirm / foreign key 400 / `GET /qr` 200 with `no-store`, manifest, logout. Browser (390x844): login, wrong passcode, dashboard, no console errors beyond the dev hydration warning. `npx playwright test --project=admin --no-deps`: 3 of 3 (login; hide, unhide and delete reach a second phone live; closing uploads leaves only the QR). Found by the browser pass: `Date.now()` in `isAdmin` failed prerendering, fixed with `await connection()` (same in `/qr`).
@@ -35,7 +60,7 @@ Last session notes (2026-10-26, Phase 5; uncommitted, the user commits):
   **Deploy target is a VPS, not Vercel (decided 2026-10-26).** Phase 6 needs, instead of the Vercel steps:
   - HTTPS in front (Caddy, or nginx + certbot). The session cookies are `Secure`: over plain http phones cannot join at all.
   - The reverse proxy must set the client address: nginx `proxy_set_header X-Real-IP $remote_addr;` and `proxy_set_header X-Forwarded-For $remote_addr;` (replace, do not append), or the admin login throttle sees every visitor as one address.
-  - Run `npm run build` then `npm start` (Node 22.12 or newer) under systemd or pm2, with the env vars from `.env.example` in the service's environment file (not in git). Keep `R2_ENDPOINT` empty: its production guard checks `VERCEL_ENV`, which a VPS never sets.
+  - Run `npm run build` then `npm start` (Node 22.12 or newer) under systemd or pm2, with the env vars from `.env.example` in the service's environment file (not in git). Keep `R2_ENDPOINT` empty: its production guard checks `VERCEL_ENV`, which a VPS never sets. *(Phase 6: the guard now refuses any `R2_ENDPOINT` but a loopback address when `NODE_ENV=production`.)*
   - The hourly sweep is not Vercel Cron: add a system cron line `0 * * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://<app>/api/cron/sweep`.
   - After changing `ADMIN_PASSCODE` or any env var, restart the service.
   - CLAUDE.md "Deploy" line now says VPS (changed with the user's yes). The older Vercel mentions below (Phase 3 cron note, Phase 6 list) are superseded by this block.
@@ -96,7 +121,7 @@ Earlier notes (2026-10-25, Phase 3; still current):
   - `uploads_open` is enforced in all three write paths now (403 `uploads_closed`); Phase 5 only adds the admin toggle.
   - `cancelUploadIntent` expires the intent with one atomic `UPDATE ... WHERE consumed_at IS NULL` before deleting objects, so a post committed after a lost response keeps its files and one mid-commit fails with `PT410`. The client treats `already_posted` as success (no duplicate on retry).
   - The poster's own phone refetches page 1 (no optimistic insert); a post the active filter would hide switches the filter to All.
-  - Dev-only `R2_ENDPOINT` / `R2_REGION` point the same adapter at local Supabase Storage (S3 API, public bucket `wedding`), so browser and integration runs exercise real signed PUTs. `R2_ENDPOINT` is refused when `VERCEL_ENV=production`; empty values mean unset.
+  - Dev-only `R2_ENDPOINT` / `R2_REGION` point the same adapter at local Supabase Storage (S3 API, public bucket `wedding`), so browser and integration runs exercise real signed PUTs. `R2_ENDPOINT` is refused when `VERCEL_ENV=production`; empty values mean unset. *(Phase 6: now `NODE_ENV=production` and not loopback.)*
   - Wish and caption length are counted in code points (like Postgres `char_length`); two emoji used to pass zod and fail the DB check with a 500.
   - Menu items are Wish, Video, Photos top to bottom (Photos nearest the thumb, as in the canvas); chips are 12 px so two fit a row in Poppins; the toast sits above the + button.
   - Playwright projects: the create specs run after join and wall (they add posts; wall counts the seed).
@@ -161,7 +186,7 @@ Browser (Safari iOS / Chrome Android)
 | UI | `src/components/**` | domain (formatting), client libs | no fetch logic inside presentational components; data access lives in `src/components/**/use*.ts` hooks |
 
 - One `ApiResult` shape: `{ ok: true, data } | { ok: false, error: { code, message, details? } }`. Services throw typed `AppError(code, status)`; one `handle()` wrapper maps them to responses.
-- Config: `src/server/env.ts` parses `process.env` with zod at boot and fails fast. Limits live in `src/lib/domain/limits.ts` as named constants (`MAX_PHOTOS = 10`, `MAX_VIDEO_BYTES = 100 * MB`, `MAX_VIDEO_SECONDS = 60`, `POSTS_PER_HOUR = 30`, `BYTES_PER_HOUR = 200 * MB`, `PAGE_SIZE = 24`).
+- Config: `src/server/env.ts` parses `process.env` with zod at boot and fails fast. Limits live in `src/lib/domain/limits.ts` as named constants (`MAX_PHOTOS = 10`, `MAX_VIDEO_BYTES = 80 * MB`, `MAX_VIDEO_SECONDS = 30` (Phase 6; was 100 MB / 60 s), `POSTS_PER_HOUR = 30`, `BYTES_PER_HOUR = 200 * MB`, `PAGE_SIZE = 24`).
 - Decisions are recorded in `docs/adr/NNN-title.md`, one short page each. First ADRs: R2 for media, one event per deployment, upload intents.
 
 ---
@@ -213,7 +238,7 @@ create function wall_counts(e uuid) returns table(all_count int, photos int, vid
 **Upload: never trust client paths or type**
 1. Client prepares files (`src/lib/media.ts`):
    - Photos: `createImageBitmap`, then canvas, giving a 2048 px long-edge JPEG (q 0.82) and a 600 px thumbnail. HEIC decodes natively on Safari; on a decode failure, show a friendly error.
-   - Video: read `duration` from `<video>` metadata, reject over 60 s or over 100 MB early, and capture a poster frame at 0.5 s.
+   - Video: read `duration` from `<video>` metadata, reject over 30 s or over 80 MB early (Phase 6; was 60 s / 100 MB), and capture a poster frame at 0.5 s.
 2. `POST /api/uploads { files:[{role, mime, bytes, position}] }`. The server checks limits and rate limits, creates `postId` and an `upload_intent` (15 min TTL), and returns presigned PUT URLs. The signature includes **exact `Content-Length` and `Content-Type`**, so R2 rejects anything else.
 3. Client uploads each file with XHR PUT and shows per-file progress from `upload.onprogress`.
 4. `POST /api/posts { postId, caption }` or `{ wishText }`. The server loads the intent (it must belong to the active guest and be unconsumed), runs `HEAD` on each key in R2 to verify size and type, and derives `type` from the verified main files via `derivePostType`. It then inserts `posts` and `post_media` in one transaction and marks the intent consumed.

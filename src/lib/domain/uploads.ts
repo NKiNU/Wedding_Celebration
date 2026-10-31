@@ -118,10 +118,10 @@ const mbLabel = (bytes: number) => `${(bytes / MB).toFixed(1)} MB`;
 /** Friendly text for a video that is over the limits, or null. */
 export function videoProblem(bytes: number, durationS: number): string | null {
   if (bytes > MAX_VIDEO_BYTES) {
-    return `That video is ${mbLabel(bytes)}. Please choose one under 100 MB (about 60 seconds).`;
+    return `That video is ${mbLabel(bytes)}. Please choose one under ${MAX_VIDEO_BYTES / MB} MB (about ${MAX_VIDEO_SECONDS} seconds). Tip: record in 1080p, not 4K.`;
   }
   if (durationS > MAX_VIDEO_SECONDS) {
-    return `That video is ${Math.round(durationS)} s. Please choose one up to ${MAX_VIDEO_SECONDS} seconds.`;
+    return `That video is ${Math.round(durationS)} s. Please choose one up to ${MAX_VIDEO_SECONDS} seconds. You can trim it in your phone’s Photos or Gallery app first.`;
   }
   return null;
 }

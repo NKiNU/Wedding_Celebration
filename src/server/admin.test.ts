@@ -16,7 +16,6 @@ vi.mock("./event", () => ({ getEvent: async () => mocks.event, EVENT_COLUMNS: "i
 
 import {
   ADMIN_COOKIE,
-  clientIp,
   confirmQr,
   getAdminEvent,
   getModerationPage,
@@ -87,6 +86,15 @@ describe("login and the admin cookie", () => {
     expect(calls.map((x) => x.method)).toEqual(["admin_login_attempt", "admin_login_clear"]);
   });
 
+  it("marks the admin cookie Secure in production only", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const { c } = await signIn();
+    expect(c.set).toHaveBeenCalledWith(ADMIN_COOKIE, expect.any(String), expect.objectContaining({ secure: true }));
+    vi.stubEnv("NODE_ENV", "test");
+    const { c: dev } = await signIn();
+    expect(dev.set).toHaveBeenCalledWith(ADMIN_COOKIE, expect.any(String), expect.objectContaining({ secure: false }));
+  });
+
   it("puts every address of one IPv6 /64 in the same bucket", async () => {
     const bucketOf = async (ip: string) => {
       const fake = fakeDb([ok(null), ok(null)]);
@@ -142,33 +150,6 @@ describe("login and the admin cookie", () => {
     const { c } = await signIn();
     logout(c);
     expect(isAdmin(c)).toBe(false);
-  });
-});
-
-describe("clientIp", () => {
-  const h = (init: Record<string, string>) => new Headers(init);
-
-  it("on a VPS trusts the proxy's x-real-ip, never a header the client can choose", () => {
-    expect(clientIp(h({ "x-real-ip": "9.9.9.9", "x-vercel-forwarded-for": "1.1.1.1", "x-forwarded-for": "2.2.2.2, 9.9.9.9" }), false)).toBe("9.9.9.9");
-  });
-
-  it("on a VPS without x-real-ip takes the last x-forwarded-for entry, the one the proxy appended", () => {
-    expect(clientIp(h({ "x-forwarded-for": "6.6.6.6, 9.9.9.9" }), false)).toBe("9.9.9.9");
-    expect(clientIp(h({ "x-vercel-forwarded-for": "1.1.1.1" }), false)).toBeNull();
-    expect(clientIp(h({}), false)).toBeNull();
-  });
-
-  it("on Vercel uses its own header, else the first x-forwarded-for entry", () => {
-    expect(clientIp(h({ "x-vercel-forwarded-for": "1.1.1.1", "x-real-ip": "9.9.9.9" }), true)).toBe("1.1.1.1");
-    expect(clientIp(h({ "x-forwarded-for": "2.2.2.2, 3.3.3.3" }), true)).toBe("2.2.2.2");
-    expect(clientIp(h({}), true)).toBeNull();
-  });
-
-  it("reads VERCEL from the environment by default", () => {
-    vi.stubEnv("VERCEL", "1");
-    expect(clientIp(h({ "x-vercel-forwarded-for": "1.1.1.1" }))).toBe("1.1.1.1");
-    vi.stubEnv("VERCEL", "");
-    expect(clientIp(h({ "x-vercel-forwarded-for": "1.1.1.1" }))).toBeNull();
   });
 });
 

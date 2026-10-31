@@ -36,7 +36,7 @@ function Face({ post }: { post: WallPost }) {
         <Thumb src={coverOf(post)} />
       </span>
       {album && (
-        <span className={`${BADGE} top-3.5 right-3.5 flex items-center gap-1`}>
+        <span aria-hidden="true" className={`${BADGE} top-3.5 right-3.5 flex items-center gap-1`}>
           <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
             <rect x="7" y="7" width="13" height="13" rx="2" />
             <path d="M4 16V6a2 2 0 0 1 2-2h10" />
@@ -52,7 +52,7 @@ function Face({ post }: { post: WallPost }) {
             </svg>
           </span>
           {post.media[0]?.durationS != null && (
-            <span className={`${BADGE} right-2 bottom-2`}>{formatDuration(post.media[0].durationS)}</span>
+            <span aria-hidden="true" className={`${BADGE} right-2 bottom-2`}>{formatDuration(post.media[0].durationS)}</span>
           )}
         </>
       )}
@@ -67,37 +67,58 @@ type Props = {
   onOpenWish: (post: WallPost) => void;
 };
 
+/** Author, age and a "You" badge under a card. */
+function Footer({ post, mine, now }: { post: WallPost; mine: boolean; now: Date }) {
+  return (
+    <span className="flex items-center justify-between gap-1.5 px-0.5 pb-0.5 leading-[1.1]">
+      <span className="flex min-w-0 flex-col">
+        <span className="truncate text-[13px] font-semibold">{post.author}</span>
+        <time dateTime={post.createdAt} suppressHydrationWarning className="text-[11px] text-muted">
+          {relativeTime(post.createdAt, now)}
+        </time>
+      </span>
+      {mine && <span className="flex-none rounded-[10px] bg-soft px-2 py-[3px] text-[10px] font-semibold">You</span>}
+    </span>
+  );
+}
+
 /** One card on the wall: media or wish text, then author, age and a "You" badge. */
 export function PostCard({ post, mine, now, onOpenWish }: Props) {
-  const body = (
-    <>
-      <span className="relative block aspect-square w-full">
-        <Face post={post} />
-      </span>
-      <span className="flex items-center justify-between gap-1.5 px-0.5 pb-0.5 leading-[1.1]">
-        <span className="flex min-w-0 flex-col">
-          <span className="truncate text-[13px] font-semibold">{post.author}</span>
-          <time dateTime={post.createdAt} suppressHydrationWarning className="text-[11px] text-muted">
-            {relativeTime(post.createdAt, now)}
-          </time>
-        </span>
-        {mine && <span className="flex-none rounded-[10px] bg-soft px-2 py-[3px] text-[10px] font-semibold">You</span>}
-      </span>
-    </>
-  );
-
+  const footer = <Footer post={post} mine={mine} now={now} />;
   if (post.type === "wish") {
     return (
       <button type="button" onClick={() => onOpenWish(post)} className={CARD}>
-        {body}
+        <span className="relative block aspect-square w-full">
+          <Face post={post} />
+        </span>
+        {footer}
       </button>
     );
   }
-  const label = `${LEAD[post.type]} ${post.author}${post.type === "album" ? `, ${post.media.length} photos` : ""}`;
-  // The viewer page arrives in Phase 4; prefetch stays off so 24 cards do not each fetch it.
+  const duration = post.type === "video" ? post.media[0]?.durationS : null;
+  const label = [
+    `${LEAD[post.type]} ${post.author}`,
+    post.type === "album" ? `${post.media.length} photos` : null,
+    duration != null ? formatDuration(duration) : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  // The link wraps the media only, so its name (the label) holds every word it shows (WCAG 2.5.3). Its ::after
+  // stretches over the whole card so the footer is tappable too. The viewer page is not prefetched: 24 cards would each fetch it.
   return (
-    <Link href={`/p/${post.id}`} prefetch={false} aria-label={label} className={CARD} onClick={() => markFromWall(post.id)}>
-      {body}
-    </Link>
+    <div className={`relative ${CARD}`}>
+      <Link
+        href={`/p/${post.id}`}
+        prefetch={false}
+        aria-label={label}
+        className="block after:absolute after:inset-0 after:rounded-card after:content-[''] focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:outline-offset-2 focus-visible:after:outline-ink"
+        onClick={() => markFromWall(post.id)}
+      >
+        <span className="relative block aspect-square w-full">
+          <Face post={post} />
+        </span>
+      </Link>
+      {footer}
+    </div>
   );
 }

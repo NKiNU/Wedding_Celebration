@@ -94,11 +94,11 @@ describe("uploadProblem", () => {
   it("enforces the byte caps per role", () => {
     expect(uploadProblem([main(0, { bytes: 15 * MB + 1 }), thumb(0)])).toMatch(/too large/);
     expect(uploadProblem([main(0), thumb(0, { bytes: 1 * MB + 1 })])).toMatch(/too large/);
-    expect(uploadProblem([video({ bytes: 100 * MB + 1 })])).toMatch(/too large/);
+    expect(uploadProblem([video({ bytes: 80 * MB + 1 })])).toMatch(/too large/);
   });
-  it("requires a video duration of at most 60 seconds", () => {
-    expect(uploadProblem([video({ durationS: undefined })])).toMatch(/60 seconds/);
-    expect(uploadProblem([video({ durationS: 61 })])).toMatch(/60 seconds/);
+  it("requires a video duration of at most 30 seconds", () => {
+    expect(uploadProblem([video({ durationS: undefined })])).toMatch(/30 seconds/);
+    expect(uploadProblem([video({ durationS: 31 })])).toMatch(/30 seconds/);
   });
 });
 
@@ -129,9 +129,9 @@ describe("fitWithin", () => {
 
 describe("videoProblem", () => {
   it("explains a video that is too big or too long, and accepts the limits", () => {
-    expect(videoProblem(110 * MB, 30)).toMatch(/110(\.0)? MB.*under 100 MB/);
-    expect(videoProblem(10 * MB, 75)).toMatch(/75 s.*60 seconds/);
-    expect(videoProblem(100 * MB, 60)).toBeNull();
+    expect(videoProblem(90 * MB, 20)).toMatch(/90(\.0)? MB.*under 80 MB.*1080p/);
+    expect(videoProblem(10 * MB, 45)).toMatch(/45 s.*30 seconds.*trim it/);
+    expect(videoProblem(80 * MB, 30)).toBeNull();
   });
 });
 
