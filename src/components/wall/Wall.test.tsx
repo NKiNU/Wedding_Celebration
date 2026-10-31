@@ -58,9 +58,10 @@ const main = () => within(screen.getByRole("main"));
 const toast = (text: string | RegExp) => screen.getByText(text, { selector: "p" });
 const noToast = (text: string | RegExp) => expect(screen.queryByText(text, { selector: "p" })).not.toBeInTheDocument();
 
-const show = () =>
+const show = (openWish?: typeof wish) =>
   render(
     <Wall
+      openWish={openWish}
       eventId="e1"
       groom="Hafiz"
       bride="Aisyah"
@@ -103,6 +104,12 @@ describe("Wall", () => {
     expect(cards()).toHaveLength(3);
     expect(main().getByText("You")).toBeInTheDocument();
     expect(screen.getByText(/3 memories shared/)).toBeInTheDocument();
+  });
+
+  it("opens the wish a shared link points to, even when it is not on the loaded page", () => {
+    const old = wishPost({ id: "00000000-0000-4000-8000-000000000a09", wishText: "From the old days", author: "Pak Long", guestId: "other" });
+    show(old);
+    expect(within(screen.getByRole("dialog")).getByText("From the old days")).toBeInTheDocument();
   });
 
   it("filters by type with the pills", () => {
@@ -202,7 +209,7 @@ describe("Wall", () => {
 
     it.each([
       [/1 photo or an album/, "photo drawer"],
-      [/Up to 60 seconds/, "video drawer"],
+      [/Up to 30 seconds/, "video drawer"],
     ])("opens the drawer for %s", (item, drawer) => {
       show();
       openMenu();
@@ -250,7 +257,7 @@ describe("Wall", () => {
       show();
       fireEvent.click(screen.getByRole("button", { name: "Videos 1" }));
       openMenu();
-      fireEvent.click(screen.getByRole("button", { name: /Up to 60 seconds/ }));
+      fireEvent.click(screen.getByRole("button", { name: /Up to 30 seconds/ }));
       fireEvent.click(screen.getByRole("button", { name: "video drawer" }));
       expect(cards()).toHaveLength(1);
     });

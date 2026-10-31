@@ -5,6 +5,7 @@ import { useDeletePost } from "@/components/drawers/useDeletePost";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { TrashIcon } from "@/components/ui/TrashIcon";
 import { flash } from "@/lib/flash";
+import { cameFromWall } from "@/lib/fromWall";
 import { postLabel, relativeTime, type WallPost } from "@/lib/domain/posts";
 import { AlbumGallery } from "./AlbumGallery";
 import { VideoPlayer } from "./VideoPlayer";
@@ -28,9 +29,9 @@ export function PostViewer({ post, mine, now }: Props) {
     // A full load: the client router would hand back the wall as it was before this post went.
     window.location.replace(WALL);
   });
-  // ponytail: a guest who opened the link cold has no wall behind this page, so "back" goes to the wall.
-  // The wall then reloads from its first page: scroll position and extra pages are not kept.
-  const back = () => (window.history.length > 1 ? router.back() : router.replace(WALL));
+  // Only a card tap proves the wall is the page behind this one. A link from another app has that app
+  // behind it, so "back" goes to the wall instead (which reloads from its first page).
+  const back = () => (cameFromWall(post.id) && window.history.length > 1 ? router.back() : router.replace(WALL));
   const video = post.type === "video" ? post.media[0] : undefined;
 
   return (

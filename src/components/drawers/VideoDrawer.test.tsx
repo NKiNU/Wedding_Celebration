@@ -69,10 +69,10 @@ describe("VideoDrawer", () => {
   });
 
   it("explains a video that is too big or too long", async () => {
-    mocks.prepareVideo.mockRejectedValue(new MediaError("That video is 110.0 MB. Please choose one under 100 MB (about 60 seconds)."));
+    mocks.prepareVideo.mockRejectedValue(new MediaError("That video is 90.0 MB. Please choose one under 80 MB (about 30 seconds)."));
     show();
     await pick(clip("big.mp4", "video/mp4", 110 * 1024 * 1024));
-    expect(await screen.findByRole("alert")).toHaveTextContent("110.0 MB");
+    expect(await screen.findByRole("alert")).toHaveTextContent("90.0 MB");
     expect(post()).toBeDisabled();
     expect(screen.getByText("Choose a video")).toBeInTheDocument();
   });

@@ -20,4 +20,34 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test
+      # Canary secrets: the build runs with them, and the scan proves none reached the browser.
       - run: npm run build
+        env: &canaries
+          SUPABASE_SERVICE_ROLE_KEY: ci-canary-service-role-key-7f3a
+          R2_ACCESS_KEY_ID: ci-canary-r2-access-key-id-7f3a
+          R2_SECRET_ACCESS_KEY: ci-canary-r2-secret-access-key-7f3a
+          DEVICE_TOKEN_PEPPER: ci-canary-device-token-pepper-7f3a-0000000000
+          ADMIN_PASSCODE: ci-canary-admin-passcode-7f3a
+          CRON_SECRET: ci-canary-cron-secret-7f3a
+      - run: npm run check:bundle -- --strict
+        env: *canaries
+
+  # Pushes to main only, after checks pass. The VPS key may only run /opt/wedding/deploy.sh (docs/DEPLOY.md section 8).
+  # Off until the repo variable DEPLOY_ENABLED is set to "true" (Settings, Secrets and variables, Actions, Variables).
+  deploy:
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    concurrency: deploy
+    steps:
+      - name: Deploy over SSH
+        env:
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh -o BatchMode=yes wedding@"$HOST"

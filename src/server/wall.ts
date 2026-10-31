@@ -13,7 +13,7 @@ import { env } from "./env";
 import { getEvent } from "./event";
 import { AppError } from "./http";
 
-const SELECT =
+export const SELECT =
   "id, type, caption, wish_text, created_at, guest_id, guests(name), " +
   "post_media(kind, path, thumb_path, poster_path, duration_s)";
 
@@ -25,7 +25,7 @@ type MediaRow = {
   duration_s: number | string | null; // numeric columns arrive as numbers or strings
 };
 
-type PostRow = {
+export type PostRow = {
   id: string;
   type: PostType;
   caption: string | null;
@@ -47,7 +47,7 @@ const toMedia = (m: MediaRow): WallMedia => ({
   durationS: m.duration_s === null ? null : Number(m.duration_s),
 });
 
-const toPost = (row: PostRow): WallPost => ({
+export const toPost = (row: PostRow): WallPost => ({
   id: row.id,
   type: row.type,
   caption: row.caption,
@@ -65,6 +65,10 @@ const toPost = (row: PostRow): WallPost => ({
 const visiblePosts = (eventId: string) =>
   db().from("posts").select(SELECT).eq("event_id", eventId).eq("hidden", false);
 
+/** Row-value comparison (created_at, id) < (c, i), spelled the way PostgREST allows. */
+export const afterCursor = (after: { createdAt: string; id: string }) =>
+  `created_at.lt."${after.createdAt}",and(created_at.eq."${after.createdAt}",id.lt.${after.id})`;
+
 /** One page of the wall, newest first. */
 export async function getWallPage(cursor: string | null) {
   const after = cursor === null ? null : decodeCursor(cursor);
@@ -77,10 +81,7 @@ export async function getWallPage(cursor: string | null) {
     .order("position", { referencedTable: "post_media" })
     .limit(PAGE_SIZE + 1); // the extra row only tells us whether another page exists
   if (after) {
-    // Row-value comparison (created_at, id) < (c, i), spelled the way PostgREST allows.
-    query = query.or(
-      `created_at.lt."${after.createdAt}",and(created_at.eq."${after.createdAt}",id.lt.${after.id})`,
-    );
+    query = query.or(afterCursor(after));
   }
   const { data, error } = await query;
   if (error) throw new Error(`Loading the wall failed: ${error.code} ${error.message}`);

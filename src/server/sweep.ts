@@ -1,6 +1,8 @@
 import "server-only";
 import { createHash, timingSafeEqual } from "node:crypto";
+import { ADMIN_LOGIN_WINDOW_MS } from "@/lib/domain/limits";
 import { db } from "./db";
+import { LONGEST_WINDOW_MS } from "./rateLimit";
 import { env } from "./env";
 import { AppError } from "./http";
 import { storedFilesOf } from "./uploads";
@@ -41,4 +43,28 @@ export async function sweepUploads(now = new Date()): Promise<{ removed: number;
   const failed = results.filter((r) => r.status === "rejected");
   failed.forEach((r) => console.error("Sweeping an upload failed", (r as PromiseRejectedResult).reason));
   return { removed: results.length - failed.length, failed: failed.length };
+}
+
+/**
+ * Forgets old admin login attempts (hashed addresses): they are only needed for the throttle
+ * window, and a guest who poked at /admin should not leave a trace beyond it.
+ */
+export async function purgeAdminAttempts(now = new Date()): Promise<void> {
+  const { error } = await db()
+    .from("admin_attempts")
+    .delete()
+    .lt("at", new Date(now.getTime() - ADMIN_LOGIN_WINDOW_MS).toISOString());
+  if (error) console.error("Purging admin attempts failed", error.code, error.message);
+}
+
+/**
+ * Forgets rate-limit counts (hashed addresses) older than the longest window. Each scope also
+ * clears its own old rows when it is next called; this covers a scope nobody calls any more.
+ */
+export async function purgeRateAttempts(now = new Date()): Promise<void> {
+  const { error } = await db()
+    .from("rate_attempts")
+    .delete()
+    .lt("at", new Date(now.getTime() - LONGEST_WINDOW_MS).toISOString());
+  if (error) console.error("Purging rate attempts failed", error.code, error.message);
 }

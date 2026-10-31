@@ -44,6 +44,35 @@ describe("WishTicker", () => {
     expect(screen.getByText(/Wish a/)).toBeInTheDocument();
   });
 
+  it("pauses while the pointer is over it or it has focus, and resumes afterwards", () => {
+    render(<WishTicker wishes={wishes} onOpen={vi.fn()} />);
+    const ticker = screen.getByRole("button", { name: /Latest wishes/ });
+    fireEvent.pointerEnter(ticker);
+    act(() => void vi.advanceTimersByTime(12000));
+    expect(screen.getByText(/Wish a/)).toBeInTheDocument();
+    fireEvent.pointerLeave(ticker);
+    act(() => void vi.advanceTimersByTime(4000));
+    expect(screen.getByText(/Wish b/)).toBeInTheDocument();
+
+    const keyboard = vi.spyOn(ticker, "matches").mockReturnValue(true); // :focus-visible
+    fireEvent.focus(ticker);
+    act(() => void vi.advanceTimersByTime(12000));
+    expect(screen.getByText(/Wish b/)).toBeInTheDocument();
+    fireEvent.blur(ticker);
+    act(() => void vi.advanceTimersByTime(4000));
+    expect(screen.getByText(/Wish c/)).toBeInTheDocument();
+    keyboard.mockRestore();
+  });
+
+  it("keeps rotating when it holds focus only because it was tapped", () => {
+    render(<WishTicker wishes={wishes} onOpen={vi.fn()} />);
+    const ticker = screen.getByRole("button", { name: /Latest wishes/ });
+    vi.spyOn(ticker, "matches").mockReturnValue(false);
+    fireEvent.focus(ticker);
+    act(() => void vi.advanceTimersByTime(4000));
+    expect(screen.getByText(/Wish b/)).toBeInTheDocument();
+  });
+
   it("does not rotate for guests who prefer reduced motion, or with a single wish", () => {
     vi.stubGlobal("matchMedia", () => ({ matches: true }));
     const { unmount } = render(<WishTicker wishes={wishes} onOpen={vi.fn()} />);

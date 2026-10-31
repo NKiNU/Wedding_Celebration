@@ -23,41 +23,53 @@ export async function createWish(guest: Guest, wishText: string): Promise<Create
 }
 
 /**
- * The author takes a post down. Ownership is by token (the caller's `Guest`), never by name. The
- * files go first: if storage fails the row stays and the guest can try again, whereas a row that
- * went first would leave files nobody can reach. Storage ignores keys that are already gone.
+ * Takes a post down. With `ownerId` (a guest deleting their own post) ownership is by token, never
+ * by name; without it the caller is the admin, already authenticated. The files go first: if
+ * storage fails the row stays and the caller can try again, whereas a row that went first would
+ * leave files nobody can reach. Storage ignores keys that are already gone.
  * A presigned PUT stays valid for PRESIGN_EXPIRES_S after posting and could re-create a deleted
  * file, so the intent goes back to being a tombstone: the sweep removes the keys again once the URLs
  * are dead. (The conditional-PUT item in the Phase 3 notes would not stop that on its own.)
  */
-export async function deletePost(guest: Guest, postId: string): Promise<void> {
+async function removePost(eventId: string, postId: string, ownerId?: string): Promise<void> {
   const { data, error } = await db()
     .from("posts")
     .select("guest_id, post_media(path, thumb_path, poster_path)")
     .eq("id", postId)
-    .eq("event_id", guest.eventId)
+    .eq("event_id", eventId)
     .maybeSingle();
   if (error) throw new Error(`Loading the post failed: ${error.code} ${error.message}`);
   if (!data) throw new AppError("post_not_found", 404, "That post is already gone.");
-  if (data.guest_id !== guest.id) throw new AppError("not_yours", 403, "You can only delete your own posts.");
+  if (ownerId !== undefined && data.guest_id !== ownerId) {
+    throw new AppError("not_yours", 403, "You can only delete your own posts.");
+  }
 
   const keys = data.post_media.flatMap((m) =>
     [m.path, m.thumb_path, m.poster_path].filter((key): key is string => key !== null),
   );
   if (keys.length > 0) await r2().deleteMany(keys);
 
-  const { error: removing } = await db().from("posts").delete().eq("id", postId).eq("guest_id", guest.id);
+  const row = db().from("posts").delete().eq("id", postId);
+  const { error: removing } = await (ownerId === undefined ? row : row.eq("guest_id", ownerId));
   if (removing) throw new Error(`Deleting the post failed: ${removing.code} ${removing.message}`);
   if (keys.length === 0) return; // a wish has no upload intent
 
   // The post is gone either way: a failure here only delays the sweep's second pass, so it is logged.
-  const { error: tombstone } = await db()
+  const intent = db()
     .from("upload_intents")
     .update({ consumed_at: null, cancelled_at: new Date().toISOString() })
-    .eq("post_id", postId)
-    .eq("guest_id", guest.id);
+    .eq("post_id", postId);
+  const { error: tombstone } = await (ownerId === undefined ? intent : intent.eq("guest_id", ownerId));
   if (tombstone) console.error("Tombstoning a deleted post's upload failed", postId, tombstone.code, tombstone.message);
 }
+
+/** The author takes their own post down. */
+export const deletePost = (guest: Guest, postId: string): Promise<void> =>
+  removePost(guest.eventId, postId, guest.id);
+
+/** The admin takes any post of this event down (moderation). */
+export const deletePostAsAdmin = (eventId: string, postId: string): Promise<void> =>
+  removePost(eventId, postId);
 
 const baseType = (mime: string) => mime.split(";")[0]!.trim().toLowerCase();
 

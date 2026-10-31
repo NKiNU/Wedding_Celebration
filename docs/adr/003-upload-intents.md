@@ -25,4 +25,4 @@ Before posting, every file is checked in R2: exact size and type (`HEAD`), no `C
 A forged or replayed request cannot attach arbitrary keys to a post, and orphaned files are always cleaned up.
 
 ## Consequences
-A 60 min TTL covers a 100 MB video on slow 3G (R2 checks the URL expiry when the request starts). Single PUT, no resume (`ponytail:` upgrade to presigned multipart if venue reports show failed large videos).
+A 60 min TTL covers a full-size video (100 MB when this was written, 60 MB since Phase 6) on slow 3G (R2 checks the URL expiry when the request starts). Single PUT, no resume (`ponytail:` upgrade to presigned multipart if venue reports show failed large videos).

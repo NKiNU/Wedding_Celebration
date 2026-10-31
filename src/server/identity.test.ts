@@ -134,6 +134,11 @@ describe("createGuest", () => {
     expect(lookup.args).toEqual(["name", "Ali%"]);
   });
 
+  it("fails loudly on any other database error", async () => {
+    stubDb([failure("XX000")]);
+    await expect(createGuest("Ali", fakeJar())).rejects.toThrow(/Creating guest failed/);
+  });
+
   it("escapes LIKE wildcards in the name when looking for taken suggestions", async () => {
     const calls = stubDb([failure("23505"), ok([])]);
     await createGuest("50%_off", fakeJar()).catch(() => {});

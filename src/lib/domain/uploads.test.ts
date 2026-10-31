@@ -6,6 +6,8 @@ import {
   fitWithin,
   looksLike,
   mediaKey,
+  qrKey,
+  qrProblem,
   totalBytes,
   uploadProblem,
   videoProblem,
@@ -92,11 +94,11 @@ describe("uploadProblem", () => {
   it("enforces the byte caps per role", () => {
     expect(uploadProblem([main(0, { bytes: 15 * MB + 1 }), thumb(0)])).toMatch(/too large/);
     expect(uploadProblem([main(0), thumb(0, { bytes: 1 * MB + 1 })])).toMatch(/too large/);
-    expect(uploadProblem([video({ bytes: 100 * MB + 1 })])).toMatch(/too large/);
+    expect(uploadProblem([video({ bytes: 80 * MB + 1 })])).toMatch(/too large/);
   });
-  it("requires a video duration of at most 60 seconds", () => {
-    expect(uploadProblem([video({ durationS: undefined })])).toMatch(/60 seconds/);
-    expect(uploadProblem([video({ durationS: 61 })])).toMatch(/60 seconds/);
+  it("requires a video duration of at most 30 seconds", () => {
+    expect(uploadProblem([video({ durationS: undefined })])).toMatch(/30 seconds/);
+    expect(uploadProblem([video({ durationS: 31 })])).toMatch(/30 seconds/);
   });
 });
 
@@ -127,9 +129,9 @@ describe("fitWithin", () => {
 
 describe("videoProblem", () => {
   it("explains a video that is too big or too long, and accepts the limits", () => {
-    expect(videoProblem(110 * MB, 30)).toMatch(/110(\.0)? MB.*under 100 MB/);
-    expect(videoProblem(10 * MB, 75)).toMatch(/75 s.*60 seconds/);
-    expect(videoProblem(100 * MB, 60)).toBeNull();
+    expect(videoProblem(90 * MB, 20)).toMatch(/90(\.0)? MB.*under 80 MB.*1080p/);
+    expect(videoProblem(10 * MB, 45)).toMatch(/45 s.*30 seconds.*trim it/);
+    expect(videoProblem(80 * MB, 30)).toBeNull();
   });
 });
 
@@ -157,5 +159,24 @@ describe("looksLike", () => {
     expect(looksLike("video/webm", bytes(0xff, 0xd8, 0xff))).toBe(false);
     expect(looksLike("image/jpeg", new Uint8Array(0))).toBe(false);
     expect(looksLike("image/svg+xml", html)).toBe(false);
+  });
+});
+
+describe("the DuitNow QR", () => {
+  it("is keyed under the event's admin folder with the right extension", () => {
+    expect(qrKey("e1", "abc", "image/png")).toBe("events/e1/admin/qr-abc.png");
+    expect(qrKey("e1", "abc", "image/jpeg")).toBe("events/e1/admin/qr-abc.jpg");
+    expect(() => qrKey("e1", "abc", "image/gif")).toThrow();
+  });
+  it("accepts a PNG or JPEG up to 2 MB and says why otherwise", () => {
+    expect(qrProblem("image/png", 1 * MB)).toBeNull();
+    expect(qrProblem("image/jpeg", 2 * MB)).toBeNull();
+    expect(qrProblem("image/gif", 1000)).toMatch(/PNG or JPEG/);
+    expect(qrProblem("image/png", 2 * MB + 1)).toMatch(/2 MB/);
+  });
+  it("recognises PNG bytes", () => {
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
+    expect(looksLike("image/png", png)).toBe(true);
+    expect(looksLike("image/png", new Uint8Array(12))).toBe(false);
   });
 });

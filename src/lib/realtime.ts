@@ -32,10 +32,9 @@ export const subscribeToWall: SubscribeToWall = (eventId, events) => {
       if (change.eventType === "DELETE" && old.id) events.onRemove(old.id);
       else events.onChange();
     })
-    .on("broadcast", { event: "post_hidden" }, ({ payload }) => {
-      const id = (payload as { id?: unknown } | null)?.id;
-      if (typeof id === "string") events.onRemove(id);
-    })
+    // Anyone holding the public anon key can send on this topic, so the broadcast is only a hint to
+    // refetch from the server, never a removal by itself: a forged one changes nothing on the wall.
+    .on("broadcast", { event: "post_hidden" }, () => events.onChange())
     .subscribe((status) => {
       if (status === "SUBSCRIBED") events.onConnected();
     });

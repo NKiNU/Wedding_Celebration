@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { MB, VIDEO_MIMES } from "@/lib/domain/limits";
+import { MAX_VIDEO_BYTES, MAX_VIDEO_SECONDS, MB, VIDEO_MIMES } from "@/lib/domain/limits";
 import { MediaError, prepareVideo, type PreparedVideo } from "@/lib/media";
 import { BottomSheet } from "./BottomSheet";
 import { CaptionField } from "./CaptionField";
@@ -77,7 +77,7 @@ export function VideoDrawer({ open, onClose, onPosted }: Props) {
 
   return (
     <BottomSheet open={open} title="Share a video" onClose={close} busy={busy}>
-      <p className="text-[13px] text-muted">One video per post, up to about 60 seconds (100 MB).</p>
+      <p className="text-[13px] text-muted">One video per post, up to about {MAX_VIDEO_SECONDS} seconds ({MAX_VIDEO_BYTES / MB} MB).</p>
       {!video && (
         <label
           className={`relative flex min-h-[150px] flex-col items-center justify-center gap-1.5 rounded-[18px] border-[1.5px] border-dashed border-line bg-card px-4 py-[18px] text-center has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-ink ${busy ? "opacity-35" : ""}`}

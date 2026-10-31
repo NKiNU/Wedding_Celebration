@@ -28,7 +28,7 @@ test("the + button opens a menu of what to share and Escape closes it", async ({
   const fab = page.getByRole("button", { name: "Share a memory" });
   await fab.click();
   await expect(page.getByRole("button", { name: "Close share menu" })).toHaveAttribute("aria-expanded", "true");
-  for (const label of [/1 photo or an album/, /Up to 60 seconds/, /Write to the couple/]) await expect(page.getByRole("button", { name: label })).toBeVisible();
+  for (const label of [/1 photo or an album/, /Up to 30 seconds/, /Write to the couple/]) await expect(page.getByRole("button", { name: label })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(fab).toHaveAttribute("aria-expanded", "false");
 });
@@ -63,7 +63,7 @@ test("a wish posted while another filter is selected switches the wall back to A
 });
 
 test("a video drawer refuses a file that is not a video, and keeps Post disabled", async ({ page }) => {
-  await share(page, /Up to 60 seconds/);
+  await share(page, /Up to 30 seconds/);
   const drawer = page.getByRole("dialog", { name: "Share a video" });
   await drawer.locator('input[type="file"]').setInputFiles({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("hi") });
   await expect(drawer.getByRole("alert")).toContainText("MP4 or MOV");
@@ -100,7 +100,8 @@ test("three photos become one album on the wall, uploaded straight to storage", 
     Array.from({ length: 3 }, (_, i) => ({ name: `p${i}.png`, mimeType: "image/png", buffer: PIXEL })),
   );
   await drawer.getByLabel(/Caption/).fill("Akad nikah");
-  const puts = page.waitForResponse((r) => r.request().method() === "PUT" && r.url().includes("/s3/"));
+  // Local Supabase Storage or real R2: either way the key starts with events/.
+  const puts = page.waitForResponse((r) => r.request().method() === "PUT" && new URL(r.url()).pathname.includes("/events/"));
   await drawer.getByRole("button", { name: "Post album (3)" }).click();
   expect((await puts).status()).toBe(200);
 
