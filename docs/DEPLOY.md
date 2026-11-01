@@ -1,6 +1,6 @@
 # Deploying Wedding Memories
 
-One Debian or Ubuntu VPS runs the app. Supabase (free tier) holds the data. Cloudflare R2 (free tier) holds photos and videos. Cloudflare also runs the domain's DNS. After the first setup, every push to `main` that passes CI deploys by itself (section 8).
+One Debian or Ubuntu VPS runs the app. Supabase (free tier) holds the data. Cloudflare R2 (free tier) holds photos and videos. Cloudflare also runs the domain's DNS. After the first setup, publishing a GitHub Release and approving it deploys by itself (section 8).
 Do the steps in order. Anything marked "(check)" was not confirmed from the code: verify it before the event.
 
 Replace these placeholders everywhere:
@@ -288,7 +288,10 @@ sudo curl -i -H @/root/wedding-cron.header https://app.yourdomain.com/api/cron/s
 
 ## 8. Auto-deploy from GitHub
 
-After this, a push to `main` runs CI (lint, typecheck, tests, build). If it passes, GitHub logs in to the VPS and runs one script that pulls, builds and restarts. No manual `git pull`.
+The pipeline has three steps:
+1. **Merge to `main`**: CI runs (lint, typecheck, tests, build). Nothing reaches the VPS.
+2. **Publish a GitHub Release** with a tag like `v1.0.0` (Releases, Draft a new release, choose "Create new tag", target `main`, Publish).
+3. **Approve**: the Deploy workflow pauses until a reviewer approves the `production` environment. After approval, GitHub logs in to the VPS and runs one script that checks out that tag, builds and restarts. No manual `git pull`.
 
 Set it up only after sections 5 to 7 work by hand.
 
@@ -299,15 +302,18 @@ Set it up only after sections 5 to 7 work by hand.
    ```bash
    #!/usr/bin/env bash
    set -euo pipefail
+   # The tag arrives as the ssh command (forced-command key) or as $1 when run by hand.
+   TAG="${SSH_ORIGINAL_COMMAND:-${1:-}}"
+   [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "need a tag like v1.0.0, got '$TAG'"; exit 1; }
    cd /opt/wedding/app
-   git fetch origin main
-   git reset --hard origin/main
+   git fetch --tags --force origin
+   git reset --hard "refs/tags/$TAG"
    set -a; . /etc/wedding-memories.env; set +a
    npm ci
    npm run build
    npm run check:bundle -- --strict
    sudo -n /usr/bin/systemctl restart wedding-memories
-   echo "deployed $(git rev-parse --short HEAD)"
+   echo "deployed $TAG ($(git rev-parse --short HEAD))"
    ```
    ```bash
    sudo chown wedding:wedding /opt/wedding/deploy.sh
@@ -319,7 +325,7 @@ Set it up only after sections 5 to 7 work by hand.
    sudo chmod 440 /etc/sudoers.d/wedding-deploy
    sudo visudo -c        # must say "parsed OK"
    ```
-3. Test the script by hand: `sudo -u wedding /opt/wedding/deploy.sh`. It must end with `deployed <commit>`.
+3. Test the script by hand, with a tag that exists on GitHub: `sudo -u wedding /opt/wedding/deploy.sh v1.0.0`. It must end with `deployed v1.0.0 (<commit>)`. With no tag it must refuse.
 4. A key just for GitHub Actions. Make it on your own computer, not the VPS (PowerShell shown):
    ```powershell
    ssh-keygen -t ed25519 -C github-deploy -N '""' -f $env:USERPROFILE\wedding-deploy
@@ -335,14 +341,16 @@ Set it up only after sections 5 to 7 work by hand.
    ```bash
    sudo chmod 600 /opt/wedding/.ssh/authorized_keys
    ```
-   Test from your computer: `ssh -i $env:USERPROFILE\wedding-deploy wedding@VPS-IP` runs a deploy and ends with `deployed <commit>`.
-5. GitHub secrets: repo, Settings, Secrets and variables, Actions, New repository secret:
+   Test from your computer: `ssh -i $env:USERPROFILE\wedding-deploy wedding@VPS-IP v1.0.0` runs a deploy and ends with `deployed v1.0.0 (<commit>)`.
+5. The approval gate. Repo, Settings, Environments, New environment, name it exactly `production`. Tick **Required reviewers** and add yourself. (Private repos need GitHub Pro/Team for required reviewers; public repos get it free. Without it the deploy still runs, but with no approval pause.) Under "Deployment branches and tags" you can limit it to tags `v*`.
+6. GitHub secrets. Put them in the `production` environment (Environment secrets, Add secret) so they are released only after approval:
    - `DEPLOY_SSH_KEY`: the whole private key file (`wedding-deploy`, not `.pub`), including the BEGIN and END lines
    - `DEPLOY_HOST`: `VPS-IP`
    - `DEPLOY_KNOWN_HOSTS`: the output of `ssh-keyscan -t ed25519 VPS-IP` (this pins the server, so GitHub never sends the key to an impostor)
 
    Then delete the private key from your computer, or keep it only in a password manager.
-6. Turn the job on: repo, Settings, Secrets and variables, Actions, **Variables** tab, New repository variable `DEPLOY_ENABLED` = `true`. Until it is set, the `deploy` job in `.github/workflows/ci.yml` is skipped and only the checks run. Once on, it runs only on a push to `main`, only after the `check` job passed, and one deploy at a time. Pull requests only run checks.
+7. Test it: publish a release `v0.0.1` (Releases, Draft a new release). Open the Actions tab, the **Deploy** run shows "Waiting for review". Click Review deployments, tick `production`, Approve. The log ends with `deployed v0.0.1 (<commit>)`. To redeploy or roll back to an older tag: Actions, Deploy, Run workflow, type the tag.
+   Deploys are one at a time (`concurrency: deploy`). Pull requests and merges only run the checks in `ci.yml`.
 
 Limits:
 - **Database changes are not automatic.** If a change adds a file in `supabase/migrations/`, run `npx supabase db push` from your computer **before** merging it to `main`.
@@ -367,11 +375,11 @@ Then go through the "To try after deploy" checklist in `docs/PLAN.md` (shared li
 
 ## 10. Updating later, and troubleshooting
 
-Normal path: merge to `main`, auto-deploy does the rest (section 8). Watch the run in the repo's Actions tab.
+Normal path: merge to `main`, publish a Release (new tag), approve the Deploy run (section 8). Watch it in the repo's Actions tab.
 
 Manual fallback (auto-deploy not set up, or GitHub is down):
 ```bash
-sudo -u wedding /opt/wedding/deploy.sh
+sudo -u wedding /opt/wedding/deploy.sh v1.0.0
 ```
 If the update has a new file in `supabase/migrations/`, run `npx supabase db push` from your own computer first.
 
