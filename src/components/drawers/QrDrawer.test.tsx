@@ -13,8 +13,12 @@ const setNavigator = (share?: (data: ShareData) => Promise<void>, canShare = tru
   Object.defineProperty(navigator, "share", { value: share, configurable: true });
 };
 
+// Lets the fetch → blob → File chain settle so the file is in state before the tap.
+// (A plain stub, not a real Response: Response.blob() takes a variable number of ticks, which made this flaky on CI.)
+const fileLoaded = () => act(() => new Promise<void>((done) => setTimeout(done, 20)));
+
 beforeEach(() => {
-  vi.stubGlobal("fetch", vi.fn(async () => new Response(png(), { status: 200, headers: { "content-type": "image/png" } })));
+  vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, blob: async () => png() })));
   setNavigator();
 });
 afterEach(() => {
@@ -54,7 +58,7 @@ describe("QrDrawer", () => {
     show();
     await waitFor(() => expect(fetch).toHaveBeenCalledWith("/qr"));
     // let the file land in state before the tap
-    await act(async () => {});
+    await fileLoaded();
     fireEvent.click(screen.getByRole("button", { name: "Download QR" }));
     await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
     const data = share.mock.calls[0]![0];
@@ -68,7 +72,7 @@ describe("QrDrawer", () => {
     URL.revokeObjectURL = vi.fn();
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     show();
-    await act(async () => {});
+    await fileLoaded();
     fireEvent.click(screen.getByRole("button", { name: "Download QR" }));
     expect(click).toHaveBeenCalled();
     expect(navigator.share).not.toHaveBeenCalled();
@@ -78,7 +82,7 @@ describe("QrDrawer", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 500 })));
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     show();
-    await act(async () => {});
+    await fileLoaded();
     fireEvent.click(screen.getByRole("button", { name: "Download QR" }));
     expect(click).toHaveBeenCalled();
     expect(click.mock.contexts[0]).toHaveProperty("href", expect.stringMatching(/\/qr$/));
@@ -91,7 +95,7 @@ describe("QrDrawer", () => {
     setNavigator(share);
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     show();
-    await act(async () => {});
+    await fileLoaded();
     fireEvent.click(screen.getByRole("button", { name: "Download QR" }));
     await waitFor(() => expect(share).toHaveBeenCalled());
     expect(click).not.toHaveBeenCalled();
@@ -105,7 +109,7 @@ describe("QrDrawer", () => {
     URL.revokeObjectURL = vi.fn();
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     show();
-    await act(async () => {});
+    await fileLoaded();
     fireEvent.click(screen.getByRole("button", { name: "Download QR" }));
     await waitFor(() => expect(click).toHaveBeenCalled());
   });
