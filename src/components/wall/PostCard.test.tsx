@@ -25,6 +25,13 @@ describe("PostCard", () => {
     expect(cameFromWall(post.id)).toBe(true);
   });
 
+  it("keeps the footer outside the link, so its words are read and the link name stays its label", () => {
+    show(wallPost(), true);
+    const link = screen.getByRole("link", { name: "Photo by Nazrul" });
+    expect(link).not.toContainElement(screen.getByText("You"));
+    expect(link).not.toContainElement(screen.getByText("5 min ago"));
+  });
+
   it("marks the guest's own posts", () => {
     show(wallPost(), true);
     expect(screen.getByText("You")).toBeInTheDocument();
@@ -40,7 +47,7 @@ describe("PostCard", () => {
   it("shows a video's duration over its poster", () => {
     const media = [{ kind: "video" as const, url: "v.mp4", thumbUrl: null, posterUrl: "p.jpg", durationS: 42 }];
     const { container } = show(wallPost({ type: "video", media }));
-    expect(screen.getByRole("link", { name: "Video by Nazrul" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Video by Nazrul, 0:42" })).toBeInTheDocument();
     expect(screen.getByText("0:42")).toBeInTheDocument();
     expect(container.querySelector("img")).toHaveAttribute("src", "p.jpg");
   });

@@ -1,11 +1,9 @@
 import { cookies } from "next/headers";
 import type { WallResponse } from "@/lib/api";
-import { WALL_READS_PER_IP_PER_WINDOW } from "@/lib/domain/limits";
 import { createPostBody } from "@/lib/validation";
 import { handle } from "@/server/http";
 import { requireGuest } from "@/server/identity";
 import { createMediaPost, createWish } from "@/server/posts";
-import { clientIp, rateLimit } from "@/server/rateLimit";
 import { getLatestWishes, getWallCounts, getWallPage } from "@/server/wall";
 
 /**
@@ -16,7 +14,6 @@ import { getLatestWishes, getWallCounts, getWallPage } from "@/server/wall";
 export const GET = (req: Request) => {
   const cursor = new URL(req.url).searchParams.get("cursor");
   return handle(req, async (): Promise<WallResponse> => {
-    rateLimit("wall", clientIp(req.headers), WALL_READS_PER_IP_PER_WINDOW);
     const [page, counts, wishes] = await Promise.all([
       getWallPage(cursor),
       cursor ? null : getWallCounts(),

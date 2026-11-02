@@ -1,0 +1,43 @@
+name: Deploy
+
+# Runs when you publish a GitHub Release (tag like v1.0.0). The job then waits for a
+# reviewer to approve the "production" environment (Settings, Environments).
+# The VPS key may only run /opt/wedding/deploy.sh (docs/DEPLOY.md section 8).
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to deploy (or redeploy), for example v1.0.0
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency: deploy
+    steps:
+      - name: Work out the tag
+        id: tag
+        env:
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Tag must look like v1.0.0, got '$TAG'"; exit 1; }
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy over SSH
+        env:
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh -o BatchMode=yes wedding@"$HOST" "$TAG"

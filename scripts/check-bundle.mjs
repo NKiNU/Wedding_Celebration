@@ -1,47 +1,89 @@
-// Fails when a secret or a server-only name reached the browser bundle. Run after `npm run build`:
-//   npm run check:bundle
-// Looks in .next/static (everything a phone downloads) and in the prerendered pages and RSC payloads
-// under .next/server/app (served as-is). Secret values come from the
-// environment or .env.local; the names are checked even without values.
-import { readdirSync, readFileSync, statSync } from "node:fs";
+// Fails when a server secret reached what browsers download: the bundle (.next/static) and the
+// prerendered pages (.next/server/app *.html / *.rsc). Run after `npm run build`.
+// `--strict` (CI) also fails unless every secret had a value to look for.
+// Secret NAMES are not checked: the env schema in src/lib/validation.ts is shared with the client,
+// so the names are expected there. What must never ship is a secret VALUE, or a service-role JWT.
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-try {
-  process.loadEnvFile(".env.local");
-} catch {
-  // the variables may already be set (CI, the VPS)
-}
-
-const SECRET_VARS = [
+const SECRETS = [
   "SUPABASE_SERVICE_ROLE_KEY",
-  "R2_SECRET_ACCESS_KEY",
   "R2_ACCESS_KEY_ID",
+  "R2_SECRET_ACCESS_KEY",
   "DEVICE_TOKEN_PEPPER",
   "ADMIN_PASSCODE",
   "CRON_SECRET",
 ];
-const NAMES = [...SECRET_VARS, "service_role"];
-const values = SECRET_VARS.map((name) => [name, process.env[name]]).filter(([, v]) => v && v.length >= 8);
+const DIRS = [
+  { dir: ".next/static", files: /\.(js|mjs|css|html|json|map|txt)$/ },
+  { dir: ".next/server/app", files: /\.(html|rsc)$/ },
+];
+const MIN_LENGTH = 8; // shorter values would match by chance
 
-const files = (dir) =>
-  readdirSync(dir).flatMap((entry) => {
-    const path = join(dir, entry);
-    return statSync(path).isDirectory() ? files(path) : [path];
-  });
-
-const roots = [".next/static", ".next/server/app"];
-const scanned = roots.flatMap((root) =>
-  files(root).filter((file) => (root === ".next/static" ? /\.(js|css|html|json|map)$/ : /\.(html|rsc|segment)$/).test(file)),
-);
-const found = [];
-for (const file of scanned) {
-  const text = readFileSync(file, "utf8");
-  for (const [name, value] of values) if (text.includes(value)) found.push(`${file}: the value of ${name}`);
-  for (const name of NAMES) if (text.includes(name)) found.push(`${file}: the name ${name}`);
+/** KEY=value pairs from .env.local, when it exists (a local build); the process env wins. */
+function envValues() {
+  const values = {};
+  if (existsSync(".env.local")) {
+    for (const line of readFileSync(".env.local", "utf8").split(/\r?\n/)) {
+      const match = /^([A-Z0-9_]+)=([^#]*)/.exec(line);
+      if (match) values[match[1]] = match[2].trim();
+    }
+  }
+  for (const name of SECRETS) if (process.env[name]) values[name] = process.env[name];
+  return values;
 }
 
-if (found.length > 0) {
-  console.error(`Secrets or server-only names in the browser bundle:\n${found.join("\n")}`);
+function* files(dir) {
+  for (const entry of readdirSync(dir)) {
+    const path = join(dir, entry);
+    if (statSync(path).isDirectory()) yield* files(path);
+    else yield path;
+  }
+}
+
+/** True for a JWT whose payload claims the service role: that key bypasses every RLS policy. */
+function isServiceRoleJwt(token) {
+  try {
+    const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString("utf8"));
+    return payload.role === "service_role";
+  } catch {
+    return false;
+  }
+}
+
+if (!existsSync(DIRS[0].dir)) {
+  console.error(`check-bundle: ${DIRS[0].dir} not found. Run \`npm run build\` first.`);
+  process.exit(2);
+}
+
+const env = envValues();
+const secrets = SECRETS.map((name) => [name, env[name]]).filter(([, v]) => v && v.length >= MIN_LENGTH);
+if (process.argv.includes("--strict") && secrets.length < SECRETS.length) {
+  const missing = SECRETS.filter((name) => !secrets.some(([n]) => n === name));
+  console.error(`check-bundle: --strict needs a value for every secret; missing: ${missing.join(", ")}`);
+  process.exit(2);
+}
+
+const problems = [];
+let scanned = 0;
+
+for (const { dir, files: wanted } of DIRS) {
+  if (!existsSync(dir)) continue;
+  for (const path of files(dir)) {
+    if (!wanted.test(path)) continue;
+    scanned += 1;
+    const text = readFileSync(path, "utf8");
+    for (const [name, value] of secrets) if (text.includes(value)) problems.push(`${path}: the value of ${name}`);
+    for (const [token] of text.matchAll(/eyJ[\w-]{10,}\.eyJ[\w-]{10,}\.[\w-]+/g)) {
+      if (isServiceRoleJwt(token)) problems.push(`${path}: a service-role JWT`);
+    }
+    // Supabase's newer secret keys (the publishable key is meant to be public).
+    if (/sb_secret_[\w-]{10,}/.test(text)) problems.push(`${path}: a Supabase secret key (sb_secret_…)`);
+  }
+}
+
+if (problems.length > 0) {
+  console.error(`check-bundle: secrets found in the browser bundle:\n  ${problems.join("\n  ")}`);
   process.exit(1);
 }
-console.log(`Bundle clean: ${scanned.length} files in ${roots.join(" and ")}, ${values.length} secret values and ${NAMES.length} names checked.`);
+console.log(`check-bundle: ${scanned} files scanned, ${secrets.length} secret values checked, none found.`);

@@ -12,8 +12,8 @@ import {
 describe("limits", () => {
   test("match the rules in CLAUDE.md", () => {
     expect(MAX_PHOTOS).toBe(10);
-    expect(MAX_VIDEO_BYTES).toBe(100 * MB);
-    expect(MAX_VIDEO_SECONDS).toBe(60);
+    expect(MAX_VIDEO_BYTES).toBe(80 * MB);
+    expect(MAX_VIDEO_SECONDS).toBe(30);
     expect(POSTS_PER_HOUR).toBe(30);
     expect(BYTES_PER_HOUR).toBe(200 * MB);
     expect(PAGE_SIZE).toBe(24);

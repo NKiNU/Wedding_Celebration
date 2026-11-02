@@ -1,4 +1,4 @@
--- 0005_private_wall_channel: only the database may send on the wall's broadcast topic.
+-- 0006_private_wall_channel: only the database may send on the wall's broadcast topic.
 -- The hide trigger used a public topic, and on a public topic any client holding the anon key
 -- (it ships in the page) can also send: a script could broadcast `post_hidden` for every post id
 -- and make every phone drop posts and refetch. On a private topic Realtime checks RLS on

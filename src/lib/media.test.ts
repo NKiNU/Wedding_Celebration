@@ -132,7 +132,7 @@ describe("prepareVideo", () => {
     const spy = vi.spyOn(document, "createElement");
     const err = await prepareVideo(mp4(MAX_VIDEO_BYTES + 1)).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(MediaError);
-    expect((err as Error).message).toMatch(/under 100 MB/);
+    expect((err as Error).message).toMatch(/under 80 MB/);
     expect(spy).not.toHaveBeenCalledWith("video");
     expect(URL.createObjectURL).not.toHaveBeenCalled();
   });

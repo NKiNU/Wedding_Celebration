@@ -123,6 +123,20 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"rate_attempts": {
+                  Row: {
+                    "at": string,"key_hash": string,"scope": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "at"?: string,"key_hash": string,"scope": string
+                  }
+                  Update: {
+                    "at"?: string,"key_hash"?: string,"scope"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"upload_intents": {
                   Row: {
                     "cancelled_at": string | null,"consumed_at": string | null,"event_id": string,"expires_at": string,"files": NonNullable<Json>,"guest_id": string,"post_id": string
@@ -217,7 +231,7 @@ isOneToOne: false
 { Args: { "p_caption": string,"p_guest_id": string,"p_media": Json,"p_post_id": string,"p_type": Database["public"]['Enums']["post_type"] }; Returns: undefined
                            },
 "create_upload_intent":
-{ Args: { "p_event_id": string,"p_expires_at": string,"p_files": Json,"p_guest_id": string,"p_max_bytes": number,"p_max_posts": number,"p_post_id": string,"p_since": string }; Returns: undefined
+{ Args: { "p_event_id": string,"p_expires_at": string,"p_files": Json,"p_guest_id": string,"p_max_bytes": number,"p_max_event_bytes": number,"p_max_posts": number,"p_post_id": string,"p_since": string }; Returns: undefined
                            },
 "create_wish":
 { Args: { "p_event_id": string,"p_guest_id": string,"p_max_bytes": number,"p_max_posts": number,"p_since": string,"p_text": string }; Returns: string
@@ -226,6 +240,9 @@ isOneToOne: false
 { Args: { "p_guest_id": string,"p_since": string }; Returns: {
               "bytes": number,"posts": number
             }[]
+                           },
+"rate_limit_hit":
+{ Args: { "p_key": string,"p_max": number,"p_scope": string,"p_window_s": number }; Returns: undefined
                            },
 "wall_counts":
 { Args: { "e": string }; Returns: {

@@ -1,4 +1,4 @@
--- 0006_appearance: the admin picks the fonts and uploads a monogram image.
+-- 0007_appearance: the admin picks the fonts and uploads a monogram image.
 -- All four are nullable: null means "use the default font" / "show the initials monogram".
 -- `events` is already readable by anon and written only through the service role, so no policy change.
 

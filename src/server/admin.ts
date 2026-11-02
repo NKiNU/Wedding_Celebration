@@ -19,7 +19,7 @@ import { db } from "./db";
 import { env } from "./env";
 import { EVENT_COLUMNS, getEvent } from "./event";
 import { AppError } from "./http";
-import { ipBucket } from "./rateLimit";
+import { ipHash } from "./ip";
 import { r2 } from "./r2";
 import { afterCursor, mediaUrl, SELECT, toPost, type PostRow } from "./wall";
 
@@ -60,10 +60,6 @@ export function isAdmin(jar: CookieReader): boolean {
 export function requireAdmin(jar: CookieReader): void {
   if (!isAdmin(jar)) throw notAdmin();
 }
-
-/** The caller's address, hashed: enough to throttle guesses without keeping an IP. */
-const ipHash = (address: string | null) =>
-  createHash("sha256").update(`${ipBucket(address)}:${env().DEVICE_TOKEN_PEPPER}`).digest("hex");
 
 /**
  * Checks the passcode. The attempt is counted before it is compared, so parallel guesses cannot

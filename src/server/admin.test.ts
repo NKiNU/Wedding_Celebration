@@ -93,6 +93,15 @@ describe("login and the admin cookie", () => {
     expect(calls.map((x) => x.method)).toEqual(["admin_login_attempt", "admin_login_clear"]);
   });
 
+  it("marks the admin cookie Secure in production only", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const { c } = await signIn();
+    expect(c.set).toHaveBeenCalledWith(ADMIN_COOKIE, expect.any(String), expect.objectContaining({ secure: true }));
+    vi.stubEnv("NODE_ENV", "test");
+    const { c: dev } = await signIn();
+    expect(dev.set).toHaveBeenCalledWith(ADMIN_COOKIE, expect.any(String), expect.objectContaining({ secure: false }));
+  });
+
   it("puts every address of one IPv6 /64 in the same bucket", async () => {
     const bucketOf = async (ip: string) => {
       const fake = fakeDb([ok(null), ok(null)]);

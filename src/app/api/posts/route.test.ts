@@ -1,7 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { WALL_READS_PER_IP_PER_WINDOW } from "@/lib/domain/limits";
 import { AppError } from "@/server/http";
-import { resetRateLimits } from "@/server/rateLimit";
 
 const mocks = vi.hoisted(() => ({
   getWallPage: vi.fn(),
@@ -27,7 +25,6 @@ const counts = { all: 1, photos: 1, videos: 0, wishes: 0 };
 const get = (query = "") => GET(new Request(`http://localhost/api/posts${query}`));
 
 beforeEach(() => {
-  resetRateLimits();
   Object.values(mocks).forEach((m) => m.mockReset());
   mocks.getWallPage.mockResolvedValue(page);
   mocks.getWallCounts.mockResolvedValue(counts);
@@ -35,13 +32,6 @@ beforeEach(() => {
 });
 
 describe("GET /api/posts", () => {
-  it("refuses with 429 once one address has read the wall too often in a minute", async () => {
-    for (let i = 0; i < WALL_READS_PER_IP_PER_WINDOW; i++) expect((await get()).status).toBe(200);
-    const res = await get();
-    expect(res.status).toBe(429);
-    expect(mocks.getWallPage).toHaveBeenCalledTimes(WALL_READS_PER_IP_PER_WINDOW);
-  });
-
   it("returns the first page with the counts", async () => {
     const res = await get();
     expect(res.status).toBe(200);

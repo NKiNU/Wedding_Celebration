@@ -1,6 +1,8 @@
 import { z } from "zod";
 import {
   CAPTION_MAX,
+  GUEST_JOINS_PER_IP,
+  MAX_EVENT_MB,
   MAX_PHOTOS,
   MAX_VIDEO_BYTES,
   MAX_VIDEO_SECONDS,
@@ -14,6 +16,11 @@ import { monogramProblem, qrProblem, uploadProblem } from "./domain/uploads";
 const fontKey = z.string().refine(isFontKey, "Choose one of the listed fonts.");
 
 const emptyToUndefined = (v: unknown) => (v === "" ? undefined : v);
+/** An optional whole number with a default from limits.ts; empty means unset. The ceiling keeps a typo
+ * from overflowing the database's integer parameters (every join or upload would then fail). */
+const limit = (fallback: number) =>
+  z.preprocess(emptyToUndefined, z.coerce.number().int().positive().max(1_000_000).default(fallback));
+const isLoopback = (url: string) => ["localhost", "127.0.0.1", "[::1]"].includes(new URL(url).hostname);
 
 const envSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.url(),
@@ -31,6 +38,9 @@ const envSchema = z.object({
   NEXT_PUBLIC_MEDIA_BASE_URL: z.url(),
   EVENT_SLUG: z.string().min(1),
   CRON_SECRET: z.string().min(16),
+  // Optional: raise GUEST_JOINS_PER_IP for local test runs, which create many guests from one address.
+  GUEST_JOINS_PER_IP: limit(GUEST_JOINS_PER_IP),
+  MAX_EVENT_MB: limit(MAX_EVENT_MB),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -39,11 +49,9 @@ export type Env = z.infer<typeof envSchema>;
 export function parseEnv(source: Record<string, string | undefined>): Env {
   const result = envSchema.safeParse(source);
   if (result.success) {
-    // The dev endpoint would send guest uploads to whatever store it names. `next start` and a
-    // Vercel production deploy both count as production; a local `npm start` against local storage
-    // opts in with ALLOW_DEV_R2_ENDPOINT=1.
-    const production = source.NODE_ENV === "production" || source.VERCEL_ENV === "production";
-    if (result.data.R2_ENDPOINT && production && source.ALLOW_DEV_R2_ENDPOINT !== "1") {
+    // The dev endpoint would send guest uploads to whatever store it names. A production build
+    // (NODE_ENV=production, also `next build` on a laptop) may only use one on this machine.
+    if (result.data.R2_ENDPOINT && source.NODE_ENV === "production" && !isLoopback(result.data.R2_ENDPOINT)) {
       throw new Error("Invalid environment: R2_ENDPOINT must not be set in production");
     }
     return result.data;
@@ -83,7 +91,20 @@ export const createUploadBody = z
   });
 
 /** The `files` column of an upload intent, as the server stored it. */
-export const storedFiles = z.array(uploadFile.extend({ key: z.string().min(1) }));
+// No size or duration maxima: an intent stored under older, larger limits must still parse
+// (the sweep and a cancel read it) after the limits are lowered.
+export const storedFiles = z.array(
+  z.object({
+    role: z.enum(["main", "thumb", "poster"]),
+    position: z.int().min(0),
+    mime: z.string(),
+    bytes: z.int().positive(),
+    key: z.string().min(1),
+    width: z.int().positive().optional(),
+    height: z.int().positive().optional(),
+    durationS: z.number().positive().optional(),
+  }),
+);
 
 const caption = z
   .string()

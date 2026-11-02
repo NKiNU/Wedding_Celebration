@@ -1,145 +1,314 @@
 // @vitest-environment node
-import { createClient, type RealtimeChannel, type SupabaseClient } from "@supabase/supabase-js";
+import { randomUUID } from "node:crypto";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { anonClient, serviceClient } from "../fixtures/anon";
+import { join } from "../fixtures/phone";
 
 /**
- * What an anonymous visitor can reach in Postgres, straight from the browser's key, plus the admin
- * login throttle under a parallel burst. Needs `npx supabase start` and `.env.local`:
+ * What the public anon key can and cannot do against the real database (see uploads.test.ts for how
+ * to run the integration tests). Every denial has a positive control: the same call with the
+ * service role must get past the permission check, so a wrong argument name cannot pass as "denied".
  *   SUPABASE_INTEGRATION=1 npx vitest run tests/integration/rls.test.ts
- * Against hosted Supabase, point `.env.local` at the project before the launch check.
  */
-try {
-  process.loadEnvFile(".env.local");
-} catch {
-  // the variables may already be in the environment (CI)
-}
-
-const noSession = { auth: { persistSession: false, autoRefreshToken: false } };
+const DENIED = "42501";
+const NOT_FOUND = "PGRST202";
+const rnd = () => Math.random().toString(36).slice(2, 10);
+const since = () => new Date(Date.now() - 3_600_000).toISOString();
+const live = Boolean(process.env.SUPABASE_INTEGRATION);
+// Built only for an integration run: without the Supabase env vars (CI) the fixture throws.
 let anon: SupabaseClient;
 let service: SupabaseClient;
-const newAnon = () =>
-  createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, noSession);
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+beforeAll(() => {
+  if (!live) return;
+  anon = anonClient();
+  service = serviceClient();
+});
 
-describe.skipIf(!process.env.SUPABASE_INTEGRATION)("anon access and admin throttle (real stack)", { timeout: 60_000 }, () => {
-  beforeAll(() => {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    anon = createClient(url, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, noSession);
-    service = createClient(url, process.env.SUPABASE_SERVICE_ROLE_KEY!, noSession);
-  });
+type Args = Record<string, unknown>;
 
-  it("cannot read the tables that hold secrets or private state", async () => {
-    for (const table of ["guests", "upload_intents", "admin_attempts", "wish_log"]) {
+// Real-shaped arguments for every locked-down function (matching the migrations' signatures).
+const locked: { fn: string; args: Args }[] = [
+  {
+    fn: "create_post_from_intent",
+    args: { p_post_id: randomUUID(), p_guest_id: randomUUID(), p_type: "photo", p_caption: null, p_media: [{ position: 0 }] },
+  },
+  {
+    fn: "create_upload_intent",
+    args: {
+      p_post_id: randomUUID(), p_event_id: randomUUID(), p_guest_id: randomUUID(), p_files: [],
+      p_expires_at: new Date(Date.now() + 3_600_000).toISOString(), p_since: since(),
+      p_max_posts: 30, p_max_bytes: 1000, p_max_event_bytes: 1000,
+    },
+  },
+  {
+    fn: "create_wish",
+    args: { p_event_id: randomUUID(), p_guest_id: randomUUID(), p_text: "Selamat pengantin baru", p_since: since(), p_max_posts: 30, p_max_bytes: 1000 },
+  },
+  { fn: "guest_usage", args: { p_guest_id: randomUUID(), p_since: since() } },
+  { fn: "admin_login_attempt", args: { p_ip_hash: `rls_${rnd()}`, p_since: since(), p_max: 5 } },
+  { fn: "admin_login_clear", args: { p_ip_hash: `rls_${rnd()}` } },
+  { fn: "rate_limit_hit", args: { p_scope: `test_${rnd()}`, p_key: `rls_${rnd()}`, p_window_s: 3600, p_max: 5 } },
+];
+
+const touchedAdmin = new Set<string>();
+const touchedRate = new Set<string>();
+
+afterAll(async () => {
+  if (!live) return;
+  for (const ip of touchedAdmin) await service.from("admin_attempts").delete().eq("ip_hash", ip);
+  for (const key of touchedRate) await service.from("rate_attempts").delete().eq("key_hash", key);
+});
+
+describe.skipIf(!live)("database permissions (real stack)", { timeout: 60_000 }, () => {
+  describe("tables the anon key must not touch", () => {
+    const secret = ["guests", "upload_intents", "wish_log", "admin_attempts", "rate_attempts"];
+
+    it.each(secret)("refuses a select on %s with permission denied", async (table) => {
       const { data, error } = await anon.from(table).select("*").limit(1);
-      expect(error, table).not.toBeNull();
-      expect(data ?? [], table).toEqual([]);
-    }
-  });
-
-  it("sees guest names only through the view, never a token hash", async () => {
-    const { data, error } = await anon.from("public_guests").select("*").limit(5);
-    expect(error).toBeNull();
-    expect(data!.length).toBeGreaterThan(0);
-    for (const row of data!) expect(Object.keys(row).sort()).toEqual(["event_id", "id", "name"]);
-  });
-
-  it("cannot write to any table", async () => {
-    const { data: event } = await service.from("events").select("id").limit(1).single();
-    const attempts = [
-      anon.from("guests").insert({ event_id: event!.id, name: "Intruder", token_hash: "x" }),
-      anon.from("posts").insert({ event_id: event!.id, guest_id: event!.id, type: "wish", wish_text: "hello" }),
-      anon.from("post_media").insert({ post_id: event!.id, position: 0, kind: "image", path: "x", bytes: 1, mime: "image/jpeg" }),
-      anon.from("events").update({ uploads_open: false }).eq("id", event!.id),
-      anon.from("posts").delete().eq("event_id", event!.id),
-      anon.from("public_guests").insert({ event_id: event!.id, name: "Intruder" }),
-      anon.from("public_guests").update({ name: "Renamed" }).eq("event_id", event!.id),
-    ];
-    for (const attempt of attempts) expect((await attempt).error).not.toBeNull();
-    expect((await service.from("events").select("uploads_open").eq("id", event!.id).single()).data!.uploads_open).toBe(true);
-  });
-
-  it("never sees a hidden post", async () => {
-    const { data: post } = await service.from("posts").select("id").eq("hidden", false).limit(1).single();
-    try {
-      expect((await anon.from("posts").select("id").eq("id", post!.id)).data).toHaveLength(1);
-      await service.from("posts").update({ hidden: true }).eq("id", post!.id);
-      expect((await anon.from("posts").select("id").eq("id", post!.id)).data).toEqual([]);
-      expect((await anon.from("post_media").select("id").eq("post_id", post!.id)).data).toEqual([]);
-    } finally {
-      await service.from("posts").update({ hidden: false }).eq("id", post!.id);
-    }
-  });
-
-  it("cannot call the service-only functions, and the throttle table stays untouched", async () => {
-    const ip = `anon-${Math.random().toString(36).slice(2)}`;
-    const throttled = await anon.rpc("admin_login_attempt", { p_ip_hash: ip, p_since: new Date().toISOString(), p_max: 5 });
-    expect(throttled.error?.code).toBe("42501");
-    const { count } = await service.from("admin_attempts").select("*", { count: "exact", head: true }).eq("ip_hash", ip);
-    expect(count).toBe(0);
-
-    // Full argument lists: a partial one matches no function (PGRST202) and would pass for the wrong reason.
-    const id = "00000000-0000-4000-8000-000000000000";
-    const since = new Date().toISOString();
-    for (const [fn, args] of [
-      ["admin_login_clear", { p_ip_hash: ip }],
-      ["create_wish", { p_event_id: id, p_guest_id: id, p_text: "hi", p_since: since, p_max_posts: 30, p_max_bytes: 1 }],
-      ["create_upload_intent", { p_post_id: id, p_event_id: id, p_guest_id: id, p_files: [], p_expires_at: since, p_since: since, p_max_posts: 30, p_max_bytes: 1 }],
-      ["create_post_from_intent", { p_post_id: id, p_guest_id: id, p_type: "wish", p_caption: null, p_media: [] }],
-      ["guest_usage", { p_guest_id: id, p_since: since }],
-    ] as const) {
-      expect((await anon.rpc(fn, args)).error?.code, fn).toBe("42501");
-    }
-    expect((await anon.rpc("wall_counts", { e: id })).error).toBeNull(); // the one public function
-  });
-
-  it("lets anon listen on the wall's private topic but never send on it", async () => {
-    const { data: event } = await service.from("events").select("id").limit(1).single();
-    const { data: post } = await service.from("posts").select("id").eq("hidden", false).limit(1).single();
-    const topic = `wall:${event!.id}`;
-    const clients = [newAnon(), newAnon()];
-    const join = (client: SupabaseClient, onHidden?: (id: string) => void) =>
-      new Promise<RealtimeChannel>((resolve, reject) => {
-        const channel = client.channel(topic, { config: { private: true } });
-        if (onHidden) channel.on("broadcast", { event: "post_hidden" }, ({ payload }) => onHidden(String(payload.id)));
-        channel.subscribe((status, err) => {
-          if (status === "SUBSCRIBED") resolve(channel);
-          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") reject(err ?? new Error(status));
-        });
-      });
-    const heard: string[] = [];
-    try {
-      await join(clients[0]!, (id) => heard.push(id));
-      const attacker = await join(clients[1]!);
-
-      await attacker.send({ type: "broadcast", event: "post_hidden", payload: { id: "forged" } });
-      await sleep(1500);
-      expect(heard).not.toContain("forged");
-
-      await service.from("posts").update({ hidden: true }).eq("id", post!.id); // the database's own broadcast
-      for (let i = 0; i < 50 && !heard.includes(post!.id); i++) await sleep(100);
-      expect(heard).toContain(post!.id);
-    } finally {
-      await service.from("posts").update({ hidden: false }).eq("id", post!.id);
-      await Promise.all(clients.map((c) => c.removeAllChannels()));
-    }
-  });
-
-  describe("admin_login_attempt", () => {
-    const ip = `itest-${Math.random().toString(36).slice(2)}`;
-    const attempt = () =>
-      service.rpc("admin_login_attempt", { p_ip_hash: ip, p_since: new Date(Date.now() - 15 * 60_000).toISOString(), p_max: 5 });
-    afterAll(async () => void (await service.from("admin_attempts").delete().eq("ip_hash", ip)));
-
-    it("lets exactly five of eight parallel guesses through, then refuses with PT429", async () => {
-      const results = await Promise.all(Array.from({ length: 8 }, attempt));
-      expect(results.filter((r) => r.error === null)).toHaveLength(5);
-      expect(results.filter((r) => r.error?.code === "PT429")).toHaveLength(3);
+      expect(error?.code).toBe(DENIED);
+      expect(data).toBeNull();
+      // Control: the service role reads the same table.
+      expect((await service.from(table).select("*").limit(1)).error).toBeNull();
     });
 
-    it("forgets the caller after a correct passcode", async () => {
-      expect((await attempt()).error?.code).toBe("PT429");
-      expect((await service.rpc("admin_login_clear", { p_ip_hash: ip })).error).toBeNull();
-      expect((await attempt()).error).toBeNull();
+    it.each(secret)("refuses an insert into %s", async (table) => {
+      const { error } = await anon.from(table).insert({});
+      expect(error?.code).toBe(DENIED);
+    });
+
+    it("refuses writes on the tables it can read", async () => {
+      expect((await anon.from("posts").update({ hidden: true }).eq("id", randomUUID())).error?.code).toBe(DENIED);
+      expect((await anon.from("posts").delete().eq("id", randomUUID())).error?.code).toBe(DENIED);
+      expect((await anon.from("events").update({ uploads_open: false }).eq("slug", "x")).error?.code).toBe(DENIED);
+      expect((await anon.from("post_media").delete().eq("id", randomUUID())).error?.code).toBe(DENIED);
+    });
+
+    it("cannot download the guest list through public_guests, which still never has token_hash", async () => {
+      await join(); // make sure there is at least one guest
+      const names = await anon.from("public_guests").select("id, event_id, name").limit(5);
+      expect(names.error?.code).toBe(DENIED);
+      expect(names.data).toBeNull();
+
+      // The service role still reads it, with only the three safe columns.
+      const all = await service.from("public_guests").select("*").limit(1);
+      expect(all.error).toBeNull();
+      expect(all.data!.length).toBeGreaterThan(0);
+      expect(Object.keys(all.data![0]!).sort()).toEqual(["event_id", "id", "name"]);
+    });
+
+    it("refuses writes through the public_guests view", async () => {
+      const event = await anon.from("events").select("id").limit(1).single();
+      expect(event.error).toBeNull();
+      const id = randomUUID();
+      expect((await anon.from("public_guests").insert({ id, event_id: event.data!.id, name: "View Writer" })).error?.code).toBe(DENIED);
+      expect((await anon.from("public_guests").update({ name: "Renamed" }).eq("id", id)).error?.code).toBe(DENIED);
+      expect((await anon.from("public_guests").delete().eq("id", id)).error?.code).toBe(DENIED);
+      expect((await service.from("guests").select("id").eq("id", id)).data).toEqual([]);
+    });
+  });
+
+  describe("hidden posts", () => {
+    it("are invisible to anon (post and media) and come back when unhidden", async () => {
+      const phone = await join();
+      const id = (await phone.call<{ id: string }>("POST", "/api/posts", { wishText: "Hidden wish check" })).body.data!.id;
+      // A media row for the same post, written by the service role, to prove post_media follows the post.
+      const media = await service
+        .from("post_media")
+        .insert({ post_id: id, position: 0, kind: "image", path: `rls/${id}/0.jpg`, bytes: 1, mime: "image/jpeg" })
+        .select("id")
+        .single();
+      expect(media.error).toBeNull();
+
+      try {
+        expect((await anon.from("posts").select("id").eq("id", id)).data).toHaveLength(1);
+        expect((await anon.from("post_media").select("id").eq("post_id", id)).data).toHaveLength(1);
+
+        expect((await service.from("posts").update({ hidden: true }).eq("id", id)).error).toBeNull();
+
+        expect(await anon.from("posts").select("id").eq("id", id)).toMatchObject({ error: null, data: [] });
+        expect(await anon.from("post_media").select("id").eq("post_id", id)).toMatchObject({ error: null, data: [] });
+        // Asking for hidden rows explicitly does not help either.
+        expect((await anon.from("posts").select("id").eq("hidden", true).limit(50)).data).toEqual([]);
+        // The service role still sees it, so "empty" is the filter and not a broken query.
+        expect((await service.from("posts").select("id").eq("id", id)).data).toHaveLength(1);
+      } finally {
+        await service.from("posts").update({ hidden: false }).eq("id", id);
+        await service.from("post_media").delete().eq("post_id", id);
+        await service.from("posts").delete().eq("id", id);
+      }
+    });
+  });
+
+  describe("security definer functions", () => {
+    it.each(locked)("$fn: anon is denied, the service role gets past the permission check", async ({ fn, args }) => {
+      const denied = await anon.rpc(fn, args);
+      expect(denied.error?.code).toBe(DENIED);
+      expect(denied.data).toBeNull();
+
+      if (fn === "admin_login_attempt") touchedAdmin.add(args.p_ip_hash as string);
+      if (fn === "rate_limit_hit") touchedRate.add(args.p_key as string);
+      const allowed = await service.rpc(fn, args);
+      // Succeeds, or fails on a domain rule (PT code, foreign key, ...), but never on permission or lookup.
+      expect([DENIED, NOT_FOUND]).not.toContain(allowed.error?.code);
+    });
+
+    it("broadcast_post_hidden is a trigger function that nobody can call over rpc", async () => {
+      // PostgREST only exposes functions that are not trigger functions, so both clients get "not
+      // found". EXECUTE is also revoked from public/anon/authenticated in 0001, and the hidden-post
+      // test above runs it for real as the posts trigger.
+      for (const client of [anon, service]) {
+        const res = await client.rpc("broadcast_post_hidden", {});
+        expect(res.data).toBeNull();
+        expect(res.error?.code).toBe(NOT_FOUND);
+      }
+    });
+  });
+
+  describe("what anon may do", () => {
+    it("reads the filter counts through wall_counts", async () => {
+      const event = await anon.from("events").select("id").limit(1).single();
+      expect(event.error).toBeNull();
+      const { data, error } = await anon.rpc("wall_counts", { e: event.data!.id });
+      expect(error).toBeNull();
+      expect(data).toHaveLength(1);
+      expect(data![0]).toEqual({
+        all_count: expect.any(Number),
+        photos: expect.any(Number),
+        videos: expect.any(Number),
+        wishes: expect.any(Number),
+      });
+    });
+  });
+
+  describe("throttles hold under a parallel burst", () => {
+    const outcome = (r: { error: { code?: string } | null }) => (r.error === null ? "ok" : r.error.code);
+
+    it("admin_login_attempt lets exactly p_max of 12 parallel attempts through", async () => {
+      const ip = `rls_burst_${rnd()}`;
+      touchedAdmin.add(ip);
+      const results = await Promise.all(
+        Array.from({ length: 12 }, () => service.rpc("admin_login_attempt", { p_ip_hash: ip, p_since: since(), p_max: 5 })),
+      );
+      const codes = results.map(outcome);
+      expect(codes.filter((c) => c === "ok")).toHaveLength(5);
+      expect(codes.filter((c) => c === "PT429")).toHaveLength(7);
+      expect((await service.from("admin_attempts").select("ip_hash").eq("ip_hash", ip)).data).toHaveLength(5);
+    });
+
+    it("rate_limit_hit lets exactly p_max of 10 parallel hits through", async () => {
+      const key = `rls_burst_${rnd()}`;
+      const scope = `test_${rnd()}`;
+      touchedRate.add(key);
+      const results = await Promise.all(
+        Array.from({ length: 10 }, () => service.rpc("rate_limit_hit", { p_scope: scope, p_key: key, p_window_s: 3600, p_max: 4 })),
+      );
+      const codes = results.map(outcome);
+      expect(codes.filter((c) => c === "ok")).toHaveLength(4);
+      expect(codes.filter((c) => c === "PT429")).toHaveLength(6);
+      expect((await service.from("rate_attempts").select("key_hash").eq("key_hash", key)).data).toHaveLength(4);
+    });
+
+    it("rate_limit_hit cleans only its own key's old rows", async () => {
+      const scope = `test_${rnd()}`;
+      const [mine, other] = [`rls_own_${rnd()}`, `rls_other_${rnd()}`];
+      touchedRate.add(mine).add(other);
+      const old = new Date(Date.now() - 2 * 3_600_000).toISOString();
+      const seeded = await service.from("rate_attempts").insert([
+        { scope, key_hash: mine, at: old },
+        { scope, key_hash: other, at: old },
+      ]);
+      expect(seeded.error).toBeNull();
+
+      expect((await service.rpc("rate_limit_hit", { p_scope: scope, p_key: mine, p_window_s: 3600, p_max: 3 })).error).toBeNull();
+
+      const rows = await service.from("rate_attempts").select("key_hash, at").eq("scope", scope);
+      // Mine: the old row is gone, the new hit is there. Other: its old row is left for the sweep.
+      const ages = (key: string) => rows.data!.filter((r) => r.key_hash === key).map((r) => Date.now() - Date.parse(r.at));
+      expect(ages(mine)).toHaveLength(1);
+      expect(ages(mine)[0]).toBeLessThan(3_600_000);
+      expect(ages(other)).toHaveLength(1);
+      expect(ages(other)[0]).toBeGreaterThan(3_600_000);
+    });
+  });
+
+  describe("on an event of its own", () => {
+    // A fresh event, so the event-wide numbers (stored bytes, counts) start at zero whatever the
+    // other tests left behind. Deleting it cascades to its guests, intents, posts and media.
+    let eventId: string;
+    let guestId: string;
+    beforeAll(async () => {
+      const event = await service
+        .from("events")
+        .insert({ slug: `rls-${rnd()}`, groom_name: "Test", bride_name: "Event" })
+        .select("id")
+        .single();
+      expect(event.error).toBeNull();
+      eventId = event.data!.id;
+      const guest = await service
+        .from("guests")
+        .insert({ event_id: eventId, name: "Cap Tester", token_hash: `rls_${randomUUID()}` })
+        .select("id")
+        .single();
+      expect(guest.error).toBeNull();
+      guestId = guest.data!.id;
+    });
+    afterAll(async () => {
+      if (eventId) await service.from("events").delete().eq("id", eventId);
+    });
+
+    const CAP = 1000;
+    const intent = (postId: string, bytes: number) =>
+      service.rpc("create_upload_intent", {
+        p_post_id: postId, p_event_id: eventId, p_guest_id: guestId,
+        p_files: [{ role: "main", position: 0, key: `rls/${postId}/0.jpg`, mime: "image/jpeg", bytes }],
+        p_expires_at: new Date(Date.now() + 3_600_000).toISOString(), p_since: since(),
+        p_max_posts: 30, p_max_bytes: 1_000_000, p_max_event_bytes: CAP,
+      });
+    const post = (postId: string, bytes: number) =>
+      service.rpc("create_post_from_intent", {
+        p_post_id: postId, p_guest_id: guestId, p_type: "photo", p_caption: null,
+        p_media: [{ position: 0, kind: "image", path: `rls/${postId}/0.jpg`, bytes, mime: "image/jpeg" }],
+      });
+
+    it("the storage cap counts posted bytes (hidden too) but not unposted reservations", async () => {
+      const [a, b] = [randomUUID(), randomUUID()];
+      // Two reservations of 600 under a 1000 cap: both pass, since nothing is stored yet.
+      expect((await intent(a, 600)).error).toBeNull();
+      expect((await intent(b, 600)).error).toBeNull();
+      // One request bigger than the cap on its own is refused.
+      expect((await intent(randomUUID(), CAP + 1)).error?.code).toBe("PT507");
+
+      // Once a is posted its 600 bytes are stored: 500 more is over the cap, 400 fits.
+      expect((await post(a, 600)).error).toBeNull();
+      expect((await intent(randomUUID(), 500)).error?.code).toBe("PT507");
+      expect((await intent(randomUUID(), 400)).error).toBeNull();
+
+      // A hidden post still occupies storage.
+      expect((await service.from("posts").update({ hidden: true }).eq("id", a)).error).toBeNull();
+      expect((await intent(randomUUID(), 500)).error?.code).toBe("PT507");
+    });
+
+    it("wall_counts leaves out a hidden post", async () => {
+      const wish = await service
+        .from("posts")
+        .insert({ event_id: eventId, guest_id: guestId, type: "wish", wish_text: "Counted wish" })
+        .select("id")
+        .single();
+      expect(wish.error).toBeNull();
+      const wishes = async () => {
+        const res = await anon.rpc("wall_counts", { e: eventId });
+        expect(res.error).toBeNull();
+        const viaService = await service.rpc("wall_counts", { e: eventId });
+        expect(viaService.data).toEqual(res.data); // the explicit filter matches what RLS does for anon
+        return (res.data as { wishes: number }[])[0]!.wishes;
+      };
+
+      expect(await wishes()).toBe(1);
+      expect((await service.from("posts").update({ hidden: true }).eq("id", wish.data!.id)).error).toBeNull();
+      expect(await wishes()).toBe(0);
+      expect((await service.from("posts").update({ hidden: false }).eq("id", wish.data!.id)).error).toBeNull();
+      expect(await wishes()).toBe(1);
     });
   });
 });

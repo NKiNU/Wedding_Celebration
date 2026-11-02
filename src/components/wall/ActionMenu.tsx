@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { MAX_VIDEO_SECONDS } from "@/lib/domain/limits";
 
 export type ShareKind = "photos" | "video" | "wish";
 export type MenuKind = ShareKind | "qr";
@@ -34,7 +35,7 @@ const ITEMS: { kind: MenuKind; label: string; sub: string; icon: React.ReactNode
   {
     kind: "video",
     label: "Video",
-    sub: "Up to 60 seconds",
+    sub: `Up to ${MAX_VIDEO_SECONDS} seconds`,
     icon: (
       <>
         <rect x="3" y="6" width="13" height="12" rx="2.5" />

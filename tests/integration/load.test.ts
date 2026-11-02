@@ -8,8 +8,8 @@ import { BASE, join, uploadedIntent } from "../fixtures/phone";
  * event (it adds guests and posts):
  *   SUPABASE_INTEGRATION=1 npx vitest run tests/integration/load.test.ts
  *   LOAD_PHONES=100 INTEGRATION_BASE_URL=https://staging.example SUPABASE_INTEGRATION=1 npx vitest run tests/integration/load.test.ts
- * Every phone is a new guest that stays in the database (it counts toward MAX_GUESTS_PER_EVENT), and
- * all of them join from this one address, so keep LOAD_PHONES under JOINS_PER_IP_PER_WINDOW.
+ * Every phone is a new guest that stays in the database, and
+ * all of them join from this one address, so keep LOAD_PHONES under GUEST_JOINS_PER_IP.
  * `next dev` compiles routes on first use, so for numbers worth reading run it against `npm start`.
  */
 const PHONES = Number(process.env.LOAD_PHONES ?? 30);

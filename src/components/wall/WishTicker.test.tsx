@@ -55,17 +55,20 @@ describe("WishTicker", () => {
     act(() => void vi.advanceTimersByTime(4000));
     expect(screen.getByText(/Wish b/)).toBeInTheDocument();
 
+    const keyboard = vi.spyOn(card, "matches").mockReturnValue(true); // :focus-visible
     fireEvent.focus(card);
     act(() => void vi.advanceTimersByTime(12000));
     expect(screen.getByText(/Wish b/)).toBeInTheDocument();
     fireEvent.blur(card);
     act(() => void vi.advanceTimersByTime(4000));
     expect(screen.getByText(/Wish c/)).toBeInTheDocument();
+    keyboard.mockRestore();
   });
 
   it("keeps hover and focus apart: leaving with the pointer does not release a card that still has focus", () => {
     render(<WishTicker wishes={wishes} onOpen={vi.fn()} />);
     const card = screen.getByRole("button", { name: /Latest wishes.*Wish a/ });
+    vi.spyOn(card, "matches").mockReturnValue(true); // :focus-visible
     fireEvent.focus(card);
     fireEvent.pointerEnter(card);
     fireEvent.pointerLeave(card);
@@ -88,6 +91,16 @@ describe("WishTicker", () => {
     expect(screen.getByText(/Wish a/)).toBeInTheDocument();
 
     fireEvent.click(toggle);
+    act(() => void vi.advanceTimersByTime(4000));
+    expect(screen.getByText(/Wish b/)).toBeInTheDocument();
+  });
+
+
+  it("keeps rotating when it holds focus only because it was tapped", () => {
+    render(<WishTicker wishes={wishes} onOpen={vi.fn()} />);
+    const card = screen.getByRole("button", { name: /Latest wishes.*Wish a/ });
+    vi.spyOn(card, "matches").mockReturnValue(false);
+    fireEvent.focus(card);
     act(() => void vi.advanceTimersByTime(4000));
     expect(screen.getByText(/Wish b/)).toBeInTheDocument();
   });

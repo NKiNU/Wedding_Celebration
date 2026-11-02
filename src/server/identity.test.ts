@@ -2,7 +2,6 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { fakeJar } from "../../tests/fixtures/cookies";
 import { validEnv } from "../../tests/fixtures/env";
 import { fakeDb, type DbResult } from "../../tests/fixtures/supabase";
-import { MAX_GUESTS_PER_EVENT } from "@/lib/domain/limits";
 import { AppError } from "./http";
 
 const mocks = vi.hoisted(() => ({ db: null as unknown }));
@@ -31,8 +30,7 @@ function stubDb(queue: DbResult[]) {
   return fake.calls;
 }
 
-// createGuest first counts the event's guests; this queues "plenty of room" ahead of the rest.
-const stubGuestDb = (queue: DbResult[]) => stubDb([{ data: null, count: 0, error: null }, ...queue]);
+const stubGuestDb = (queue: DbResult[]) => stubDb(queue);
 
 beforeAll(() => {
   for (const [k, v] of Object.entries(validEnv)) vi.stubEnv(k, v);
@@ -103,7 +101,7 @@ describe("createGuest", () => {
   });
 
   it("issues a different token each time", async () => {
-    stubGuestDb([ok({ id: "g1", name: "Ali" }), { data: null, count: 1, error: null }, ok({ id: "g2", name: "Siti" })]);
+    stubGuestDb([ok({ id: "g1", name: "Ali" }), ok({ id: "g2", name: "Siti" })]);
     const jar = fakeJar();
     await createGuest("Ali", jar);
     await createGuest("Siti", jar);
@@ -138,6 +136,11 @@ describe("createGuest", () => {
     expect(lookup.args).toEqual(["name", "Ali%"]);
   });
 
+  it("fails loudly on any other database error", async () => {
+    stubDb([failure("XX000")]);
+    await expect(createGuest("Ali", fakeJar())).rejects.toThrow(/Creating guest failed/);
+  });
+
   it("escapes LIKE wildcards in the name when looking for taken suggestions", async () => {
     const calls = stubGuestDb([failure("23505"), ok([])]);
     await createGuest("50%_off", fakeJar()).catch(() => {});
@@ -163,26 +166,6 @@ describe("createGuest", () => {
     await expect(createGuest("Ali", fakeJar())).rejects.toThrow(/08006/);
   });
 
-  it("refuses a new guest once the event is full, before anything is written", async () => {
-    const calls = stubDb([{ data: null, count: MAX_GUESTS_PER_EVENT, error: null }]);
-    const jar = fakeJar();
-
-    const error = await createGuest("Ali", jar).catch((e: unknown) => e);
-
-    expect(error).toMatchObject({ status: 429, code: "guest_limit" });
-    expect(calls.some((c) => c.method === "insert")).toBe(false);
-    expect(jar.sets).toEqual([]);
-  });
-
-  it("still takes the last guest the cap allows", async () => {
-    stubDb([{ data: null, count: MAX_GUESTS_PER_EVENT - 1, error: null }, ok({ id: "g1", name: "Ali" })]);
-    await expect(createGuest("Ali", fakeJar())).resolves.toEqual({ guestId: "g1", name: "Ali" });
-  });
-
-  it("fails loudly when the guest count cannot be read", async () => {
-    stubDb([failure("XX000")]);
-    await expect(createGuest("Ali", fakeJar())).rejects.toThrow("Counting guests failed: XX000");
-  });
 });
 
 describe("getSession", () => {

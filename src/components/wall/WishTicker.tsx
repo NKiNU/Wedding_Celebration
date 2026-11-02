@@ -39,7 +39,9 @@ export function WishTicker({ wishes, onOpen }: Props) {
       className="relative mt-4"
       onPointerEnter={() => setHovered(true)}
       onPointerLeave={() => setHovered(false)}
-      onFocus={() => setFocused(true)}
+      // Keyboard focus only: after a tap (and after the wish drawer hands focus back) the button
+      // keeps focus on Android, which would freeze the ticker on one wish.
+      onFocus={(e) => setFocused((e.target as HTMLElement).matches(":focus-visible"))}
       onBlur={() => setFocused(false)}
     >
       <button

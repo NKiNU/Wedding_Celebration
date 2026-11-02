@@ -2,7 +2,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { validEnv } from "../../tests/fixtures/env";
 import { fakeR2 } from "../../tests/fixtures/r2";
 import { fakeDb, type DbResult } from "../../tests/fixtures/supabase";
-import { BYTES_PER_HOUR, INTENT_TTL_MS, MB, POSTS_PER_HOUR, RATE_WINDOW_MS } from "@/lib/domain/limits";
+import { BYTES_PER_HOUR, INTENT_TTL_MS, MAX_EVENT_MB, MB, POSTS_PER_HOUR, RATE_WINDOW_MS } from "@/lib/domain/limits";
 import type { UploadFile } from "@/lib/domain/uploads";
 
 const mocks = vi.hoisted(() => ({
@@ -109,6 +109,19 @@ describe("createUploadIntent", () => {
   it("is a 429 when the database says the hour is used up, and presigns nothing", async () => {
     const { presigned } = setup([failure("PT429")]);
     await expect(createUploadIntent(GUEST, photo)).rejects.toMatchObject({ status: 429, code: "rate_limited" });
+    expect(presigned).toHaveLength(0);
+  });
+
+  it("passes the event storage cap in bytes", async () => {
+    const { calls } = setup([ok(null)]);
+    await createUploadIntent(GUEST, photo);
+    const args = calls.find((c) => c.method === "create_upload_intent")!.args[0] as Record<string, unknown>;
+    expect(args.p_max_event_bytes).toBe(MAX_EVENT_MB * MB);
+  });
+
+  it("is a 507 when the event's storage is full, and presigns nothing", async () => {
+    const { presigned } = setup([failure("PT507")]);
+    await expect(createUploadIntent(GUEST, photo)).rejects.toMatchObject({ status: 507, code: "storage_full" });
     expect(presigned).toHaveLength(0);
   });
 

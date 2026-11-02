@@ -3,6 +3,7 @@ import { AppError } from "@/server/http";
 
 const mocks = vi.hoisted(() => ({
   login: vi.fn(),
+  clientIp: vi.fn(),
   logout: vi.fn(),
   requireAdmin: vi.fn(),
   updateEvent: vi.fn(),
@@ -17,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   deletePostAsAdmin: vi.fn(),
 }));
 vi.mock("@/server/admin", () => mocks);
+vi.mock("@/server/ip", () => ({ clientIp: mocks.clientIp }));
 vi.mock("@/server/posts", () => ({ deletePostAsAdmin: mocks.deletePostAsAdmin }));
 vi.mock("@/server/event", () => ({ getEvent: async () => ({ id: "e1" }) }));
 vi.mock("next/headers", () => ({ cookies: async () => ({}) }));
@@ -40,6 +42,7 @@ const ctx = { params: Promise.resolve({ id: ID }) };
 
 beforeEach(() => {
   Object.values(mocks).forEach((m) => m.mockReset());
+  mocks.clientIp.mockReturnValue("9.9.9.9");
 });
 
 describe("admin session", () => {

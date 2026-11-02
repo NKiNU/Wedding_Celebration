@@ -82,7 +82,7 @@
 ### Task 3: Database, event read, admin event fields
 
 **Files:**
-- Create: `supabase/migrations/0006_appearance.sql`
+- Create: `supabase/migrations/0007_appearance.sql`
 - Modify: `src/lib/database.types.ts`, `src/server/event.ts`, `src/server/admin.ts`, `src/server/wall.ts` (export `mediaUrl`), `src/lib/api.ts`, `src/lib/validation.ts`, `src/components/admin/useAdminEvent.ts` (extend `EventPatch`)
 - Test: `src/server/admin.test.ts`, `src/lib/validation.test.ts`
 

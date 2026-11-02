@@ -20,4 +20,14 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test
+      # Canary secrets: the build runs with them, and the scan proves none reached the browser.
       - run: npm run build
+        env: &canaries
+          SUPABASE_SERVICE_ROLE_KEY: ci-canary-service-role-key-7f3a
+          R2_ACCESS_KEY_ID: ci-canary-r2-access-key-id-7f3a
+          R2_SECRET_ACCESS_KEY: ci-canary-r2-secret-access-key-7f3a
+          DEVICE_TOKEN_PEPPER: ci-canary-device-token-pepper-7f3a-0000000000
+          ADMIN_PASSCODE: ci-canary-admin-passcode-7f3a
+          CRON_SECRET: ci-canary-cron-secret-7f3a
+      - run: npm run check:bundle -- --strict
+        env: *canaries
