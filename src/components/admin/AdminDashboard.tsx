@@ -1,6 +1,7 @@
 "use client";
 
 import type { AdminEvent, AdminPostsResponse } from "@/lib/api";
+import { AppearanceSection } from "./AppearanceSection";
 import { DownloadAll } from "./DownloadAll";
 import { EventForm } from "./EventForm";
 import { ModerationList } from "./ModerationList";
@@ -26,6 +27,7 @@ export function AdminDashboard({ event: initial, initialPosts, now }: Props) {
       <EventForm event={event} saving={saving} save={save} />
       <UploadsSection event={event} saving={saving} save={save} />
       <QrSection event={event} saving={saving} save={save} onQrChanged={setEvent} />
+      <AppearanceSection event={event} saving={saving} save={save} onChanged={setEvent} />
       <ModerationList initial={initialPosts} now={now} />
       <DownloadAll />
     </main>

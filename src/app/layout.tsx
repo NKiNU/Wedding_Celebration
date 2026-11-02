@@ -1,25 +1,8 @@
 import type { Metadata, Viewport } from "next";
-import { Cormorant_Garamond, Pinyon_Script, Poppins } from "next/font/google";
+import { Suspense } from "react";
 import "./globals.css";
-
-const poppins = Poppins({
-  variable: "--font-poppins",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-});
-
-const pinyon = Pinyon_Script({
-  variable: "--font-pinyon",
-  subsets: ["latin"],
-  weight: "400",
-});
-
-const cormorant = Cormorant_Garamond({
-  variable: "--font-cormorant",
-  subsets: ["latin"],
-  weight: ["400", "500"],
-  style: ["normal", "italic"],
-});
+import { fontClassNames } from "./fonts";
+import { ThemeStyle } from "./ThemeStyle";
 
 export const metadata: Metadata = {
   title: "Wedding Memories",
@@ -31,17 +14,19 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   interactiveWidget: "resizes-content",
-  themeColor: "#f4f3ef", // ponytail: mirrors --paper; single light theme, so no per-scheme pair
+  themeColor: "#5e1e2b", // mirrors --paper; single light theme, so no per-scheme pair
+  colorScheme: "only light",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html
-      lang="en"
-      data-decor="on"
-      className={`${poppins.variable} ${pinyon.variable} ${cormorant.variable}`}
-    >
-      <body>{children}</body>
+    <html lang="en" data-decor="on" className={fontClassNames}>
+      <body>
+        <Suspense>
+          <ThemeStyle />
+        </Suspense>
+        {children}
+      </body>
     </html>
   );
 }

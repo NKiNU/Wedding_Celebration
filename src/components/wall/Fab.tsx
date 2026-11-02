@@ -4,6 +4,7 @@ type Props = { open: boolean; onToggle: () => void; ref?: React.Ref<HTMLButtonEl
 export function Fab({ open, onToggle, ref }: Props) {
   return (
     <button
+      data-surface="light"
       ref={ref}
       type="button"
       onClick={onToggle}

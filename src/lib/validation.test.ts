@@ -9,6 +9,7 @@ import {
   nextParam,
   postIdParam,
   storedFiles,
+  updateEventBody,
 } from "./validation";
 
 describe("parseEnv", () => {
@@ -175,5 +176,18 @@ describe("optional limits", () => {
     for (const bad of ["0", "-1", "1.5", "lots", "99999999999"]) {
       expect(() => parseEnv({ ...valid, GUEST_JOINS_PER_IP: bad })).toThrow(/GUEST_JOINS_PER_IP/);
     }
+  });
+  test("is refused in production unless it is a loopback address", () => {
+    const withEndpoint = { ...valid, R2_ENDPOINT: "http://127.0.0.1:54321/storage/v1/s3" };
+    expect(() => parseEnv({ ...valid, R2_ENDPOINT: "https://s3.example.com", NODE_ENV: "production" })).toThrow(/R2_ENDPOINT/);
+    expect(parseEnv({ ...withEndpoint, NODE_ENV: "production" }).R2_ENDPOINT).toBeDefined();
+    expect(parseEnv({ ...withEndpoint, NODE_ENV: "development" }).R2_ENDPOINT).toBeDefined();
+  });
+});
+
+describe("updateEventBody fonts", () => {
+  test("accepts a listed font and rejects an unknown one", () => {
+    expect(updateEventBody.safeParse({ fontNames: "great-vibes", fontWishes: "lora", fontBody: "inter" }).success).toBe(true);
+    expect(msg(updateEventBody.safeParse({ fontBody: "comic-sans" }))).toMatch(/Choose one of the listed fonts/);
   });
 });

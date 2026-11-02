@@ -23,6 +23,14 @@ describe("WallHeader", () => {
     expect(screen.getByText("1 memory shared")).toBeInTheDocument();
   });
 
+  it("shows the monogram image instead of the initials", () => {
+    const { container } = render(
+      <WallHeader groom="Hafiz" bride="Aisyah" headerMessage={null} memories={0} me="Aina" monogramUrl="https://media.test/mono.png" onOpenMe={vi.fn()} />,
+    );
+    expect(container.querySelector("img")).toHaveAttribute("src", "https://media.test/mono.png");
+    expect(screen.queryByText("HA")).toBeNull();
+  });
+
   it("renders the ticker slot", () => {
     render(
       <WallHeader groom="H" bride="A" headerMessage={null} memories={0} me="Aina" onOpenMe={vi.fn()}>

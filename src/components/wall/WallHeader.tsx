@@ -7,21 +7,27 @@ type Props = {
   headerMessage: string | null;
   memories: number;
   me: string;
+  monogramUrl?: string | null;
   onOpenMe: () => void;
   children?: React.ReactNode; // the latest-wishes ticker
 };
 
 /** Wall header. The name chip opens the Me drawer: the guest's posts and Switch name. */
-export function WallHeader({ groom, bride, headerMessage, memories, me, onOpenMe, children }: Props) {
+export function WallHeader({ groom, bride, headerMessage, memories, me, monogramUrl, onOpenMe, children }: Props) {
   const stat = `${memories} ${memories === 1 ? "memory" : "memories"} shared`;
   return (
     <header className="relative overflow-hidden bg-paper px-5 pt-[max(0.625rem,env(safe-area-inset-top))] pb-5">
       <Floral className="absolute -top-[18px] -right-10 size-[210px]" />
       <div className="relative flex h-12 items-center justify-between">
-        <span aria-hidden="true" className="font-script text-(length:--mono-size) leading-none font-(weight:--names-weight)">
-          {initialOf(groom)}
-          {initialOf(bride)}
-        </span>
+        {monogramUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={monogramUrl} alt="" aria-hidden="true" className="h-10 max-w-32 min-w-0 object-contain object-left" />
+        ) : (
+          <span aria-hidden="true" className="font-script text-(length:--mono-size) leading-none font-(weight:--names-weight)">
+            {initialOf(groom)}
+            {initialOf(bride)}
+          </span>
+        )}
         <button
           type="button"
           onClick={onOpenMe}

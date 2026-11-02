@@ -64,7 +64,7 @@ const ITEMS: { kind: MenuKind; label: string; sub: string; icon: React.ReactNode
   },
 ];
 
-const SURFACE = "bg-card [border:var(--dial-border)] [box-shadow:var(--dial-shadow)]";
+const SURFACE = "bg-sheet [border:var(--dial-border)] [box-shadow:var(--dial-shadow)]";
 
 /** Speed-dial above the FAB. Always rendered so it can fade; `inert` keeps it out of reach while closed. */
 export function ActionMenu({ open, onPick, onClose, returnFocus, uploadsOpen = true }: Props) {
@@ -91,9 +91,10 @@ export function ActionMenu({ open, onPick, onClose, returnFocus, uploadsOpen = t
         tabIndex={-1}
         inert={!open}
         onClick={onClose}
-        className={`fixed inset-0 z-20 bg-ink/50 transition-opacity duration-200 ${open ? "opacity-100" : "opacity-0"}`}
+        className={`fixed inset-0 z-20 bg-(--scrim) transition-opacity duration-200 ${open ? "opacity-100" : "opacity-0"}`}
       />
       <ul
+        data-surface="light"
         ref={list}
         id="share-menu"
         aria-label="Share something"
@@ -125,7 +126,7 @@ export function ActionMenu({ open, onPick, onClose, returnFocus, uploadsOpen = t
           </li>
         ))}
         {!uploadsOpen && (
-          <li className="rounded-2xl px-3.5 py-2 text-xs text-muted bg-card [border:var(--dial-border)]">
+          <li className="rounded-2xl px-3.5 py-2 text-xs text-muted bg-sheet [border:var(--dial-border)]">
             Sharing is closed. Thank you for your memories!
           </li>
         )}

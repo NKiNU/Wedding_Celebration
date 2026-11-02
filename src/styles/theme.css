@@ -2,39 +2,81 @@
    no hex values or font names anywhere else (enforced by eslint). */
 
 :root {
-  --ink: #141414; /* text, primary buttons, active pill, wish cards */
-  --paper: #f4f3ef; /* page background */
-  --card: #ffffff; /* cards, inactive pills */
-  --soft: #c9d3dc; /* inputs, secondary buttons, "You" badge */
-  --muted: #62625e; /* secondary text (4.5:1 on paper) */
-  --line: #dcdad3; /* borders, dividers */
-  --decor: #b5b3ac; /* floral line art */
-  --sheet: #fbfaf7; /* drawers, dialogs */
-  --viewer: #0e0e0e; /* full-screen viewer */
-  --font-body: var(--font-poppins), system-ui, sans-serif;
-  --font-script: var(--font-pinyon), cursive; /* monogram + couple names only */
-  --font-serif: var(--font-cormorant), Georgia, serif; /* wish text, italic */
+  --ink: #dadcdd; /* silver: text, primary buttons, active pill, wish cards, toast */
+  --paper: #5e1e2b; /* burgundy: page background */
+  --card: #45141f; /* name chip, wish ticker, inactive pills */
+  --soft: #3a1019; /* inputs, secondary buttons */
+  --muted: #9c9d9b; /* secondary text (4.5:1 on paper) */
+  --line: #7a3a47; /* borders, dividers */
+  --decor: #9c9d9b; /* floral line art */
+  --sheet: #d9d9d9; /* drawers, dialogs (they also carry data-surface="light") */
+  --viewer: #1a070b; /* full-screen viewer */
+  --font-body: var(--font-choice-body, var(--font-poppins)), system-ui, sans-serif;
+  --font-script: var(--font-choice-names, var(--font-pinyon-script)), cursive; /* monogram + couple names only */
+  --font-serif: var(--font-choice-wishes, var(--font-cormorant-garamond)), Georgia, serif; /* wish text, italic */
   --radius-card: 18px;
   --radius-media: 12px;
   --welcome-names-size: 38px; /* couple names on the welcome screen */
   --names-weight: 400; /* script faces are light; the wireframe system font needs bold */
   --names-size: 46px; /* couple names on the wall header */
   --mono-size: 30px; /* initials at the top left of the wall */
-  --feed: #e8e7e2; /* wall background */
-  --feed-pattern: radial-gradient(rgba(20, 20, 20, 0.2) 1px, transparent 1.35px) 0 0 / 6px 6px; /* halftone */
+  --feed: #d9d9d9; /* wall background */
+  --feed-pattern: radial-gradient(rgba(94, 30, 43, 0.13) 1px, transparent 1.35px) 0 0 / 6px 6px; /* halftone */
   --card-border: none;
-  --card-shadow: 0 1px 2px rgba(20, 20, 20, 0.06), 0 6px 18px rgba(20, 20, 20, 0.08);
-  --stack-shadow: 0 2px 8px rgba(20, 20, 20, 0.18); /* photos stacked in an album card */
+  --card-shadow: 0 1px 2px rgba(26, 6, 11, 0.35), 0 8px 20px rgba(26, 6, 11, 0.4);
+  --stack-shadow: 0 2px 8px rgba(26, 6, 11, 0.18); /* photos stacked in an album card */
   --wish-bg: var(--ink); /* wish cards */
   --wish-ink: var(--paper);
   --wish-border: none;
   --overlay: rgba(20, 20, 20, 0.75); /* badges and play button over media */
   --overlay-soft: rgba(20, 20, 20, 0.55); /* round buttons and the counter over a photo in the viewer */
   --overlay-ink: #ffffff; /* text and icons on --overlay */
-  --toast-shadow: 0 8px 24px rgba(20, 20, 20, 0.25);
-  --fab-shadow: 0 8px 24px rgba(20, 20, 20, 0.28); /* the + button */
-  --dial-shadow: 0 4px 14px rgba(20, 20, 20, 0.18); /* share-menu pills and icons */
+  --toast-shadow: 0 8px 24px rgba(26, 6, 11, 0.25);
+  --fab-shadow: 0 8px 24px rgba(26, 6, 11, 0.28); /* the + button */
+  --dial-shadow: 0 4px 14px rgba(26, 6, 11, 0.18); /* share-menu pills and icons */
   --dial-border: none;
+}
+
+/* Backdrops behind drawers, dialogs and the + menu. Also on ::backdrop itself: iOS Safari before
+   17.4 gives that layer no variables at all, not even ones from :root. */
+:root,
+::backdrop {
+  --scrim: rgba(26, 6, 11, 0.5);
+}
+
+/* In `base` so a utility on the same element (the FAB's text-paper) still wins over `color`. */
+@layer base {
+  /* Light grey parts (feed, drawers, dialogs, + menu, + button): burgundy on #d9d9d9.
+     `color` is set again because body's colour is resolved once, on body (silver). */
+  :root:not([data-theme="wireframe"]) [data-surface="light"] {
+    --ink: #5e1e2b;
+    --paper: #dadcdd;
+    --card: #f0f0f0; /* canvas: #f2f2f2 feed, #ededed drawers; one value on purpose */
+    --soft: #c4c4c4;
+    --muted: #4f4f4e; /* 5.8:1 on #d9d9d9 */
+    --line: #b3b3b3;
+    --wish-bg: #5e1e2b;
+    --wish-ink: #dadcdd;
+    --card-shadow: 0 1px 2px rgba(26, 6, 11, 0.08), 0 6px 18px rgba(26, 6, 11, 0.12);
+    color: var(--ink);
+  }
+
+  /* Admin keeps the original monochrome look. */
+  :root:not([data-theme="wireframe"]) [data-surface="admin"] {
+    --ink: #141414;
+    --paper: #f4f3ef;
+    --card: #ffffff;
+    --soft: #c9d3dc;
+    --muted: #62625e;
+    --line: #dcdad3;
+    --decor: #b5b3ac;
+    --sheet: #fbfaf7;
+    --wish-bg: #141414;
+    --wish-ink: #f4f3ef;
+    --card-shadow: 0 1px 2px rgba(20, 20, 20, 0.06), 0 6px 18px rgba(20, 20, 20, 0.08);
+    --toast-shadow: 0 8px 24px rgba(20, 20, 20, 0.25);
+    color: var(--ink);
+  }
 }
 
 /* Client review theme: white, grey lines, system font, no decor. */
@@ -69,6 +111,7 @@
   --fab-shadow: none;
   --dial-shadow: none;
   --dial-border: 1px solid var(--line);
+  --scrim: rgba(34, 34, 34, 0.5);
 }
 
 /* `reference` registers the utilities without re-emitting these vars on :root, which would
@@ -115,7 +158,7 @@
   html {
     -webkit-tap-highlight-color: transparent;
     -webkit-text-size-adjust: 100%;
-    color-scheme: light;
+    color-scheme: only light; /* keeps Chrome's auto dark mode off */
   }
 
   body {
@@ -126,6 +169,7 @@
     font-size: 14px;
     line-height: 1.45;
     -webkit-font-smoothing: antialiased;
+    overflow-wrap: anywhere; /* a guest's long unbroken word or link wraps instead of running off screen */
   }
 
   :focus-visible {

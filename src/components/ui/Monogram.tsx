@@ -1,10 +1,17 @@
 /** Large two-initial monogram (welcome screen). The wireframe theme swaps it for a logo box. */
-export function Monogram({ a, b }: { a: string; b: string }) {
+export function Monogram({ a, b, imageUrl }: { a: string; b: string; imageUrl?: string | null }) {
   return (
     <>
       <div aria-hidden="true" className="decor relative mt-1.5 h-[150px] w-[200px] font-script leading-none">
-        <span className="absolute -top-1.5 left-7 text-[128px]">{a}</span>
-        <span className="absolute top-[18px] left-[92px] text-[128px]">{b}</span>
+        {imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={imageUrl} alt="" className="size-full object-contain" />
+        ) : (
+          <>
+            <span className="absolute -top-1.5 left-7 text-[128px]">{a}</span>
+            <span className="absolute top-[18px] left-[92px] text-[128px]">{b}</span>
+          </>
+        )}
       </div>
       <div
         aria-hidden="true"

@@ -4,11 +4,16 @@ import { AppError } from "@/server/http";
 const mocks = vi.hoisted(() => ({
   getWallPage: vi.fn(),
   getWallCounts: vi.fn(),
+  getLatestWishes: vi.fn(),
   requireGuest: vi.fn(),
   createWish: vi.fn(),
   createMediaPost: vi.fn(),
 }));
-vi.mock("@/server/wall", () => ({ getWallPage: mocks.getWallPage, getWallCounts: mocks.getWallCounts }));
+vi.mock("@/server/wall", () => ({
+  getWallPage: mocks.getWallPage,
+  getWallCounts: mocks.getWallCounts,
+  getLatestWishes: mocks.getLatestWishes,
+}));
 vi.mock("@/server/identity", () => ({ requireGuest: mocks.requireGuest }));
 vi.mock("@/server/posts", () => ({ createWish: mocks.createWish, createMediaPost: mocks.createMediaPost }));
 vi.mock("next/headers", () => ({ cookies: async () => ({}) }));
@@ -23,21 +28,23 @@ beforeEach(() => {
   Object.values(mocks).forEach((m) => m.mockReset());
   mocks.getWallPage.mockResolvedValue(page);
   mocks.getWallCounts.mockResolvedValue(counts);
+  mocks.getLatestWishes.mockResolvedValue([]);
 });
 
 describe("GET /api/posts", () => {
   it("returns the first page with the counts", async () => {
     const res = await get();
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true, data: { ...page, counts } });
+    expect(await res.json()).toEqual({ ok: true, data: { ...page, counts, wishes: [] } });
     expect(mocks.getWallPage).toHaveBeenCalledWith(null);
   });
 
   it("returns a later page without counts", async () => {
     const res = await get("?cursor=abc");
-    expect(await res.json()).toEqual({ ok: true, data: { ...page, counts: null } });
+    expect(await res.json()).toEqual({ ok: true, data: { ...page, counts: null, wishes: null } });
     expect(mocks.getWallPage).toHaveBeenCalledWith("abc");
     expect(mocks.getWallCounts).not.toHaveBeenCalled();
+    expect(mocks.getLatestWishes).not.toHaveBeenCalled();
   });
 
   it("maps a bad cursor to 400", async () => {

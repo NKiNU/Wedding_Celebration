@@ -30,6 +30,8 @@ function stubDb(queue: DbResult[]) {
   return fake.calls;
 }
 
+const stubGuestDb = (queue: DbResult[]) => stubDb(queue);
+
 beforeAll(() => {
   for (const [k, v] of Object.entries(validEnv)) vi.stubEnv(k, v);
 });
@@ -62,7 +64,7 @@ describe("readTokens", () => {
 
 describe("createGuest", () => {
   it("stores only the hash of a fresh token and remembers the raw token in httpOnly cookies", async () => {
-    const calls = stubDb([ok({ id: "g1", name: "Ali" })]);
+    const calls = stubGuestDb([ok({ id: "g1", name: "Ali" })]);
     const jar = fakeJar();
 
     const guest = await createGuest("Ali", jar);
@@ -88,7 +90,7 @@ describe("createGuest", () => {
   it("marks cookies Secure in production only, so a phone can test over plain http on the LAN", async () => {
     const secureFlags = async (nodeEnv: string) => {
       vi.stubEnv("NODE_ENV", nodeEnv);
-      stubDb([ok({ id: "g1", name: "Ali" })]);
+      stubGuestDb([ok({ id: "g1", name: "Ali" })]);
       const jar = fakeJar();
       await createGuest("Ali", jar);
       return jar.sets.map((c) => c.options.secure);
@@ -99,7 +101,7 @@ describe("createGuest", () => {
   });
 
   it("issues a different token each time", async () => {
-    stubDb([ok({ id: "g1", name: "Ali" }), ok({ id: "g2", name: "Siti" })]);
+    stubGuestDb([ok({ id: "g1", name: "Ali" }), ok({ id: "g2", name: "Siti" })]);
     const jar = fakeJar();
     await createGuest("Ali", jar);
     await createGuest("Siti", jar);
@@ -108,7 +110,7 @@ describe("createGuest", () => {
   });
 
   it("keeps at most five tokens, dropping the oldest", async () => {
-    stubDb([ok({ id: "g6", name: "Six" })]);
+    stubGuestDb([ok({ id: "g6", name: "Six" })]);
     const jar = fakeJar({ wm_tokens: JSON.stringify(["t1", "t2", "t3", "t4", "t5"]) });
     await createGuest("Six", jar);
     const stored = JSON.parse(jar.get("wm_tokens")!.value) as string[];
@@ -117,7 +119,7 @@ describe("createGuest", () => {
   });
 
   it("answers 409 with free suggestions when the name is taken, and sets no cookies", async () => {
-    const calls = stubDb([failure("23505"), ok([{ name: "Ali" }, { name: "ali 2" }])]);
+    const calls = stubGuestDb([failure("23505"), ok([{ name: "Ali" }, { name: "ali 2" }])]);
     const jar = fakeJar();
 
     const error = await createGuest("Ali", jar).catch((e: unknown) => e);
@@ -140,29 +142,30 @@ describe("createGuest", () => {
   });
 
   it("escapes LIKE wildcards in the name when looking for taken suggestions", async () => {
-    const calls = stubDb([failure("23505"), ok([])]);
+    const calls = stubGuestDb([failure("23505"), ok([])]);
     await createGuest("50%_off", fakeJar()).catch(() => {});
     expect(calls.find((c) => c.method === "ilike")!.args).toEqual(["name", "50\\%\\_off%"]);
   });
 
   it("keeps PostgREST's * wildcard from widening the prefix search", async () => {
-    const calls = stubDb([failure("23505"), ok([])]);
+    const calls = stubGuestDb([failure("23505"), ok([])]);
     await createGuest("A*", fakeJar()).catch(() => {});
     expect(calls.find((c) => c.method === "ilike")!.args).toEqual(["name", "A_%"]);
   });
 
   it("still answers 409 when the taken-names lookup fails, logging only the error code", async () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
-    stubDb([failure("23505"), { data: null, error: { code: "08006", message: "down" } }]);
+    stubGuestDb([failure("23505"), { data: null, error: { code: "08006", message: "down" } }]);
     await expect(createGuest("Ali", fakeJar())).rejects.toMatchObject({ status: 409 });
     expect(log).toHaveBeenCalledWith("Loading taken names failed", "08006", "down");
     log.mockRestore();
   });
 
   it("surfaces any other database failure as an unexpected error", async () => {
-    stubDb([failure("08006")]);
+    stubGuestDb([failure("08006")]);
     await expect(createGuest("Ali", fakeJar())).rejects.toThrow(/08006/);
   });
+
 });
 
 describe("getSession", () => {

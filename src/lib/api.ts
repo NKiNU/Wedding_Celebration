@@ -1,11 +1,17 @@
+import type { FontRole } from "./domain/fonts";
 import type { WallCounts, WallPost } from "./domain/posts";
 import type { FileRole } from "./domain/uploads";
 
 export type KnownGuest = { guestId: string; name: string };
 export type Session = { active: KnownGuest | null; known: KnownGuest[] };
 
-/** GET /api/posts: `counts` is only sent with the first page. */
-export type WallResponse = { posts: WallPost[]; nextCursor: string | null; counts: WallCounts | null };
+/** GET /api/posts: `counts` and `wishes` (the newest wishes anywhere on the wall) are only sent with the first page. */
+export type WallResponse = {
+  posts: WallPost[];
+  nextCursor: string | null;
+  counts: WallCounts | null;
+  wishes?: WallPost[] | null;
+};
 
 /** POST /api/uploads: one presigned PUT URL per requested file. */
 export type UploadIntent = { postId: string; uploads: { role: FileRole; position: number; url: string }[] };
@@ -23,10 +29,13 @@ export type AdminEvent = {
   qrAccountName: string;
   qrBank: string;
   hasQr: boolean;
+  /** Font key per role, with defaults filled in. */
+  fonts: Record<FontRole, string>;
+  monogramUrl: string | null;
 };
 
-/** POST /api/admin/qr: where to PUT the image, and the key to confirm afterwards. */
-export type QrUpload = { key: string; url: string };
+/** POST /api/admin/qr and /api/admin/monogram: where to PUT the image, and the key to confirm afterwards. */
+export type ImageUpload = { key: string; url: string };
 
 /** One file for the "download everything" zip. */
 export type ManifestEntry = { url: string; name: string };

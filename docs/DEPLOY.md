@@ -63,7 +63,7 @@ Do not add `media` by hand: R2 creates it in section 4.
    npx supabase db push
    ```
    The project ref is the code in your project URL (`https://YOUR-PROJECT-REF.supabase.co`).
-   `db push` creates all tables, rules and the live-wall setup (`0001` to `0005`).
+   `db push` creates all tables, rules and the live-wall setup (`0001` to `0007`, including the private wall channel and the font and monogram columns).
 4. Create the real event. Open the Supabase dashboard, then SQL Editor, and run:
    ```sql
    insert into public.events (slug, groom_name, bride_name)

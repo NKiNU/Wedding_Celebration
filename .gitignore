@@ -49,3 +49,6 @@ next-env.d.ts
 
 # local agent/skill setup (personal, not shared)
 /.claude/
+
+# brainstorming mockups
+.superpowers/

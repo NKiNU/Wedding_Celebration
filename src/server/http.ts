@@ -24,7 +24,19 @@ function isCrossSite(req: Request): boolean {
   const site = req.headers.get("sec-fetch-site");
   if (site !== null) return site !== "same-origin" && site !== "none";
   const origin = req.headers.get("origin");
-  return origin !== null && origin !== new URL(req.url).origin;
+  if (origin === null) return false;
+  // The full origin, scheme included. Behind a TLS-terminating proxy `req.url` says http while the
+  // browser's Origin says https, so the scheme comes from the `X-Forwarded-Proto` the proxy sets
+  // (Caddy does by default; nginx needs `proxy_set_header X-Forwarded-Proto $scheme;`). A page
+  // could only forge that header if the app were reachable without the proxy, and a cross-origin
+  // browser request cannot add it (a custom header forces a CORS preflight).
+  try {
+    const expected = new URL(req.url);
+    const scheme = req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() || expected.protocol.replace(":", "");
+    return new URL(origin).origin !== `${scheme}://${expected.host}`;
+  } catch {
+    return true; // an opaque Origin ("null")
+  }
 }
 
 const fail = (status: number, error: ApiError) => Response.json({ ok: false, error }, { status });
