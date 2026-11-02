@@ -1,6 +1,6 @@
 # Plan: burgundy theme
 
-Status: **questions answered, waiting for the merge on `test` to be resolved** (written 2026-11-02). Nothing is implemented yet.
+Status: **implemented on `test` (2026-11-02), not committed.** Deviations: the admin status bar stays burgundy (fix 7 skipped: the no-hex lint rule covers `admin/page.tsx`); the active filter pill count went from `opacity-70` to `opacity-80` (axe: 4.3:1 → 5.5:1); the surface rules sit in `@layer base` so the FAB's `text-paper` still wins. Android e2e and the Playwright MCP walkthrough passed; iPhone (WebKit) e2e passed in the Playwright container (WebKit does not start on Fedora 44 directly). (written 2026-11-02). Nothing is implemented yet.
 
 ## Context
 
@@ -14,7 +14,8 @@ Status: **questions answered, waiting for the merge on `test` to be resolved** (
   - #D9D9D9 light grey: drawers, popups, the + menu and the wall feed.
 - Layout of the design:
   - Burgundy: the welcome screen, the wall header (with the filter pills) and the viewer.
-  - Light grey with burgundy text: the wall feed, all drawers, the delete popup, the + menu, the + button and toasts.
+  - Light grey with burgundy text: the wall feed, all drawers, the delete popup, the + menu, the + button.
+- **Admin colour set**: `data-surface="admin"` holds today's monochrome `:root` values, so admin looks as it does now.
 
 ## 0. Before starting
 
@@ -27,9 +28,10 @@ branch off the agreed base (`main`, or `test` after the merge).
 Every colour already comes from variables in `src/styles/theme.css`, and the components use names like `bg-card`
 and `text-ink`. Those names resolve to whatever the variables hold at that point in the page. So:
 
-- **Main colours** (`:root`) become burgundy. This covers the welcome screen, the wall header, the filter bar, the viewer and admin.
+- **Main colours** (`:root`) become burgundy. This covers the welcome screen, the wall header, the filter bar and the viewer.
 - **A light colour set** is switched on by `data-surface="light"` on an element. Inside it, the same names
-  resolve to the grey colours. This covers the feed, drawers, the delete popup, the + menu, the + button and toasts.
+  resolve to the grey colours. This covers the feed, drawers, the delete popup, the + menu, the + button.
+- **Admin colour set**: `data-surface="admin"` holds today's monochrome `:root` values, so admin looks as it does now.
 
 Components keep their classes and stay free of hex values (the ESLint rule still holds).
 
@@ -64,16 +66,28 @@ Components keep their classes and stay free of hex values (the ESLint rule still
 | `--line` | #B3B3B3 |
 | `--decor` | #9C9D9B |
 | `--wish-bg` / `--wish-ink` | #5E1E2B / #DADCDD |
+| `--card` note | the canvas uses #F2F2F2 (feed) and #EDEDED (drawers); one value, #F0F0F0, on purpose |
 | `--feed-pattern` | halftone dots in burgundy at 13%: radial-gradient(rgba(94,30,43,.13) 1px, transparent 1.35px) 0 0 / 6px 6px |
-| `--dial-bg` (new) | #D9D9D9 (+ menu pills and icons) |
 | shadows | lighter |
+
+### `[data-surface="admin"]`
+
+Today's monochrome values from `:root` (ink #141414, paper #f4f3ef, card #ffffff, soft #c9d3dc, muted #62625e,
+line #dcdad3, sheet #fbfaf7, feed, shadows), moved here unchanged.
 
 ### Related fixes in the same file
 
+- **Text colour:** `body` sets `color: var(--ink)`, and the browser works that out once on `body` (silver), then
+  passes the finished colour down. Text without its own class (card author names, + menu labels, empty state, admin)
+  would stay silver on grey. So both surface rules also set `color: var(--ink);`.
 - **Wireframe theme:** the light rules must not apply under `[data-theme="wireframe"]`, so the selector excludes it
-  (e.g. `:root:not([data-theme="wireframe"]) [data-surface="light"]`). The grey review theme stays as it is.
-- **Popup backdrop:** the darkened background behind drawers and the delete popup reads `--ink`. iOS Safari before 17.4 doesn't
-  pass variables to that backdrop layer, so give it its own fixed `--scrim` variable instead.
+  (e.g. `:root:not([data-theme="wireframe"]) [data-surface="light"]`), and the same for `[data-surface="admin"]`.
+  The grey review theme stays as it is, admin included.
+- **Backdrops:** the darkened layers behind drawers, the delete popup and the + menu read `--ink` (`bg-ink/50`,
+  `bg-ink/55`). With `--ink` silver at the root, the + menu backdrop would turn into a light haze; the canvas shows
+  a dark one. New token `--scrim: rgba(26, 6, 11, 0.5)` replaces all three. iOS Safari before 17.4 gives the
+  dialog `::backdrop` no variables at all, not even ones from `:root`, so define it in both places:
+  `:root, ::backdrop { --scrim: rgba(26, 6, 11, 0.5); }`.
 - **Dark mode:** set `color-scheme: only light` (CSS, and `colorScheme: "only light"` in the viewport settings in
   `src/app/layout.tsx`). Chrome's "Darken websites" / auto dark mode then leaves the site alone. Samsung Internet
   mostly respects it too, but not always: test once on a Samsung phone with its dark mode on.
@@ -84,11 +98,12 @@ Components keep their classes and stay free of hex values (the ESLint rule still
 |---|---|
 | `src/components/wall/Wall.tsx` | `data-surface="light"` on the feed `<main>` |
 | `src/components/drawers/BottomSheet.tsx` | `data-surface="light"` on the `<dialog>` (covers all six drawers) |
-| `src/components/ui/ConfirmDialog.tsx` | `data-surface="light"` on the `<dialog>` |
-| `src/components/wall/ActionMenu.tsx` | `data-surface="light"` on the menu list; `SURFACE` and the hint `<li>`: `bg-card` → `bg-(--dial-bg)` |
+| `src/components/drawers/BottomSheet.tsx` | `backdrop:bg-ink/50` → `backdrop:bg-(--scrim)` |
+| `src/components/ui/ConfirmDialog.tsx` | `data-surface="light"` on the `<dialog>`; `backdrop:bg-ink/55` → `backdrop:bg-(--scrim)` |
+| `src/components/wall/ActionMenu.tsx` | `data-surface="light"` on the menu list; `SURFACE` and the hint `<li>`: `bg-card` → `bg-sheet` (the canvas pills use the drawer colour); backdrop button `bg-ink/50` → `bg-(--scrim)` |
 | `src/components/wall/Fab.tsx` | `data-surface="light"` (burgundy button, silver icon) |
 | `src/components/ui/Toast.tsx` | none: it already uses `bg-ink text-paper`, so under `:root` it is silver with burgundy text, as in the prototype |
-| `src/app/admin/page.tsx` | `data-surface="admin"` on the admin root (keeps today's monochrome look) |
+| `src/app/admin/page.tsx` | wrap both returns (login and dashboard) in `<div data-surface="admin" className="min-h-dvh bg-paper">`: the `<main>` inside is only `max-w-sm` / `max-w-2xl` wide, so the attribute on it would leave a burgundy page around admin. Also `export const viewport = { themeColor: "#f4f3ef" }` so the admin status bar stays light |
 | `src/app/layout.tsx` | browser status-bar colour `#f4f3ef` → `#5E1E2B`; `colorScheme: "only light"` |
 
 No changes needed to the header, filter bar, cards, AlbumStack, welcome screen or viewer.
@@ -101,9 +116,21 @@ No changes needed to the header, filter bar, cards, AlbumStack, welcome screen o
 
 ## 5. Tests and checks
 
-- **Unit tests:** one small test per affected component checking that it has `data-surface="light"`.
-- **Accessibility test:** `tests/e2e/a11y.spec.ts` already checks contrast across welcome, wall, drawer and viewer.
+- **Unit tests:** none new. A test that only checks the attribute passes even when the colours are wrong.
+- **Accessibility test:** `tests/e2e/a11y.spec.ts` already checks contrast across welcome, wall, drawers, viewer and
+  admin login, in both themes. It catches unreadable text (like silver on grey). No existing unit test checks the changed class names.
 - **Full suite:** `npm run lint`, `npm run typecheck`, `npm run test` (80% coverage floor), `npm run test:e2e`.
+- **End-to-end walkthrough with the Playwright MCP** (after the code is in, before the phone check):
+  - Setup, once: `claude mcp add playwright -- npx @playwright/mcp@latest --device "iPhone 15"`
+    (a second run with `--device "Pixel 7"` for Android Chrome). Not connected in this project yet.
+    Needs `npx supabase start`, `npx supabase db reset` (seed) and `npm run dev`.
+  - Walk the 13 canvas screens in order and screenshot each next to its canvas artboard:
+    welcome, name taken, wall, + menu, photos, video, wish, DuitNow QR, wish view, album viewer,
+    video viewer, Me drawer, delete confirm. Then a toast (post a wish), the toast over an open
+    drawer (Download QR), `/admin` and the wireframe theme (`data-theme="wireframe"` on `<html>`).
+  - On each screen, read the computed colours (`getComputedStyle`) of: page background, header,
+    feed, card author name, drawer, dialog `::backdrop`, + menu scrim and pills, FAB, toast, admin page edges. Compare with section 2.
+  - Report: one screenshot pair per screen and a list of mismatches. Fix, then re-run the walkthrough.
 - **Manual:** a real iPhone (Safari) and Android (Chrome). Check the colour under the notch, the drawer backdrop,
   text in input fields, and Samsung Internet dark mode.
 

@@ -10,9 +10,12 @@ export const metadata: Metadata = { title: "Admin · Wedding Memories", robots: 
 
 export default function AdminPage() {
   return (
-    <Suspense>
-      <AdminContent />
-    </Suspense>
+    // Full-page wrapper: the <main> inside is narrow, and body is burgundy.
+    <div data-surface="admin" className="min-h-dvh bg-paper">
+      <Suspense>
+        <AdminContent />
+      </Suspense>
+    </div>
   );
 }
 

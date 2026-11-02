@@ -62,6 +62,19 @@ test("a wish posted while another filter is selected switches the wall back to A
   await expect(page.getByRole("main").getByText(text)).toBeVisible();
 });
 
+test("a wish with one long unbroken word wraps inside the wish view instead of running off screen", async ({ page }) => {
+  await share(page, /Write to the couple/);
+  const text = unique("Tahniah " + "congratulations".repeat(8));
+  await page.getByLabel("Your wish").fill(text);
+  await page.getByRole("button", { name: "Send wish" }).click();
+  await page.getByRole("main").getByText(text).click();
+  const view = page.getByRole("dialog", { name: "Wish" });
+  await expect(view).toBeVisible();
+  // The text's box keeps its width; overflowing letters only show up as scrollWidth > clientWidth.
+  const spill = await view.getByText(text).evaluate((el) => el.scrollWidth - el.clientWidth);
+  expect(spill).toBeLessThanOrEqual(0);
+});
+
 test("a video drawer refuses a file that is not a video, and keeps Post disabled", async ({ page }) => {
   await share(page, /Up to 30 seconds/);
   const drawer = page.getByRole("dialog", { name: "Share a video" });

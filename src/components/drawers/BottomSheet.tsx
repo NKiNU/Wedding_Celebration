@@ -59,6 +59,7 @@ export function BottomSheet({ open, title, onClose, busy = false, children }: Pr
 
   return (
     <dialog
+      data-surface="light"
       ref={dialog}
       aria-labelledby={titleId}
       // `close` also fires after the parent set `open` to false (the effect above closes the
@@ -70,7 +71,7 @@ export function BottomSheet({ open, title, onClose, busy = false, children }: Pr
       // The dialog spans the viewport width and its inner column fills it, so a click whose
       // target is the dialog itself landed on the backdrop.
       onClick={(e) => !busy && e.target === e.currentTarget && onClose()}
-      className="sheet m-0 mt-auto max-h-[88dvh] w-full max-w-none overflow-hidden rounded-t-[28px] bg-sheet p-0 text-ink backdrop:bg-ink/50"
+      className="sheet m-0 mt-auto max-h-[88dvh] w-full max-w-none overflow-hidden rounded-t-[28px] bg-sheet p-0 text-ink backdrop:bg-(--scrim)"
     >
       <div className="flex max-h-[88dvh] flex-col overscroll-contain pb-[env(safe-area-inset-bottom)]">
         <div

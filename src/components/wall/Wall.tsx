@@ -125,7 +125,7 @@ export function Wall({ eventId, groom, bride, headerMessage, monogramUrl, me, no
         <WishTicker wishes={wishes} onOpen={setWish} />
       </WallHeader>
       <FilterBar counts={counts} value={filter} onChange={setFilter} />
-      <main className="min-h-[620px] px-3 pt-3.5 pb-[120px] [background:var(--feed-pattern),var(--feed)]">
+      <main data-surface="light" className="min-h-[620px] px-3 pt-3.5 pb-[120px] [background:var(--feed-pattern),var(--feed)]">
         <h2 className="sr-only">Memories</h2>
         {visible.length > 0 && (
           <ul className="grid grid-cols-2 gap-3">

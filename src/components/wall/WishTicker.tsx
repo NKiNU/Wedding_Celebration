@@ -59,7 +59,8 @@ export function WishTicker({ wishes, onOpen }: Props) {
           aria-pressed={pausedByGuest}
           aria-label="Pause latest wishes"
           onClick={() => setPausedByGuest((p) => !p)}
-          className="absolute top-0 right-1 flex size-11 items-center justify-center rounded-full"
+          // Right-aligned on the card's 16px padding: 5 dots (50px) are wider than a centred 44px box.
+          className="absolute top-0 right-0 flex h-11 min-w-11 items-center justify-end rounded-full px-4"
         >
           {pausedByGuest ? (
             <svg aria-hidden="true" viewBox="0 0 10 10" className="size-2.5 fill-ink">

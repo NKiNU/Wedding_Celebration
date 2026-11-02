@@ -211,27 +211,34 @@ The client may change the palette and fonts later. Keep the look 100 % token-dri
 
 - All colours, fonts, radii and shadows live in `src/styles/theme.css` as CSS variables and are mapped with `@theme inline` in the same file (`bg-paper`, `text-ink`, …). ESLint enforces this in `src/components`. **No hex values or font names inside components.**
 - The admin-chosen font keys are written as `--font-choice-*` variables by `src/app/ThemeStyle.tsx`; `theme.css` maps them over the default fonts, and the wireframe theme ignores them (system font).
-- Default theme (pure monochrome, from the Canva mockups):
+- Default theme: burgundy (2026-11-02; design canvas "Wedding Memories, Burgundy"). Burgundy ground with silver text
+  on the welcome screen, the wall header, the filter pills and the viewer:
 
 ```css
 :root {
-  --ink: #141414;        /* text, primary buttons, active pill, wish cards */
-  --paper: #F4F3EF;      /* page background */
-  --card: #FFFFFF;       /* cards, inactive pills */
-  --soft: #C9D3DC;       /* inputs, secondary buttons, "You" badge */
-  --muted: #62625E;      /* secondary text (passes 4.5:1 on paper) */
-  --line: #DCDAD3;       /* borders, dividers */
-  --sheet: #FBFAF7;      /* drawers, dialogs */
-  --viewer: #0E0E0E;     /* full-screen viewer */
+  --ink: #DADCDD;        /* silver: text, primary buttons, active pill, wish cards, toast */
+  --paper: #5E1E2B;      /* burgundy: page background */
+  --card: #45141F;       /* name chip, wish ticker, inactive pills */
+  --soft: #3A1019;       /* inputs, secondary buttons */
+  --muted: #9C9D9B;      /* secondary text (passes 4.5:1 on paper) */
+  --line: #7A3A47;       /* borders, dividers */
+  --sheet: #D9D9D9;      /* drawers, dialogs */
+  --viewer: #1A070B;     /* full-screen viewer */
+  --feed: #D9D9D9;       /* wall background */
+  --scrim: rgba(26,6,11,.5); /* backdrops; also set on ::backdrop for iOS Safari < 17.4 */
   --font-body: 'Poppins', system-ui, sans-serif;
   --font-script: 'Pinyon Script', cursive;            /* monogram + couple names only */
   --font-serif: 'Cormorant Garamond', Georgia, serif; /* wish text, italic */
   --radius-card: 18px;
   --radius-media: 12px;
-  --feed-pattern: radial-gradient(rgba(20,20,20,.2) 1px, transparent 1.35px) 0 0 / 6px 6px; /* halftone */
+  --feed-pattern: radial-gradient(rgba(94,30,43,.13) 1px, transparent 1.35px) 0 0 / 6px 6px; /* halftone */
 }
 ```
 
+- `data-surface="light"` switches an element to the light grey set (burgundy text on #D9D9D9): the wall feed, every
+  drawer, the confirm dialog, the + menu and the + button. `data-surface="admin"` keeps `/admin` in the original
+  monochrome (ink #141414 on paper #F4F3EF). Both set `color: var(--ink)` again, since body's text colour is resolved
+  once on body, and neither applies under the wireframe theme.
 - Decorations (lace frame, floral line art, halftone) are separate components behind a `decor` flag so a theme can drop them.
 - Keep a `[data-theme="wireframe"]` theme (white, grey lines, system font, no decor) for client reviews.
 

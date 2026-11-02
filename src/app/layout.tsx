@@ -14,7 +14,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   interactiveWidget: "resizes-content",
-  themeColor: "#f4f3ef", // ponytail: mirrors --paper; single light theme, so no per-scheme pair
+  themeColor: "#5e1e2b", // mirrors --paper; single light theme, so no per-scheme pair
+  colorScheme: "only light",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -37,6 +37,7 @@ export function ConfirmDialog({ open, title, body, confirmLabel, cancelLabel, pe
 
   return (
     <dialog
+      data-surface="light"
       ref={dialog}
       role="alertdialog"
       aria-labelledby={titleId}
@@ -51,7 +52,7 @@ export function ConfirmDialog({ open, title, body, confirmLabel, cancelLabel, pe
       onClose={() => (open ? (pending ? dialog.current?.showModal() : onCancel()) : undefined)}
       // The inner column fills the dialog, so a click that targets the dialog itself hit the backdrop.
       onClick={(e) => !pending && e.target === e.currentTarget && onCancel()}
-      className="m-auto w-[calc(100%-48px)] max-w-sm rounded-3xl bg-sheet p-0 text-ink backdrop:bg-ink/55"
+      className="m-auto w-[calc(100%-48px)] max-w-sm rounded-3xl bg-sheet p-0 text-ink backdrop:bg-(--scrim)"
     >
       <div className="flex flex-col gap-2 p-[22px]">
         <h2 id={titleId} className="text-lg font-semibold">
