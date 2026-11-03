@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --coverage",
     "test:e2e": "playwright test",
-    "check:bundle": "node scripts/check-bundle.mjs"
+    "check:bundle": "node scripts/check-bundle.mjs",
+    "golden": "vitest run -c scripts/golden.config.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",

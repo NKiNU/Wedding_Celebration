@@ -2,7 +2,10 @@ module github.com/nkinu/wedding_celebration/backend
 
 go 1.24.7
 
-require github.com/gin-gonic/gin v1.10.1
+require (
+	github.com/gin-gonic/gin v1.10.1
+	golang.org/x/text v0.34.0
+)
 
 require (
 	github.com/bytedance/sonic v1.14.0 // indirect
@@ -27,7 +30,6 @@ require (
 	golang.org/x/crypto v0.40.0 // indirect
 	golang.org/x/net v0.42.0 // indirect
 	golang.org/x/sys v0.35.0 // indirect
-	golang.org/x/text v0.27.0 // indirect
 	google.golang.org/protobuf v1.36.9 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
