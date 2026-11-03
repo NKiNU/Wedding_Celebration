@@ -1,6 +1,6 @@
 # Plan: Go + Gin backend (feature parity with the Next.js server)
 
-Status: **proposed (2026-11-03), nothing implemented.** Branch `claude/golang-gin-backend-plan-7qwqno`.
+Status: **G0 done (2026-11-03); G1 next.** Decisions 1–3 below were answered by the user (pgx + `DATABASE_URL`, 1 MB cap, `NODE_ENV`). Branch `claude/golang-gin-backend-plan-7qwqno`.
 
 ## Goal and scope
 
@@ -215,7 +215,7 @@ phase, then a commit and a short session note at the top of `docs/PLAN.md`. TDD 
 - `env` port with tests for every rule in item 14.
 - `httpx`: `AppError`, envelope, `Handle`, cross-site guard (port every case of `src/server/http.test.ts`), security
   headers, 1 MB request body cap (see "Decisions for the user").
-- `scripts/export-golden.ts` (run with `npx tsx`): calls the real TypeScript `normalizeName`, `nameProblem`,
+- *(Moved to G1, where the vectors are first used.)* `scripts/export-golden.ts` (run with `npx tsx`): calls the real TypeScript `normalizeName`, `nameProblem`,
   `suggestNames`, `addToken`, `bucketOf`, `encodeCursor`/`decodeCursor`, `uploadProblem`, `derivePostType`,
   `mediaKey`, `qrKey`, `monogramKey`, `monogramMime`, `looksLike`, `svgBytesProblem`, `themeCss`/`fontOrDefault` and
   every zod schema on a large input set (edge cases from the existing `*.test.ts`, plus random and hostile strings)
@@ -224,6 +224,7 @@ phase, then a commit and a short session note at the top of `docs/PLAN.md`. TDD 
 - ADR 004 (Postgres direct) and ADR 005 (Go backend, Next.js UI only, same-origin path split).
 
 **Phase G1 — Domain + validation (pure)**
+- `scripts/export-golden.ts` and `backend/testdata/golden/` (described under G0).
 - Port `src/lib/domain/*` and `src/lib/validation.ts` to `internal/domain` and `internal/validation`.
 - Generated `Default_Ignorable_Code_Point` table; JS whitespace set; UTF-16 length helper.
 - 100 % coverage here, golden vectors all green.
@@ -331,7 +332,7 @@ on files that do not overlap (for example `admin` QR and monogram vs `sweep` in 
 
 ---
 
-## Decisions for the user (before G0)
+## Decisions for the user (before G0) — answered 2026-11-03: 1 pgx, 2 yes, 3 yes; 4 is asked in G6
 
 1. **`DATABASE_URL` + pgx** instead of PostgREST with the service-role key (recommended: direct SQL, real
    transactions, error codes without a translation layer). The alternative keeps the current env vars but needs a

@@ -10,7 +10,7 @@
 - [x] Phase 5 — QR + Admin
 - [x] Phase 6 — Hardening + launch (hardening done; launch steps listed in the notes below)
 
-Go backend (proposed 2026-11-03, not started): rewrite the server side (`src/server`, `src/app/api`, `/qr`) as a Go + Gin service with exactly the same features; Next.js keeps the UI. Plan, parity checklist and skill mapping: `docs/superpowers/plans/2026-11-03-go-gin-backend.md`.
+Go backend (2026-11-03, **G0 done**: `backend/` module, env (`DATABASE_URL`, ADR 004), envelope + cross-site guard + security headers + 1 MB body cap, graceful shutdown, CI job `backend`; ADRs 004 and 005. Gin v1.10.1 panics on any request while no route is registered (its 405 lookup), harmless from G2 on. Next: G1): rewrite the server side (`src/server`, `src/app/api`, `/qr`) as a Go + Gin service with exactly the same features; Next.js keeps the UI. Plan, parity checklist and skill mapping: `docs/superpowers/plans/2026-11-03-go-gin-backend.md`.
 
 Burgundy theme (2026-11-02, branch `test`): the palette moved from monochrome to burgundy #5E1E2B + silver #DADCDD, with a light grey #D9D9D9 surface (`data-surface="light"`) for the feed, drawers, dialogs and the + menu; admin stays monochrome (`data-surface="admin"`). Plan and review: `docs/superpowers/plans/2026-11-02-burgundy-theme.md`. Android Chrome e2e all green; iPhone Safari (WebKit) e2e all green inside the Playwright container, since WebKit does not start on Fedora 44 directly: `podman run --rm --network host --ipc host --security-opt label=disable -v "$PWD":/work -w /work mcr.microsoft.com/playwright:v1.64.1-noble npx playwright test --project=iphone-safari --no-deps` (image tag = the installed @playwright/test version).
 

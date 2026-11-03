@@ -31,3 +31,22 @@ jobs:
           CRON_SECRET: ci-canary-cron-secret-7f3a
       - run: npm run check:bundle -- --strict
         env: *canaries
+
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - run: test -z "$(gofmt -l .)"
+      - run: go vet ./...
+      - run: go run honnef.co/go/tools/cmd/staticcheck@2025.1.1 ./...
+      - run: go build -o /dev/null ./cmd/server
+      # Same 80 % floor as vitest; cmd/ is startup glue, like the pages vitest leaves out.
+      - run: go test -race -coverprofile=cover.out ./internal/...
+      - run: go tool cover -func=cover.out | awk '/^total:/ { sub("%", "", $3); if ($3 < 80) { print "coverage " $3 "% < 80%"; exit 1 } }'
