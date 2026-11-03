@@ -77,7 +77,8 @@ const fuzzString = (r: () => number, maxLen: number, alphabet: readonly string[]
 
 // ---- limits, fonts, tokens -------------------------------------------------------------------
 test("limits", () => {
-  const entries = Object.entries(limits).map(([k, val]) => ({ input: k, output: val }));
+  const clientOnly = ["IMAGE_LONG_EDGE", "THUMB_LONG_EDGE", "JPEG_QUALITY", "POSTER_AT_S"]; // browser image code only
+  const entries = Object.entries(limits).filter(([k]) => !clientOnly.includes(k)).map(([k, val]) => ({ input: k, output: val }));
   expect(entries.length).toBeGreaterThan(30);
   write("limits", entries);
 });
@@ -147,6 +148,21 @@ test("names", () => {
     if (out !== `a${s}b`) sweep.push({ input: cp, output: out });
   }
   write("normalize-sweep", sweep);
+
+  // Every canonical pair: a code point whose NFD has 2+ code points must compose back the way Node does.
+  const nfdRuns: string[] = [];
+  for (let cp = 0; cp <= 0x10ffff; cp++) {
+    if (cp >= 0xd800 && cp <= 0xdfff) continue;
+    const d = String.fromCodePoint(cp).normalize("NFD");
+    if ([...d].length >= 2) nfdRuns.push(d);
+  }
+  const astral = ["\u{16D67}", "\u{1D15E}", "\u{10D69}", "\u{E0041}", "\u{1F600}", "\u{11099}"];
+  const marks = ["\u0301", "\u0323", "\u0338", "\u{16D67}", "\u3099"];
+  const pairInputs = [
+    ...nfdRuns.flatMap((d) => [`a${d}b`, d]),
+    ...astral.flatMap((a) => marks.map((m) => `${a}${m}`)),
+  ];
+  write("normalize-pairs", pairInputs.map((x) => ({ input: x, output: normalizeName(x) })));
 
   // toLowerCase is what the suggestions compare with (taken names are lower-cased): single code points, then
   // the context-sensitive cases (final sigma) and U+0130 that Go's strings.ToLower does not do.

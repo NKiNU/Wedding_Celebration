@@ -1,10 +1,10 @@
 module github.com/nkinu/wedding_celebration/backend
 
-go 1.24.7
+go 1.27.0
 
 require (
 	github.com/gin-gonic/gin v1.10.1
-	golang.org/x/text v0.34.0
+	golang.org/x/text v0.43.0
 )
 
 require (

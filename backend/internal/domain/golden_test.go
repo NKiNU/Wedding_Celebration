@@ -8,8 +8,6 @@ import (
 	"reflect"
 	"testing"
 	"time"
-
-	"golang.org/x/text/unicode/norm"
 )
 
 // Golden vectors come from the real TypeScript (`npm run golden`), so these tests prove parity.
@@ -71,8 +69,8 @@ func TestLimits(t *testing.T) {
 		"MY_POSTS_MAX": float64(MyPostsMax), "NAME_MIN": float64(NameMin), "NAME_MAX": float64(NameMax), "MAX_NAMES_PER_PHONE": float64(MaxNamesPerPhone),
 		"MAX_PHOTO_BYTES": float64(MaxPhotoBytes), "MAX_AUX_IMAGE_BYTES": float64(MaxAuxImageBytes), "CAPTION_MAX": float64(CaptionMax),
 		"WISH_MIN": float64(WishMin), "WISH_MAX": float64(WishMax), "INTENT_TTL_MS": ms(IntentTTL), "PRESIGN_EXPIRES_S": PresignExpires.Seconds(),
-		"RATE_WINDOW_MS": ms(RateWindow), "IMAGE_LONG_EDGE": float64(ImageLongEdge), "THUMB_LONG_EDGE": float64(ThumbLongEdge), "JPEG_QUALITY": JPEGQuality,
-		"POSTER_AT_S": PosterAtS, "IMAGE_MIMES": []any{"image/jpeg"}, "VIDEO_MIMES": []any{"video/mp4", "video/quicktime", "video/webm"},
+		"RATE_WINDOW_MS": ms(RateWindow),
+		"IMAGE_MIMES":    []any{"image/jpeg"}, "VIDEO_MIMES": []any{"video/mp4", "video/quicktime", "video/webm"},
 		"QR_MIMES": []any{"image/png", "image/jpeg"}, "MAX_QR_BYTES": float64(MaxQRBytes), "MONOGRAM_MIMES": []any{"image/png", "image/webp", "image/svg+xml"},
 		"MAX_MONOGRAM_BYTES": float64(MaxMonogramBytes), "QR_FETCH_TIMEOUT_MS": ms(QRFetchTimeout), "ADMIN_SESSION_S": AdminSession.Seconds(),
 		"ADMIN_LOGIN_MAX": float64(AdminLoginMax), "ADMIN_LOGIN_WINDOW_MS": ms(AdminLoginWindow), "GUEST_JOINS_PER_IP": float64(GuestJoinsPerIP),
@@ -148,42 +146,23 @@ func TestAddToken(t *testing.T) {
 	}
 }
 
-// normalizeException says why Go may legitimately differ from Node for this input, or "" when it may not.
-// ponytail: two known gaps, both rare and neither security relevant (names stay consistent inside Go);
-// (1) a lone surrogate escape becomes U+FFFD when Go decodes the JSON, while JS joins a high and a low
-// surrogate that only meet once an invisible character between them is stripped; (2) x/text v0.34 (the
-// newest one that builds with Go 1.24) clips its composition keys to 16 bits, so a code point above
-// U+FFFF followed by a combining mark can compose with a wrong BMP partner (U+E0041 + U+0301 gives
-// "Á"); fixed in x/text v0.43, which needs Go 1.26. Remove this when go.mod reaches Go 1.26.
-func normalizeException(in string) string {
-	if in == "\uFFFD\u200b\uFFFD" {
-		return "lone surrogates joined by JS after stripping"
-	}
-	rs := []rune(in)
-	for i := 0; i+1 < len(rs); i++ {
-		if rs[i] >= 0x10000 && norm.NFKC.PropertiesString(string(rs[i+1])).CCC() != 0 {
-			return "x/text composition key clipping"
-		}
-	}
-	return ""
-}
+// normalizeExceptions are the only inputs where Go may differ from Node, with Go's output: Go's JSON decoder
+// turns a lone surrogate escape into U+FFFD, while JS joins a high and a low surrogate that only meet once
+// an invisible character between them is stripped.
+var normalizeExceptions = map[string]string{"\uFFFD\u200b\uFFFD": "\uFFFD\uFFFD"}
 
 func TestNormalizeName(t *testing.T) {
-	skipped := 0
-	for _, c := range load(t, "normalize-name") {
-		in, want := into[string](t, c.Input), into[string](t, c.Output)
-		got := NormalizeName(in)
-		if got == want {
-			continue
+	for _, name := range []string{"normalize-name", "normalize-pairs"} {
+		for _, c := range load(t, name) {
+			in, want := into[string](t, c.Input), into[string](t, c.Output)
+			got := NormalizeName(in)
+			if g, ok := normalizeExceptions[in]; ok {
+				want = g
+			}
+			if got != want {
+				t.Errorf("%s %.200q: got %q, want %q", name, in, got, want)
+			}
 		}
-		if normalizeException(in) == "" {
-			t.Errorf("%.200q: got %q, want %q", in, got, want)
-		}
-		skipped++
-	}
-	t.Logf("%d known exceptions", skipped)
-	if skipped > 40 {
-		t.Errorf("%d exceptions: more than a handful, look again", skipped)
 	}
 }
 

@@ -39,7 +39,7 @@ func ParseEnv(get func(string) string) (Env, error) {
 	var bad []string
 	str := func(name string, min int) string {
 		v := get(name)
-		if len([]rune(v)) < min { // zod counts UTF-16 units; secrets are ASCII in practice
+		if len([]rune(v)) < min { // zod counts code points
 			bad = append(bad, name)
 		}
 		return v

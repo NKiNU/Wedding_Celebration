@@ -29,11 +29,6 @@ const (
 	PresignExpires = 15 * time.Minute
 	RateWindow     = 60 * time.Minute
 
-	ImageLongEdge = 2048
-	ThumbLongEdge = 600
-	JPEGQuality   = 0.82
-	PosterAtS     = 0.5
-
 	MaxQRBytes       = 2 * MB
 	MaxMonogramBytes = 1 * MB
 	QRFetchTimeout   = 10 * time.Second

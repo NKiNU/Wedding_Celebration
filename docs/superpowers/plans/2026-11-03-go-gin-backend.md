@@ -92,9 +92,9 @@ The wall page keeps rendering its first page from `GET /api/posts` (same data as
    refused; no header at all passes (non-browser callers). 403 `forbidden` "Cross-site requests are not allowed."
 3. **Validation errors**: 400 `invalid_input` with the **first** issue's message, fields checked in the zod schema's
    order. Custom messages copied verbatim (curly quotes included). A body that is not JSON is treated as `null`.
-4. **String lengths** as JS measures them: names and wishes in code points (`[...s].length`), every other `max`
-   (caption 120, groom/bride 40, header 120, holder 80, bank 60, passcode 200, key 200, mime 100) in **UTF-16 code
-   units** (zod counts `.length`). Trim uses the JS whitespace set, not Go's `\s` (ASCII only).
+4. **String lengths** are code points everywhere (`[...s].length`): zod 4.6.7 counts string min/max in code points
+   (verified), so names, wishes, caption 120, groom/bride 40, header 120, holder 80, bank 60, passcode 200, key 200
+   and mime 100 all use `utf8.RuneCountInString`. Trim uses the JS whitespace set, not Go's `\s` (ASCII only).
 5. **Names**: NFKC, strip `Cc`, `Cf` and `Default_Ignorable_Code_Point` (except tab, LF, CR), collapse JS whitespace,
    trim, 2–24 code points. Go's `unicode` package has no `Default_Ignorable_Code_Point` table: generate one from the
    Unicode `DerivedCoreProperties.txt` of the same version Node's ICU uses, and prove it with golden vectors.
@@ -184,7 +184,7 @@ service, map the result. Services depend on interfaces (`R2`, a `DB` querier, a 
 | HTTP | `github.com/gin-gonic/gin` | Asked for. `gin.New()` (not `Default`), own recovery + slog logger, `HandleMethodNotAllowed = true`, `RedirectTrailingSlash = false` |
 | Postgres | `github.com/jackc/pgx/v5` (`pgxpool`) | `*pgconn.PgError.Code` gives `23505` and `PT429/PT507/PT404/PT409/PT410/PT400` directly |
 | S3 SigV4 | `github.com/aws/aws-sdk-go-v2/aws/signer/v4` + `net/http` | `PresignHTTP` on a hand-built PUT carrying `Content-Type` and `Content-Length`, so both land in `X-Amz-SignedHeaders`; plain signed requests for HEAD / ranged GET / DELETE, one retry, timeouts |
-| Unicode | `golang.org/x/text/unicode/norm` + a generated range table | NFKC, Default_Ignorable |
+| Unicode | `golang.org/x/text/unicode/norm` (v0.43, Unicode 17) + a generated range table | NFKC, Default_Ignorable. The backend needs **Go 1.27** (`go 1.27.0` in go.mod, which CI's setup-go reads): its `unicode` and x/text tables are Unicode 17, the same as Node 22's ICU, so no patch tables |
 | Concurrency | `golang.org/x/sync/errgroup` | the `Promise.all` spots (presign all, HEAD all, wall page + counts + wishes) |
 | Validation | hand-written in `validation/` | zod's first-issue-in-schema-order semantics and messages are easier to match by hand than through struct tags |
 | Crypto, JSON, cookies, logging | stdlib (`crypto/sha256`, `crypto/hmac`, `crypto/subtle`, `crypto/rand`, `encoding/json`, `net/http`, `log/slog`) | |
@@ -211,11 +211,11 @@ Each phase ends green on `go vet`, `staticcheck`, `go test -race -cover` (≥ 80
 phase, then a commit and a short session note at the top of `docs/PLAN.md`. TDD throughout: the failing test first.
 
 **Phase G0 — Foundation**
-- `backend/` module, Go 1.23+, `cmd/server`, gin wiring, slog, graceful shutdown, `/` 404.
+- `backend/` module, Go 1.27, `cmd/server`, gin wiring, slog, graceful shutdown, `/` 404.
 - `env` port with tests for every rule in item 14.
 - `httpx`: `AppError`, envelope, `Handle`, cross-site guard (port every case of `src/server/http.test.ts`), security
   headers, 1 MB request body cap (see "Decisions for the user").
-- *(Moved to G1, where the vectors are first used.)* `scripts/export-golden.ts` (run with `npx tsx`): calls the real TypeScript `normalizeName`, `nameProblem`,
+- *(Moved to G1, where the vectors are first used.)* `scripts/export-golden.ts` (runs as `npm run golden`, a vitest file): calls the real TypeScript `normalizeName`, `nameProblem`,
   `suggestNames`, `addToken`, `bucketOf`, `encodeCursor`/`decodeCursor`, `uploadProblem`, `derivePostType`,
   `mediaKey`, `qrKey`, `monogramKey`, `monogramMime`, `looksLike`, `svgBytesProblem`, `themeCss`/`fontOrDefault` and
   every zod schema on a large input set (edge cases from the existing `*.test.ts`, plus random and hostile strings)
@@ -226,7 +226,7 @@ phase, then a commit and a short session note at the top of `docs/PLAN.md`. TDD 
 **Phase G1 — Domain + validation (pure)**
 - `scripts/export-golden.ts` and `backend/testdata/golden/` (described under G0).
 - Port `src/lib/domain/*` and `src/lib/validation.ts` to `internal/domain` and `internal/validation`.
-- Generated `Default_Ignorable_Code_Point` table; JS whitespace set; UTF-16 length helper.
+- Generated `Default_Ignorable_Code_Point` table; JS whitespace set; code-point length helper.
 - 100 % coverage here, golden vectors all green.
 
 **Phase G2 — Identity + session + throttle**

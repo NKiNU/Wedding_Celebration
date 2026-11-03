@@ -10,14 +10,10 @@ import (
 
 // NormalizeName: NFKC, drop control, format and default-ignorable characters (zero-width, bidi
 // overrides, fillers; tab, LF and CR stay for the whitespace collapse), collapse JS whitespace, trim.
-//
-// ponytail: x/text v0.34 (the newest that builds with Go 1.24) clips its composition keys to 16 bits, so a
-// code point above U+FFFF followed by a combining mark can compose with a wrong BMP partner; fixed in
-// x/text v0.43 (needs Go 1.26). Bump it with go.mod and drop the exception in golden_test.go.
 func NormalizeName(raw string) string {
 	var b strings.Builder
 	space := false
-	for _, r := range norm.NFKC.String(patchRunes(raw, nfkcPatch)) {
+	for _, r := range norm.NFKC.String(raw) {
 		switch {
 		case r != '\t' && r != '\n' && r != '\r' && unicode.Is(invisible, r):
 		case IsJSSpace(r):
@@ -66,8 +62,6 @@ func JSLower(s string) string {
 	var b strings.Builder
 	for i, r := range rs {
 		switch {
-		case lowerPatch[r] != "":
-			b.WriteString(lowerPatch[r])
 		case r == 0x130:
 			b.WriteString("i̇")
 		case r == 'Σ' && finalSigma(rs, i):
@@ -96,18 +90,4 @@ func finalSigma(rs []rune, i int) bool {
 		return !unicode.Is(cased, rs[k])
 	}
 	return true
-}
-
-// patchRunes swaps the code points Go's Unicode 15 tables do not know for what Node's newer tables say
-// (zz_generated_tables.go). The replacements are final (ASCII), so doing it before NFKC is the same.
-func patchRunes(s string, patch map[rune]string) string {
-	var b strings.Builder
-	for _, r := range s {
-		if p, ok := patch[r]; ok {
-			b.WriteString(p)
-		} else {
-			b.WriteRune(r)
-		}
-	}
-	return b.String()
 }
