@@ -323,7 +323,7 @@ Also referenced by `docs/PLAN.md` but missing from `.claude/agents/`: `code-revi
 `Plan` / `general-purpose` agents as `docs/PLAN.md` "Subagents" describes.
 
 Model policy from `docs/PLAN.md` holds: never Haiku; Sonnet by default (porting, routes, tests, docs); Opus for the
-security reviews, the presign / upload-intent port (G4) and the Postgres access layer (G2). Skills live in `.agents/skills/` (tracked) and `.claude/skills/` (local, gitignored); the ponytail set was copied from `DietrichGebert/ponytail` (MIT, commit `96608e0`, skill files only, no hooks).
+security reviews, the presign / upload-intent port (G4) and the Postgres access layer (G2). The ponytail skills live in `.claude/skills/ponytail*` (added on `main` in PR #5, from `DietrichGebert/ponytail`, MIT, skill files only, no hooks).
 
 Parallel builders only
 on files that do not overlap (for example `admin` QR and monogram vs `sweep` in G5); one owner for `domain/` and
