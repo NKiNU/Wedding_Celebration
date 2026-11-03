@@ -313,14 +313,19 @@ not apply. This is the mapping:
 | `write-swift` | **No** | Not a Swift project |
 | `verify` (`.claude/skills/verify`) | **No** | It describes a different project ("prod-learn" LMS QA harness), not this app. Do not follow it here; use `/run` |
 | `db-model-reviewer` agent (`.claude/agents/`) | **No** | It reviews a Mongoose model for another project. The schema here is Postgres and does not change |
-| `/ponytail` | Its ladder is applied (see Libraries), but the skill is **not in this repo** (`docs/PLAN.md` refers to `.claude/skills/ponytail`, which does not exist). Restore it if the user wants it invoked literally |
+| `/ponytail` | **Yes** | Start of every coding task (G0 to G6): the ladder in "Libraries" comes from it. Mark deliberate shortcuts with a `ponytail:` comment, as the TypeScript does (the skill now writes `shortcut:`; both are read by `/ponytail-debt`). It never removes validation, security or the 80 % coverage rule |
+| `/ponytail-review` | **Yes** | Alongside `/code-review` at the end of each phase: is every line of the port needed |
+| `/ponytail-debt` | **Yes** | Before G7: list every `ponytail:` / `shortcut:` marker so each TypeScript shortcut is either ported with its comment or closed |
+| `/ponytail-audit`, `/ponytail-help`, `/ponytail-gain` | Optional | `audit` once after G6 on `backend/`; the other two are reference cards |
 
 Also referenced by `docs/PLAN.md` but missing from `.claude/agents/`: `code-reviewer`, `security-reviewer`,
 `tdd-guide`, `e2e-runner`. Use the `/code-review` and `/security-review` skills in their place, and `Explore` /
 `Plan` / `general-purpose` agents as `docs/PLAN.md` "Subagents" describes.
 
 Model policy from `docs/PLAN.md` holds: never Haiku; Sonnet by default (porting, routes, tests, docs); Opus for the
-security reviews, the presign / upload-intent port (G4) and the Postgres access layer (G2). Parallel builders only
+security reviews, the presign / upload-intent port (G4) and the Postgres access layer (G2). Skills live in `.agents/skills/` (tracked) and `.claude/skills/` (local, gitignored); the ponytail set was copied from `DietrichGebert/ponytail` (MIT, commit `96608e0`, skill files only, no hooks).
+
+Parallel builders only
 on files that do not overlap (for example `admin` QR and monogram vs `sweep` in G5); one owner for `domain/` and
 `validation/`.
 
