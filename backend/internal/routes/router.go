@@ -8,14 +8,20 @@ import (
 	"github.com/nkinu/wedding_celebration/backend/internal/server"
 )
 
-// New builds the engine with the middleware every response needs.
-func New(env server.Env) *gin.Engine {
-	if env.Production {
+// New builds the engine with the middleware every response needs and every route.
+func New(app *server.App) *gin.Engine {
+	if app.Env.Production {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	r := gin.New()
-	r.HandleMethodNotAllowed = true // 405 like Next.js; gin panics in this lookup while no route is registered (G0 only)
+	r.HandleMethodNotAllowed = true // 405 like Next.js
 	r.RedirectTrailingSlash = false
-	r.Use(httpx.Recovery(), httpx.SecurityHeaders(), httpx.CrossSiteGuard())
+	r.Use(httpx.Recovery(), httpx.SecurityHeaders(), httpx.CrossSiteGuard(), eventPerRequest)
+	identity(r, app)
 	return r
+}
+
+// eventPerRequest gives each request its own event cache (server.WithEventCache).
+func eventPerRequest(c *gin.Context) {
+	c.Request = c.Request.WithContext(server.WithEventCache(c.Request.Context()))
 }

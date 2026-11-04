@@ -27,6 +27,7 @@ import {
   type UploadFile,
 } from "../src/lib/domain/uploads";
 import * as v from "../src/lib/validation";
+import { bucketOf, clientIp } from "../src/server/ip";
 
 const OUT = fileURLToPath(new URL("../backend/testdata/golden/", import.meta.url));
 
@@ -511,4 +512,24 @@ test("schema-admin", () => {
   schemaFile("qrConfirmBody", v.qrConfirmBody, confirm);
   schemaFile("monogramConfirmBody", v.monogramConfirmBody, confirm);
   schemaFile("hideBody", v.hideBody, [...structural, ...typeVariants("hidden"), { hidden: true }, { hidden: false }, { hidden: "true" }, { hidden: 1 }, { hidden: null }, { hidden: true, extra: 1 }, raw('{"hidden":true,"hidden":false}')]);
+});
+
+// ---- client address (src/server/ip.ts): a different bucket in Go would be a throttle bypass ------
+test("ip", () => {
+  const handmade = [
+    "9.9.9.9", " 9.9.9.9 ", "2001:db8::a:b:c:d", "2001:db8::1:b:c:d", "2001:0db8:0001:0002:aaaa:bbbb:cccc:dddd", "2001:db8:1:2::9", "fe80::1%eth0",
+    "[2001:DB8:1:2::1]", "::1", "::", "::ffff:9.9.9.9", "0:0:0:0:0:ffff:9.9.9.9", "::FFFF:1.2.3.4", "0000:0000::ffff:1.2.3.4", "1::2::3", ":::", "1:2:3:4:5:6:7:8:9",
+    "1:2", "0001:00:000:0000::", "unknown", "", "[", "]", "[]", "%", "a%b%c", "::ffff:1.2.3", "2001:db8::%25eth0", "[::1]:8080", "1.2.3.4:5678", "１.２.３.４", "ff02::1\n",
+  ];
+  const r = rng(77);
+  const alphabet = "0123456789abcdefABCDEF:.%[] ";
+  const fuzz = Array.from({ length: 3000 }, () => Array.from({ length: 1 + Math.floor(r() * 30) }, () => alphabet[Math.floor(r() * alphabet.length)]).join(""));
+  write("bucket-of", [...handmade, ...fuzz].map((ip) => ({ input: ip, output: bucketOf(ip) })));
+
+  const headers: Record<string, string>[] = [
+    { "x-real-ip": "9.9.9.9", "x-forwarded-for": "2.2.2.2, 9.9.9.9" }, { "x-forwarded-for": "6.6.6.6, 9.9.9.9" }, { "x-forwarded-for": "6.6.6.6,9.9.9.9 " },
+    { "x-forwarded-for": " , ,  " }, { "x-forwarded-for": "" }, { "x-real-ip": "" }, { "x-real-ip": "", "x-forwarded-for": "1.1.1.1" }, { "x-vercel-forwarded-for": "1.1.1.1" }, {},
+    { "x-forwarded-for": "a,,b" }, { "x-real-ip": " 9.9.9.9 " },
+  ];
+  write("client-ip", headers.map((h) => ({ input: h, output: clientIp(new Headers(h)) })));
 });

@@ -34,6 +34,17 @@ jobs:
 
   backend:
     runs-on: ubuntu-latest
+    # The services are tested against a database built from supabase/migrations (internal/testdb).
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 2s --health-timeout 5s --health-retries 20
+    env:
+      WM_TEST_DATABASE_URL: postgres://postgres@localhost:5432/postgres
     defaults:
       run:
         working-directory: backend
@@ -49,5 +60,5 @@ jobs:
       - run: GOTOOLCHAIN=go1.27.0 go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
       - run: go build -o /dev/null ./cmd/server
       # Same 80 % floor as vitest; cmd/ is startup glue, like the pages vitest leaves out.
-      - run: go test -race -coverprofile=cover.out ./internal/...
+      - run: go test -race -coverpkg=./internal/... -coverprofile=cover.out ./internal/...
       - run: go tool cover -func=cover.out | awk '/^total:/ { sub("%", "", $3); if ($3 < 80) { print "coverage " $3 "% < 80%"; exit 1 } }'

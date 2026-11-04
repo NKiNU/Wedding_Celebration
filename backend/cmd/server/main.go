@@ -24,7 +24,13 @@ func main() {
 		slog.Error(err.Error())
 		os.Exit(1)
 	}
-	srv := &http.Server{Addr: addr, Handler: routes.New(env), ReadHeaderTimeout: 10 * time.Second}
+	pool, err := server.OpenDB(context.Background(), env.DatabaseURL)
+	if err != nil {
+		slog.Error(err.Error())
+		os.Exit(1)
+	}
+	defer pool.Close()
+	srv := &http.Server{Addr: addr, Handler: routes.New(&server.App{DB: pool, Env: env}), ReadHeaderTimeout: 10 * time.Second}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -41,6 +47,7 @@ func main() {
 	slog.Info("listening", "addr", addr)
 	if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		slog.Error("server stopped", "err", err)
+		pool.Close()
 		os.Exit(1)
 	}
 	<-drained // ListenAndServe returns as soon as Shutdown starts; wait for the requests in flight
