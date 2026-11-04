@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/nkinu/wedding_celebration/backend/internal/server"
 	"github.com/nkinu/wedding_celebration/backend/internal/testdb"
@@ -19,6 +20,11 @@ import (
 func init() { gin.SetMode(gin.TestMode) }
 
 func newRouter(t *testing.T, over map[string]string) *gin.Engine {
+	r, _ := newRouterDB(t, over)
+	return r
+}
+
+func newRouterDB(t *testing.T, over map[string]string) (*gin.Engine, *pgxpool.Pool) {
 	t.Helper()
 	get := func(k string) string {
 		if v, ok := over[k]; ok {
@@ -34,7 +40,8 @@ func newRouter(t *testing.T, over map[string]string) *gin.Engine {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return New(&server.App{DB: testdb.New(t), Env: env})
+	pool := testdb.New(t)
+	return New(&server.App{DB: pool, Env: env}), pool
 }
 
 type browser struct {

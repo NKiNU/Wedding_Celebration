@@ -18,6 +18,7 @@ func New(app *server.App) *gin.Engine {
 	r.RedirectTrailingSlash = false
 	r.Use(httpx.Recovery(), httpx.SecurityHeaders(), httpx.CrossSiteGuard(), eventPerRequest)
 	identity(r, app)
+	wall(r, app)
 	return r
 }
 

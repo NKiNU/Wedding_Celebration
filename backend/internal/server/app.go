@@ -21,7 +21,12 @@ type App struct {
 
 // OpenDB connects and checks the connection, so a wrong DATABASE_URL fails at start, not on the first guest.
 func OpenDB(ctx context.Context, url string) (*pgxpool.Pool, error) {
-	pool, err := pgxpool.New(ctx, url)
+	cfg, err := pgxpool.ParseConfig(url)
+	if err != nil {
+		return nil, fmt.Errorf("DATABASE_URL: %w", err)
+	}
+	cfg.ConnConfig.RuntimeParams["timezone"] = "UTC" // createdAt text must match PostgREST's (+00:00)
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("DATABASE_URL: %w", err)
 	}
