@@ -1,5 +1,5 @@
 -- Test-only stand-ins for what hosted Supabase provides, so the real migrations in
--- supabase/migrations run on plain Postgres (backend integration tests, `-tags integration`).
+-- supabase/migrations run on plain Postgres (backend tests with WM_TEST_DATABASE_URL, internal/testdb).
 -- Never apply this to a Supabase project: there these objects already exist.
 -- Roles belong to the whole cluster, and test packages create their databases in parallel.
 do $$

@@ -237,6 +237,15 @@ func TestTamperedCookies(t *testing.T) {
 			t.Fatalf("%s: %+v %v", name, s, err)
 		}
 	}
+	// A wm_active that decodeURIComponent would reject is no cookie at all.
+	p.cookies[TokensCookie] = "%5B%22" + token + "%22%5D"
+	for _, bad := range []string{"%E0%A4%A", "%FF"} {
+		p.cookies[ActiveCookie] = bad
+		if s, _ := a.GetSession(context.Background(), p.jar()); s.Active != nil || len(s.Known) != 1 {
+			t.Fatalf("wm_active %q: %+v", bad, s)
+		}
+	}
+	p.cookies[ActiveCookie] = token
 	// An active token the phone does not hold in wm_tokens is not an identity on this screen.
 	p.cookies[TokensCookie] = "%5B%5D"
 	if s, _ := a.GetSession(context.Background(), p.jar()); s.Active != nil {

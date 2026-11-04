@@ -1,7 +1,7 @@
 // Package testdb gives a test its own database built from the real migrations, so the services
 // are tested against the SQL functions they call (rate_limit_hit, the unique name index, ...).
 // Set WM_TEST_DATABASE_URL to a Postgres superuser URL (CI runs a postgres service); without it the
-// database tests skip.
+// database tests skip (and fail in CI, where CI is set).
 package testdb
 
 import (
@@ -27,6 +27,9 @@ func New(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	admin := os.Getenv("WM_TEST_DATABASE_URL")
 	if admin == "" {
+		if os.Getenv("CI") != "" { // a broken CI config must not go green with the database tests off
+			t.Fatal("WM_TEST_DATABASE_URL is not set in CI")
+		}
 		t.Skip("WM_TEST_DATABASE_URL is not set")
 	}
 	ctx := context.Background()
