@@ -6,7 +6,9 @@
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { expect, test } from "vitest";
+import { AwsV4Signer } from "aws4fetch";
+import { expect, test, vi } from "vitest";
+import { validEnv } from "../tests/fixtures/env";
 import { DEFAULT_FONTS, FONT_OPTIONS, fontOrDefault, isFontKey } from "../src/lib/domain/fonts";
 import * as limits from "../src/lib/domain/limits";
 import { nameProblem, normalizeName, suggestNames } from "../src/lib/domain/names";
@@ -28,6 +30,7 @@ import {
 } from "../src/lib/domain/uploads";
 import * as v from "../src/lib/validation";
 import { bucketOf, clientIp } from "../src/server/ip";
+import { r2 } from "../src/server/r2";
 
 const OUT = fileURLToPath(new URL("../backend/testdata/golden/", import.meta.url));
 
@@ -532,4 +535,56 @@ test("ip", () => {
     { "x-forwarded-for": "a,,b" }, { "x-real-ip": " 9.9.9.9 " },
   ];
   write("client-ip", headers.map((h) => ({ input: h, output: clientIp(new Headers(h)) })));
+});
+
+// ---- presigned PUT (src/server/r2.ts presignPut): the Go signer must give the same URL ---------
+test("presign", async () => {
+  // The same AwsV4Signer call as presignPut, with the clock and credentials fixed.
+  const presign = async (c: { endpoint?: string; region: string; datetime: string; key: string; mime: string; bytes: number }) => {
+    const base = c.endpoint?.replace(/\/$/, "") ?? "https://acct.r2.cloudflarestorage.com";
+    const signed = await new AwsV4Signer({
+      accessKeyId: "AKIDEXAMPLE",
+      secretAccessKey: "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY",
+      service: "s3",
+      region: c.region,
+      datetime: c.datetime,
+      method: "PUT",
+      url: `${base}/wedding/${c.key}?X-Amz-Expires=${limits.PRESIGN_EXPIRES_S}`,
+      headers: { "content-type": c.mime, "content-length": String(c.bytes) },
+      signQuery: true,
+      allHeaders: true,
+    }).sign();
+    return signed.url.toString();
+  };
+  const P = "events/e0000000-0000-4000-8000-000000000001/b0000000-0000-4000-8000-000000000001";
+  const files = [
+    { key: `${P}/0.jpg`, mime: "image/jpeg", bytes: 2 * limits.MB },
+    { key: `${P}/0_thumb.jpg`, mime: "image/jpeg", bytes: 40_000 },
+    { key: `${P}/0.mp4`, mime: "video/mp4", bytes: limits.MAX_VIDEO_BYTES },
+    { key: `${P}/0.mov`, mime: "video/quicktime", bytes: 1 },
+    { key: `${P}/0.webm`, mime: "video/webm", bytes: 123_456_789 },
+    { key: `${P}/0_poster.jpg`, mime: "image/jpeg", bytes: 9000 },
+    { key: "events/e0000000-0000-4000-8000-000000000001/admin/qr-1b4e28ba-2fa1-41d2-883f-0016d3cca427.png", mime: "image/png", bytes: 2 * limits.MB },
+    { key: "events/e1/admin/monogram-abc.svg", mime: "image/svg+xml", bytes: 512 },
+    { key: "k", mime: "image/jpeg", bytes: 10 },
+    { key: "k", mime: "image/jpeg", bytes: 11 },
+  ];
+  const where = [
+    { region: "auto" },
+    { endpoint: "http://127.0.0.1:54321/storage/v1/s3/", region: "local" },
+    { endpoint: "http://localhost:9000", region: "us-east-1" },
+  ];
+  const cases = where.flatMap((w) => ["20261104T120000Z", "20261231T235959Z"].flatMap((datetime) => files.map((f) => ({ ...w, datetime, ...f }))));
+  const out = [];
+  for (const c of cases) out.push({ input: c, output: await presign(c) });
+  write("presign", out);
+
+  // The replica above is presignPut itself: the real function, on the same clock, gives the same URL.
+  for (const [k, value] of Object.entries({ ...validEnv, R2_ACCESS_KEY_ID: "AKIDEXAMPLE", R2_SECRET_ACCESS_KEY: "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY" })) vi.stubEnv(k, value);
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-11-04T12:00:00Z"));
+  const f = files[0]!;
+  expect(await r2().presignPut(f.key, f.mime, f.bytes)).toBe(await presign({ region: "auto", datetime: "20261104T120000Z", ...f }));
+  vi.useRealTimers();
+  vi.unstubAllEnvs();
 });

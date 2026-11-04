@@ -19,6 +19,7 @@ func New(app *server.App) *gin.Engine {
 	r.Use(httpx.Recovery(), httpx.SecurityHeaders(), httpx.CrossSiteGuard(), eventPerRequest)
 	identity(r, app)
 	wall(r, app)
+	create(r, app)
 	return r
 }
 

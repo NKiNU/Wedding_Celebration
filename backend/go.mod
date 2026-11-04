@@ -3,6 +3,7 @@ module github.com/nkinu/wedding_celebration/backend
 go 1.27.0
 
 require (
+	github.com/aws/aws-sdk-go-v2 v1.47.5
 	github.com/gin-gonic/gin v1.10.1
 	github.com/jackc/pgx/v5 v5.7.6
 	golang.org/x/sync v0.24.0
@@ -10,6 +11,7 @@ require (
 )
 
 require (
+	github.com/aws/smithy-go v1.28.7 // indirect
 	github.com/bytedance/sonic v1.14.0 // indirect
 	github.com/bytedance/sonic/loader v0.3.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect

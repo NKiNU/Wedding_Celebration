@@ -10,6 +10,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/nkinu/wedding_celebration/backend/internal/r2"
 )
 
 // App holds what every service needs. The pool connects as a role that bypasses RLS (ADR 004),
@@ -17,6 +19,7 @@ import (
 type App struct {
 	DB  *pgxpool.Pool
 	Env Env
+	R2  r2.R2
 }
 
 // OpenDB connects and checks the connection, so a wrong DATABASE_URL fails at start, not on the first guest.

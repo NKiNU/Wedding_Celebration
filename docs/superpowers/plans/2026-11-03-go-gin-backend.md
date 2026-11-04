@@ -1,6 +1,6 @@
 # Plan: Go + Gin backend (feature parity with the Next.js server)
 
-Status: **G0–G3 done (2026-11-04); G4 next.** Decisions 1–3 below were answered by the user (pgx + `DATABASE_URL`, 1 MB cap, `NODE_ENV`). Branch `claude/golang-gin-backend-plan-7qwqno`.
+Status: **G0–G4 done (2026-11-04); G5 next.** Decisions 1–3 below were answered by the user (pgx + `DATABASE_URL`, 1 MB cap, `NODE_ENV`). Branch `claude/golang-gin-backend-plan-7qwqno`.
 
 ## Goal and scope
 

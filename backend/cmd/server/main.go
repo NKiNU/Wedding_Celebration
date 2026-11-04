@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/nkinu/wedding_celebration/backend/internal/r2"
 	"github.com/nkinu/wedding_celebration/backend/internal/routes"
 	"github.com/nkinu/wedding_celebration/backend/internal/server"
 )
@@ -31,7 +32,10 @@ func main() {
 	}
 	defer pool.Close()
 	srv := &http.Server{
-		Addr: addr, Handler: routes.New(&server.App{DB: pool, Env: env}),
+		Addr: addr, Handler: routes.New(&server.App{DB: pool, Env: env, R2: r2.New(r2.Config{
+			Endpoint: env.R2Endpoint, AccountID: env.R2AccountID, Bucket: env.R2Bucket,
+			AccessKeyID: env.R2AccessKeyID, SecretAccessKey: env.R2SecretAccessKey, Region: env.R2Region,
+		})}),
 		// Node cut a slow request off; Go would hold a trickled 1 MB body forever. Uploads go to R2, not here.
 		ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 120 * time.Second,
 	}
