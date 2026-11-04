@@ -23,3 +23,48 @@
 html:has(dialog[open]) {
   overflow: hidden;
 }
+
+/* Loading skeletons (design canvas "Wedding Memories, Burgundy", row "Loading skeletons").
+   Until lib/fontGate.ts sets data-fonts="ready", text marked .bone is a shimmer bar of its own line
+   box, so nothing moves when the real font lands; then the words fade in once. Photos keep a
+   .media-loading tile until their file has downloaded. Colours come from --bone / --bone-shine. */
+@keyframes bone-sweep {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+.bone {
+  transition: color 0.24s ease-out;
+}
+[data-fonts="loading"] .bone,
+[data-fonts="loading"] .bone * {
+  color: transparent !important;
+}
+[data-fonts="loading"] .bone,
+.media-loading {
+  background: linear-gradient(
+      90deg,
+      var(--bone) 40%,
+      var(--bone-shine) 50%,
+      var(--bone) 60%
+    )
+    0 0 / 300% 100%;
+  animation: bone-sweep 1.4s ease-in-out infinite;
+}
+[data-fonts="loading"] .bone {
+  border-radius: 6px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+[data-fonts="loading"] input::placeholder {
+  color: transparent;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-fonts="loading"] .bone,
+  .media-loading {
+    animation: none;
+  }
+}

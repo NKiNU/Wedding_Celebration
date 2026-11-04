@@ -23,7 +23,7 @@ export function WallHeader({ groom, bride, headerMessage, memories, me, monogram
           // eslint-disable-next-line @next/next/no-img-element
           <img src={monogramUrl} alt="" aria-hidden="true" className="h-10 max-w-32 min-w-0 object-contain object-left" />
         ) : (
-          <span aria-hidden="true" className="font-script text-(length:--mono-size) leading-none font-(weight:--names-weight)">
+          <span aria-hidden="true" className="bone font-script text-(length:--mono-size) leading-none font-(weight:--names-weight)">
             {initialOf(groom)}
             {initialOf(bride)}
           </span>
@@ -38,19 +38,25 @@ export function WallHeader({ groom, bride, headerMessage, memories, me, monogram
           <span
             aria-hidden="true"
             data-initial={initialOf(me)}
-            className="flex size-8 items-center justify-center rounded-full bg-ink text-[13px] font-semibold text-paper before:content-[attr(data-initial)]"
+            className="bone flex size-8 items-center justify-center rounded-full bg-ink text-[13px] font-semibold text-paper before:content-[attr(data-initial)]"
           />
-          <span className="max-w-[110px] truncate text-[13px] font-medium">{me}</span>
+          <span className="bone max-w-[110px] truncate text-[13px] font-medium">{me}</span>
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M6 9l6 6 6-6" />
           </svg>
         </button>
       </div>
-      <p className="relative mt-[18px] text-[11px] tracking-[0.2em] text-muted uppercase">The wedding of</p>
+      <p className="relative mt-[18px] text-[11px] tracking-[0.2em] text-muted uppercase">
+        <span className="bone">The wedding of</span>
+      </p>
       <h1 className="relative mt-0.5 font-script text-(length:--names-size) leading-[1.1] font-(weight:--names-weight)">
-        {groom} &amp; {bride}
+        <span className="bone">
+          {groom} &amp; {bride}
+        </span>
       </h1>
-      <p className="relative mt-1.5 text-[13px] text-muted">{[headerMessage, stat].filter(Boolean).join(" · ")}</p>
+      <p className="relative mt-1.5 text-[13px] text-muted">
+        <span className="bone">{[headerMessage, stat].filter(Boolean).join(" · ")}</span>
+      </p>
       {children}
     </header>
   );

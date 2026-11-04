@@ -49,9 +49,9 @@ export function WishTicker({ wishes, onOpen }: Props) {
         onClick={() => onOpen(current)}
         className="flex w-full flex-col gap-1.5 rounded-card bg-card px-4 py-3.5 text-left transition-transform duration-100 active:scale-[0.99] [border:var(--card-border)]"
       >
-        <span className="text-[11px] tracking-[0.16em] text-muted uppercase">Latest wishes</span>
-        <span className="line-clamp-2 font-serif text-[19px] leading-[1.3] italic">“{current.wishText}”</span>
-        <span className="text-xs text-muted">— {current.author}</span>
+        <span className="bone self-start text-[11px] tracking-[0.16em] text-muted uppercase">Latest wishes</span>
+        <span className="bone line-clamp-2 font-serif text-[19px] leading-[1.3] italic">“{current.wishText}”</span>
+        <span className="bone self-start text-xs text-muted">— {current.author}</span>
       </button>
       {count > 1 && (
         <button

@@ -34,7 +34,7 @@ describe("WelcomeForm", () => {
   it("ignores input in the server-rendered HTML, which React would otherwise throw away on hydration", () => {
     const html = renderToString(<WelcomeForm known={[ALI]} />);
     expect(html).toMatch(/<input[^>]*readonly/i);
-    expect(html).toMatch(/<button[^>]*disabled[^>]*>Start/);
+    expect(html).toMatch(/<button[^>]*disabled[^>]*><span[^>]*>Start/);
     expect(html).toMatch(/<button[^>]*disabled[^>]*><span[^>]*>Continue as/);
   });
 

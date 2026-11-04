@@ -19,10 +19,10 @@ function Face({ post }: { post: WallPost }) {
   if (post.type === "wish") {
     return (
       <span className="absolute inset-0 flex flex-col gap-0.5 rounded-media bg-(--wish-bg) px-3.5 py-3 text-(--wish-ink) [border:var(--wish-border)]">
-        <span aria-hidden="true" className="h-6 font-serif text-[40px] leading-[0.9]">
+        <span aria-hidden="true" className="bone h-6 self-start font-serif text-[40px] leading-[0.9]">
           “
         </span>
-        <span className="line-clamp-5 font-serif text-base leading-[1.3] italic">{post.wishText}</span>
+        <span className="bone line-clamp-5 font-serif text-base leading-[1.3] italic">{post.wishText}</span>
       </span>
     );
   }
@@ -72,12 +72,12 @@ function Footer({ post, mine, now }: { post: WallPost; mine: boolean; now: Date 
   return (
     <span className="flex items-center justify-between gap-1.5 px-0.5 pb-0.5 leading-[1.1]">
       <span className="flex min-w-0 flex-col">
-        <span className="truncate text-[13px] font-semibold">{post.author}</span>
-        <time dateTime={post.createdAt} suppressHydrationWarning className="text-[11px] text-muted">
+        <span className="bone self-start truncate text-[13px] font-semibold">{post.author}</span>
+        <time dateTime={post.createdAt} suppressHydrationWarning className="bone self-start text-[11px] text-muted">
           {relativeTime(post.createdAt, now)}
         </time>
       </span>
-      {mine && <span className="flex-none rounded-[10px] bg-soft px-2 py-[3px] text-[10px] font-semibold">You</span>}
+      {mine && <span className="bone flex-none rounded-[10px] bg-soft px-2 py-[3px] text-[10px] font-semibold">You</span>}
     </span>
   );
 }

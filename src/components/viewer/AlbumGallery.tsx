@@ -9,8 +9,10 @@ const ARROW =
 
 function Slide({ media, label, eager }: { media: WallMedia; label: string; eager: boolean }) {
   const [failed, setFailed] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   return (
-    <li className="flex size-full flex-none snap-center snap-always items-center justify-center">
+    // The slide shimmers (.media-loading) until its photo has downloaded, then the photo fades in.
+    <li className={`flex size-full flex-none snap-center snap-always items-center justify-center ${failed || loaded ? "" : "media-loading"}`}>
       {failed ? (
         <p className="px-6 text-center text-sm text-overlay-ink/70">This photo can’t be loaded right now.</p>
       ) : (
@@ -22,8 +24,14 @@ function Slide({ media, label, eager }: { media: WallMedia; label: string; eager
           loading={eager ? "eager" : "lazy"}
           decoding="async"
           draggable={false}
+          ref={(img) => {
+            if (!img?.complete) return;
+            if (img.naturalWidth === 0) setFailed(true);
+            else setLoaded(true);
+          }}
+          onLoad={() => setLoaded(true)}
           onError={() => setFailed(true)}
-          className="size-full object-contain"
+          className={`size-full object-contain transition-opacity duration-240 ease-out ${loaded ? "opacity-100" : "opacity-0"}`}
         />
       )}
     </li>

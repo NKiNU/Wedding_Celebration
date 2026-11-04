@@ -35,6 +35,8 @@
   --fab-shadow: 0 8px 24px rgba(26, 6, 11, 0.28); /* the + button */
   --dial-shadow: 0 4px 14px rgba(26, 6, 11, 0.18); /* share-menu pills and icons */
   --dial-border: none;
+  --bone: #51242e; /* skeleton bars while fonts and photos load: --card lifted 8% toward silver */
+  --bone-shine: #603841; /* the light sweep across them */
 }
 
 /* Backdrops behind drawers, dialogs and the + menu. Also on ::backdrop itself: iOS Safari before
@@ -58,6 +60,8 @@
     --wish-bg: #5e1e2b;
     --wish-ink: #dadcdd;
     --card-shadow: 0 1px 2px rgba(26, 6, 11, 0.08), 0 6px 18px rgba(26, 6, 11, 0.12);
+    --bone: #c4c4c4;
+    --bone-shine: #e2e2e2;
     color: var(--ink);
   }
 
@@ -112,6 +116,8 @@
   --dial-shadow: none;
   --dial-border: 1px solid var(--line);
   --scrim: rgba(34, 34, 34, 0.5);
+  --bone: #e4e4e4;
+  --bone-shine: #f2f2f2;
 }
 
 /* `reference` registers the utilities without re-emitting these vars on :root, which would

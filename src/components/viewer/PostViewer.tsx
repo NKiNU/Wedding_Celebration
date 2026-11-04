@@ -43,9 +43,11 @@ export function PostViewer({ post, mine, now }: Props) {
           </svg>
         </button>
         <div className="flex min-w-0 flex-1 flex-col">
-          <h1 className="truncate text-[15px] leading-tight font-semibold">{post.author}</h1>
+          <h1 className="bone self-start truncate text-[15px] leading-tight font-semibold">{post.author}</h1>
           <p className="text-xs text-overlay-ink/70">
-            {relativeTime(post.createdAt, new Date(now))} · {postLabel(post)}
+            <span className="bone">
+              {relativeTime(post.createdAt, new Date(now))} · {postLabel(post)}
+            </span>
           </p>
         </div>
         {mine && (
@@ -55,7 +57,9 @@ export function PostViewer({ post, mine, now }: Props) {
         )}
       </header>
       {video ? <VideoPlayer media={video} label={`Video by ${post.author}`} /> : <AlbumGallery media={post.media} />}
-      {post.caption && <p className="px-5 pt-2.5 text-[15px]">{post.caption}</p>}
+      {post.caption && <p className="px-5 pt-2.5 text-[15px]">
+          <span className="bone">{post.caption}</span>
+        </p>}
       <ConfirmDialog {...remove.dialog} />
     </main>
   );
