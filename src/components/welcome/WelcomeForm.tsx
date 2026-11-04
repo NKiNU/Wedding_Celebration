@@ -103,12 +103,6 @@ export function WelcomeForm({ known, next }: { known: readonly KnownGuest[]; nex
         </div>
       )}
 
-      <p className="text-xs text-muted">
-        <span className="bone">
-          Shown on everything you share. No password: this phone remembers you, so only you can delete
-          your posts. We keep only the name you enter.
-        </span>
-      </p>
       <button
         type="submit"
         disabled={busy}
