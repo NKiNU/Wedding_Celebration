@@ -121,7 +121,7 @@ export function Wall({ eventId, groom, bride, headerMessage, monogramUrl, me, no
 
   return (
     <>
-      <WallHeader groom={groom} bride={bride} headerMessage={headerMessage} memories={counts.all} me={me.name} monogramUrl={monogramUrl} onOpenMe={() => setSheet("me")}>
+      <WallHeader groom={groom} bride={bride} headerMessage={headerMessage} me={me.name} monogramUrl={monogramUrl} onOpenMe={() => setSheet("me")}>
         <WishTicker wishes={wishes} onOpen={setWish} />
       </WallHeader>
       <FilterBar counts={counts} value={filter} onChange={setFilter} />

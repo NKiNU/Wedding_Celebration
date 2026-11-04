@@ -100,11 +100,10 @@ afterEach(() => {
 });
 
 describe("Wall", () => {
-  it("lists every post, marks own posts, and counts memories in the header", () => {
+  it("lists every post and marks own posts", () => {
     show();
     expect(cards()).toHaveLength(3);
     expect(main().getByText("You")).toBeInTheDocument();
-    expect(screen.getByText(/3 memories shared/)).toBeInTheDocument();
   });
 
   it("opens the wish a shared link points to, even when it is not on the loaded page", () => {

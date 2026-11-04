@@ -5,7 +5,6 @@ type Props = {
   groom: string;
   bride: string;
   headerMessage: string | null;
-  memories: number;
   me: string;
   monogramUrl?: string | null;
   onOpenMe: () => void;
@@ -13,8 +12,7 @@ type Props = {
 };
 
 /** Wall header. The name chip opens the Me drawer: the guest's posts and Switch name. */
-export function WallHeader({ groom, bride, headerMessage, memories, me, monogramUrl, onOpenMe, children }: Props) {
-  const stat = `${memories} ${memories === 1 ? "memory" : "memories"} shared`;
+export function WallHeader({ groom, bride, headerMessage, me, monogramUrl, onOpenMe, children }: Props) {
   return (
     <header className="relative overflow-hidden bg-paper px-5 pt-[max(0.625rem,env(safe-area-inset-top))] pb-5">
       <Floral className="absolute -top-[18px] -right-10 size-[210px]" />
@@ -54,9 +52,11 @@ export function WallHeader({ groom, bride, headerMessage, memories, me, monogram
           {groom} &amp; {bride}
         </span>
       </h1>
-      <p className="relative mt-1.5 text-[13px] text-muted">
-        <span className="bone">{[headerMessage, stat].filter(Boolean).join(" · ")}</span>
-      </p>
+      {headerMessage && (
+        <p className="relative mt-1.5 text-[13px] text-muted">
+          <span className="bone">{headerMessage}</span>
+        </p>
+      )}
       {children}
     </header>
   );
