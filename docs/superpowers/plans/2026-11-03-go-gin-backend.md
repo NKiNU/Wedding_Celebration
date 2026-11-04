@@ -102,7 +102,7 @@ The wall page keeps rendering its first page from `GET /api/posts` (same data as
    `\`, `%`, `_` escaped, limit 200; on lookup failure log and offer unchecked).
 6. **Cookies**
    - `wm_tokens` (JSON array of raw tokens, max 5, newest last, oldest dropped) and `wm_active`: `HttpOnly`,
-     `SameSite=Lax`, `Path=/`, `Max-Age=31536000`, `Secure` only when `NODE_ENV=production`.
+     `SameSite=Lax`, `Path=/`, `Max-Age=31536000`, `Secure` unless `NODE_ENV` is `development` or `test` (fails closed; G2 security review).
    - `wm_admin` = `<unix expiry>.<base64url HMAC-SHA256(key = sha256("<ADMIN_PASSCODE>:<PEPPER>"), expiry)>`,
      `SameSite=Strict`, 24 h. Changing the passcode signs everyone out.
    - **Gotcha:** Next writes cookie values URL-encoded (`encodeURIComponent`). Go's `net/http` silently drops or
@@ -135,7 +135,7 @@ The wall page keeps rendering its first page from `GET /api/posts` (same data as
 14. **Env** validated at start, fail fast listing the bad names, same rules as `parseEnv`: URLs, `ADMIN_PASSCODE`
     ≥ 8, `DEVICE_TOKEN_PEPPER` ≥ 32, `CRON_SECRET` ≥ 16, empty means unset, `R2_REGION` default `auto`,
     `GUEST_JOINS_PER_IP` / `MAX_EVENT_MB` positive integers ≤ 1 000 000 with defaults 300 / 9216, and
-    `R2_ENDPOINT` refused under `NODE_ENV=production` unless loopback.
+    `R2_ENDPOINT` refused in production (any `NODE_ENV` but `development`/`test`) unless loopback.
 
 ---
 

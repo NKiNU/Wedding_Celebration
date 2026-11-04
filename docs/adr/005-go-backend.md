@@ -16,5 +16,7 @@ download working without CORS.
 - Two processes to run and deploy instead of one (`docs/DEPLOY.md` is updated in phase G7).
 - JSON request bodies are capped at 1 MB (Next.js had no explicit cap); an oversized body is answered like invalid
   JSON (400 `invalid_input`).
-- `NODE_ENV=production` still switches on `Secure` cookies and the `R2_ENDPOINT` guard, so both processes share one
-  env file.
+- The Go service treats every `NODE_ENV` except `development` and `test` as production (`Secure` cookies, the
+  `R2_ENDPOINT` guard). It fails closed: `next start` was in production mode without the variable, and
+  `docs/DEPLOY.md` sets `NODE_ENV` in the Next.js unit only. A local Go run sets `NODE_ENV=development`.
+- The HTTP server has read, write and idle timeouts (30 s, 30 s, 120 s), as Node had a request timeout.

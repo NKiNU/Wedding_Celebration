@@ -30,7 +30,11 @@ func main() {
 		os.Exit(1)
 	}
 	defer pool.Close()
-	srv := &http.Server{Addr: addr, Handler: routes.New(&server.App{DB: pool, Env: env}), ReadHeaderTimeout: 10 * time.Second}
+	srv := &http.Server{
+		Addr: addr, Handler: routes.New(&server.App{DB: pool, Env: env}),
+		// Node cut a slow request off; Go would hold a trickled 1 MB body forever. Uploads go to R2, not here.
+		ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 120 * time.Second,
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

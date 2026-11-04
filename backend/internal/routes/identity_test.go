@@ -27,7 +27,7 @@ func newRouter(t *testing.T, over map[string]string) *gin.Engine {
 		return map[string]string{
 			"DATABASE_URL": "postgres://unused", "ADMIN_PASSCODE": "letmein-123", "DEVICE_TOKEN_PEPPER": strings.Repeat("p", 32),
 			"R2_ACCOUNT_ID": "acct", "R2_ACCESS_KEY_ID": "key", "R2_SECRET_ACCESS_KEY": "secret", "R2_BUCKET": "wedding",
-			"NEXT_PUBLIC_MEDIA_BASE_URL": "https://media.example.com", "EVENT_SLUG": "demo", "CRON_SECRET": strings.Repeat("c", 16),
+			"NEXT_PUBLIC_MEDIA_BASE_URL": "https://media.example.com", "EVENT_SLUG": "demo", "CRON_SECRET": strings.Repeat("c", 16), "NODE_ENV": "development",
 		}[k]
 	}
 	env, err := server.ParseEnv(get)

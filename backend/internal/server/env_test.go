@@ -18,6 +18,7 @@ func valid(over map[string]string) func(string) string {
 		"NEXT_PUBLIC_MEDIA_BASE_URL": "https://media.example.com",
 		"EVENT_SLUG":                 "demo",
 		"CRON_SECRET":                strings.Repeat("c", 16),
+		"NODE_ENV":                   "development",
 	}
 	for k, v := range over {
 		m[k] = v
@@ -83,4 +84,13 @@ func TestParseEnvDevEndpoint(t *testing.T) {
 			t.Fatalf("loopback %s in production: %+v, %v", local, e, err)
 		}
 	}
+}
+
+func TestProductionFailsClosed(t *testing.T) {
+	for mode, want := range map[string]bool{"": true, "production": true, "staging": true, "development": false, "test": false} {
+		if e, err := ParseEnv(valid(map[string]string{"NODE_ENV": mode})); err != nil || e.Production != want {
+			t.Fatalf("NODE_ENV=%q: Production=%v %v", mode, e.Production, err)
+		}
+	}
+	mustFail(t, map[string]string{"R2_ENDPOINT": "https://store.example.com/s3", "NODE_ENV": ""}, "R2_ENDPOINT")
 }

@@ -108,8 +108,8 @@ func TestCreateGuestStoresOnlyTheHash(t *testing.T) {
 	}
 }
 
-func TestSecureCookiesInProductionOnly(t *testing.T) {
-	a := newApp(t, map[string]string{"NODE_ENV": "production"})
+func TestSecureCookiesUnlessDevelopment(t *testing.T) {
+	a := newApp(t, map[string]string{"NODE_ENV": ""}) // unset: production
 	p := newPhone()
 	p.secure = a.Env.Production
 	if _, err := a.CreateGuest(context.Background(), "Zara", p.jar()); err != nil {

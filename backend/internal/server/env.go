@@ -31,7 +31,10 @@ type Env struct {
 	CronSecret        string
 	GuestJoinsPerIP   int
 	MaxEventMB        int
-	Production        bool // NODE_ENV=production: Secure cookies, no remote R2_ENDPOINT
+	// Production switches on Secure cookies and the R2_ENDPOINT guard. Fails closed: only an explicit
+	// NODE_ENV=development or test turns it off. `next start` ran in production mode without the
+	// variable, and docs/DEPLOY.md sets NODE_ENV in the Next.js unit only, not in the shared env file.
+	Production bool
 }
 
 // ParseEnv validates the variables, failing with every offending name in one error.
@@ -81,7 +84,7 @@ func ParseEnv(get func(string) string) (Env, error) {
 		CronSecret:        str("CRON_SECRET", 16),
 		GuestJoinsPerIP:   limit("GUEST_JOINS_PER_IP", defaultGuestJoinsPerIP),
 		MaxEventMB:        limit("MAX_EVENT_MB", defaultMaxEventMB),
-		Production:        get("NODE_ENV") == "production",
+		Production:        get("NODE_ENV") != "development" && get("NODE_ENV") != "test",
 	}
 	if e.R2Region == "" {
 		e.R2Region = "auto"
