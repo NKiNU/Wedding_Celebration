@@ -33,6 +33,7 @@ const POSTED: Record<PostType, string> = {
   album: "Shared! Your photos are on the wall as an album.",
   video: "Shared! Your video is on the wall.",
   wish: "Your wish has been sent to the couple.",
+  strip: "Shared! Your photo strip is on the wall.",
 };
 
 type Props = {

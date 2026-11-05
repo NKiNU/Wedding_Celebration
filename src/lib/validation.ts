@@ -11,7 +11,7 @@ import {
 } from "./domain/limits";
 import { isFontKey } from "./domain/fonts";
 import { nameProblem, normalizeName } from "./domain/names";
-import { monogramProblem, qrProblem, uploadProblem } from "./domain/uploads";
+import { monogramProblem, qrProblem, stripShapeProblem, uploadProblem } from "./domain/uploads";
 
 const fontKey = z.string().refine(isFontKey, "Choose one of the listed fonts.");
 
@@ -84,9 +84,9 @@ const uploadFile = z.object({
 
 /** POST /api/uploads: the files a guest wants to send. Keys and the post type are the server's. */
 export const createUploadBody = z
-  .object({ files: z.array(uploadFile).min(1).max(MAX_PHOTOS * 2) })
-  .superRefine(({ files }, ctx) => {
-    const problem = uploadProblem(files);
+  .object({ files: z.array(uploadFile).min(1).max(MAX_PHOTOS * 2), layout: z.literal("strip").optional() })
+  .superRefine(({ files, layout }, ctx) => {
+    const problem = uploadProblem(files) ?? (layout === "strip" ? stripShapeProblem(files) : null);
     if (problem) ctx.addIssue({ code: "custom", message: problem });
   });
 

@@ -131,7 +131,7 @@ async function expire(files: readonly StoredFile[]): Promise<never> {
 export async function createMediaPost(guest: Guest, postId: string, caption: string | null): Promise<CreatedPost> {
   const { data: intent, error: lookup } = await db()
     .from("upload_intents")
-    .select("files, consumed_at, cancelled_at, expires_at")
+    .select("files, consumed_at, cancelled_at, expires_at, layout")
     .eq("post_id", postId)
     .eq("guest_id", guest.id)
     .maybeSingle();
@@ -145,7 +145,7 @@ export async function createMediaPost(guest: Guest, postId: string, caption: str
   if (intent.cancelled_at || Date.parse(intent.expires_at) <= Date.now()) await expire(files);
   await assertUploaded(files);
   const media = toMedia(files);
-  const type = derivePostType(media);
+  const type = derivePostType(media, intent.layout === "strip" ? "strip" : null);
   if (!type) throw new AppError("invalid_media", 400, "Those files can’t be posted together.");
 
   const { error } = await db().rpc("create_post_from_intent", {

@@ -39,14 +39,14 @@ export type Database = {
                   ]
                 },"events": {
                   Row: {
-                    "bride_name": string,"created_at": string | null,"font_body": string | null,"font_names": string | null,"font_wishes": string | null,"groom_name": string,"header_message": string | null,"id": string,"monogram_path": string | null,"qr_account_name": string | null,"qr_bank": string | null,"qr_path": string | null,"slug": string,"uploads_open": boolean
+                    "bride_name": string,"created_at": string | null,"event_date": string | null,"font_body": string | null,"font_names": string | null,"font_wishes": string | null,"groom_name": string,"header_message": string | null,"id": string,"monogram_path": string | null,"qr_account_name": string | null,"qr_bank": string | null,"qr_path": string | null,"slug": string,"strip_template_path": string | null,"strip_windows": Json | null,"uploads_open": boolean
                   }
                   ComputedFields: never
                   Insert: {
-                    "bride_name": string,"created_at"?: string | null,"font_body"?: string | null,"font_names"?: string | null,"font_wishes"?: string | null,"groom_name": string,"header_message"?: string | null,"id"?: string,"monogram_path"?: string | null,"qr_account_name"?: string | null,"qr_bank"?: string | null,"qr_path"?: string | null,"slug": string,"uploads_open"?: boolean
+                    "bride_name": string,"created_at"?: string | null,"event_date"?: string | null,"font_body"?: string | null,"font_names"?: string | null,"font_wishes"?: string | null,"groom_name": string,"header_message"?: string | null,"id"?: string,"monogram_path"?: string | null,"qr_account_name"?: string | null,"qr_bank"?: string | null,"qr_path"?: string | null,"strip_template_path"?: string | null,"strip_windows"?: Json | null,"slug": string,"uploads_open"?: boolean
                   }
                   Update: {
-                    "bride_name"?: string,"created_at"?: string | null,"font_body"?: string | null,"font_names"?: string | null,"font_wishes"?: string | null,"groom_name"?: string,"header_message"?: string | null,"id"?: string,"monogram_path"?: string | null,"qr_account_name"?: string | null,"qr_bank"?: string | null,"qr_path"?: string | null,"slug"?: string,"uploads_open"?: boolean
+                    "bride_name"?: string,"created_at"?: string | null,"event_date"?: string | null,"font_body"?: string | null,"font_names"?: string | null,"font_wishes"?: string | null,"groom_name"?: string,"header_message"?: string | null,"id"?: string,"monogram_path"?: string | null,"qr_account_name"?: string | null,"qr_bank"?: string | null,"qr_path"?: string | null,"strip_template_path"?: string | null,"strip_windows"?: Json | null,"slug"?: string,"uploads_open"?: boolean
                   }
                   Relationships: [
                     
@@ -139,14 +139,14 @@ isOneToOne: false
                   ]
                 },"upload_intents": {
                   Row: {
-                    "cancelled_at": string | null,"consumed_at": string | null,"event_id": string,"expires_at": string,"files": NonNullable<Json>,"guest_id": string,"post_id": string
+                    "cancelled_at": string | null,"consumed_at": string | null,"event_id": string,"expires_at": string,"files": NonNullable<Json>,"guest_id": string,"layout": string | null,"post_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "cancelled_at"?: string | null,"consumed_at"?: string | null,"event_id": string,"expires_at": string,"files": NonNullable<Json>,"guest_id": string,"post_id": string
+                    "cancelled_at"?: string | null,"consumed_at"?: string | null,"event_id": string,"expires_at": string,"files": NonNullable<Json>,"guest_id": string,"layout"?: string | null,"post_id": string
                   }
                   Update: {
-                    "cancelled_at"?: string | null,"consumed_at"?: string | null,"event_id"?: string,"expires_at"?: string,"files"?: NonNullable<Json>,"guest_id"?: string,"post_id"?: string
+                    "cancelled_at"?: string | null,"consumed_at"?: string | null,"event_id"?: string,"expires_at"?: string,"files"?: NonNullable<Json>,"guest_id"?: string,"layout"?: string | null,"post_id"?: string
                   }
                   Relationships: [
                     {
@@ -251,7 +251,7 @@ isOneToOne: false
                            }
           }
           Enums: {
-            "post_type": "photo"|"album"|"video"|"wish"
+            "post_type": "photo"|"album"|"video"|"wish"|"strip"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -371,7 +371,7 @@ export const Constants = {
           }
         },"public": {
           Enums: {
-            "post_type": ["photo", "album", "video", "wish"]
+            "post_type": ["photo", "album", "video", "wish", "strip"]
           }
         }
 } as const

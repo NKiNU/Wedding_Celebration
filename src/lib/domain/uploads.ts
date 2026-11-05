@@ -13,6 +13,7 @@ import {
   QR_MIMES,
   VIDEO_MIMES,
 } from "./limits";
+import { STRIP_WINDOWS, TEMPLATE_H, TEMPLATE_W } from "./strip";
 
 export type FileRole = "main" | "thumb" | "poster";
 
@@ -34,14 +35,40 @@ const JPEG = "image/jpeg";
 const isImage = (mime: string) => (IMAGE_MIMES as readonly string[]).includes(mime);
 const isVideo = (mime: string) => (VIDEO_MIMES as readonly string[]).includes(mime);
 
-/** Post type from the verified main files: never from anything the client calls its type. */
-export function derivePostType(mains: readonly { mime: string }[]): "photo" | "album" | "video" | null {
+export type UploadLayout = "strip";
+
+/**
+ * Post type from the verified main files: never from anything the client calls its type. A strip
+ * is the one layout the phone asks for (the files of a strip and of an album look alike); it is
+ * granted only when the files have the exact strip shape, see `stripShapeProblem`.
+ */
+export function derivePostType(
+  mains: readonly { mime: string; position?: number }[],
+  layout: UploadLayout | null = null,
+): "photo" | "album" | "video" | "strip" | null {
+  if (layout === "strip") return stripMainsOk(mains) ? "strip" : null;
   if (mains.length === 0) return null;
   if (mains.every((m) => isImage(m.mime))) {
     if (mains.length === 1) return "photo";
     return mains.length <= MAX_PHOTOS ? "album" : null;
   }
   return mains.length === 1 && isVideo(mains[0]!.mime) ? "video" : null;
+}
+
+/** A strip: the finished image at position 0, then the 3 photos, all JPEG. */
+export const STRIP_MAINS = 1 + STRIP_WINDOWS;
+const stripMainsOk = (mains: readonly { mime: string; position?: number }[]) =>
+  mains.length === STRIP_MAINS && mains.every((m) => m.mime === JPEG);
+
+/** Why these files cannot be a photo strip, or null. Runs after `uploadProblem`. */
+export function stripShapeProblem(files: readonly UploadFile[]): string | null {
+  const mains = files.filter((f) => f.role === "main");
+  if (!stripMainsOk(mains)) return `A photo strip needs ${STRIP_WINDOWS} photos.`;
+  const finished = mains.find((m) => m.position === 0);
+  if (finished?.width !== TEMPLATE_W || finished.height !== TEMPLATE_H) {
+    return `The finished strip must be ${TEMPLATE_W} × ${TEMPLATE_H}.`;
+  }
+  return null;
 }
 
 const EXT: Record<string, "jpg" | "mp4" | "mov" | "webm"> = {

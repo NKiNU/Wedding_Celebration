@@ -9,6 +9,7 @@ const LEAD: Record<PostType, string> = {
   album: "Album by",
   video: "Video by",
   wish: "Wish from",
+  strip: "Photo strip by",
 };
 
 const CARD =
