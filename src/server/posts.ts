@@ -1,6 +1,7 @@
 import "server-only";
 import type { CreatedPost } from "@/lib/api";
 import type { Json } from "@/lib/database.types";
+import { MAX_PHOTO_BYTES } from "@/lib/domain/limits";
 import { derivePostType, looksLike, type StoredFile } from "@/lib/domain/uploads";
 import { db } from "./db";
 import { getEvent } from "./event";
@@ -74,6 +75,28 @@ export const deletePost = (guest: Guest, postId: string): Promise<void> =>
 /** The admin takes any post of this event down (moderation). */
 export const deletePostAsAdmin = (eventId: string, postId: string): Promise<void> =>
   removePost(eventId, postId);
+
+/**
+ * The finished image of the guest's own photo strip (position 0), for Save. Ownership is by token,
+ * like delete. The image is also shown in the viewer, so this is a convenience, not protection.
+ */
+export async function getOwnStripObject(guest: Guest, postId: string): Promise<Uint8Array> {
+  const { data, error } = await db()
+    .from("posts")
+    .select("guest_id, type, post_media(path, position)")
+    .eq("id", postId)
+    .eq("event_id", guest.eventId)
+    .eq("hidden", false)
+    .maybeSingle();
+  if (error) throw new Error(`Loading the post failed: ${error.code} ${error.message}`);
+  const notFound = new AppError("post_not_found", 404, "That photo strip is gone.");
+  if (!data || data.type !== "strip") throw notFound;
+  if (data.guest_id !== guest.id) throw new AppError("not_yours", 403, "You can only save your own photo strip.");
+  const path = data.post_media.find((m) => m.position === 0)?.path;
+  const body = path ? await r2().read(path, MAX_PHOTO_BYTES) : null;
+  if (!body) throw notFound;
+  return body;
+}
 
 const baseType = (mime: string) => mime.split(";")[0]!.trim().toLowerCase();
 

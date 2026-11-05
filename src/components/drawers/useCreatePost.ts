@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type CreatedPost, type UploadIntent } from "@/lib/api";
-import { totalBytes, type FileRole } from "@/lib/domain/uploads";
+import { totalBytes, type FileRole, type UploadLayout } from "@/lib/domain/uploads";
 import { putFile } from "@/lib/upload";
 
 export type MediaItem = {
@@ -56,7 +56,7 @@ export function useCreatePost() {
     return settle(res.ok ? null : res.error.message);
   };
 
-  const postMedia = async (items: MediaItem[], caption: string) => {
+  const postMedia = async (items: MediaItem[], caption: string, layout?: UploadLayout) => {
     update(() => {
       setError(null);
       setProgress(0);
@@ -71,7 +71,7 @@ export function useCreatePost() {
       height,
       durationS,
     }));
-    const intent = await api<UploadIntent>("/api/uploads", "POST", { files });
+    const intent = await api<UploadIntent>("/api/uploads", "POST", { files, ...(layout ? { layout } : {}) });
     if (!intent.ok) return settle(intent.error.message);
 
     const { postId } = intent.data;

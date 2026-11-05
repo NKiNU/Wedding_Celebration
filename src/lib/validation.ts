@@ -11,7 +11,8 @@ import {
 } from "./domain/limits";
 import { isFontKey } from "./domain/fonts";
 import { nameProblem, normalizeName } from "./domain/names";
-import { monogramProblem, qrProblem, stripShapeProblem, uploadProblem } from "./domain/uploads";
+import { formatEventDate, windowsProblem } from "./domain/strip";
+import { monogramProblem, qrProblem, stripShapeProblem, stripTemplateProblem, uploadProblem } from "./domain/uploads";
 
 const fontKey = z.string().refine(isFontKey, "Choose one of the listed fonts.");
 
@@ -149,6 +150,18 @@ export const updateEventBody = z
     fontNames: fontKey,
     fontWishes: fontKey,
     fontBody: fontKey,
+    /** null = the default windows. */
+    stripWindows: z
+      .array(z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }))
+      .superRefine((rects, ctx) => {
+        const problem = windowsProblem(rects);
+        if (problem) ctx.addIssue({ code: "custom", message: problem });
+      })
+      .nullable(),
+    eventDate: z
+      .string()
+      .refine((d) => formatEventDate(d) !== null, "Choose a valid date.")
+      .nullable(),
   })
   .partial()
   .refine((b) => Object.keys(b).length > 0, "Nothing to change.");
@@ -172,7 +185,16 @@ export const monogramPresignBody = z
     if (problem) ctx.addIssue({ code: "custom", message: problem });
   });
 
-/** PUT /api/admin/monogram: the key the presign call returned, now uploaded. */
+/** POST /api/admin/strip-template: the template image the admin is about to upload. */
+export const stripTemplatePresignBody = z
+  .object({ mime: z.string().max(100), bytes: z.int().positive() })
+  .superRefine(({ mime, bytes }, ctx) => {
+    const problem = stripTemplateProblem(mime, bytes);
+    if (problem) ctx.addIssue({ code: "custom", message: problem });
+  });
+
+/** PUT /api/admin/monogram and /api/admin/strip-template: the key the presign call returned, now uploaded. */
 export const monogramConfirmBody = z.object({ key: z.string().min(1).max(200) });
+export const stripTemplateConfirmBody = monogramConfirmBody;
 
 export const hideBody = z.object({ hidden: z.boolean() });

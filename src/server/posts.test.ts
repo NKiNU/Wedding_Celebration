@@ -13,7 +13,7 @@ vi.mock("./db", () => ({ db: () => mocks.db }));
 vi.mock("./r2", () => ({ r2: () => mocks.r2 }));
 vi.mock("./event", () => ({ getEvent: async () => mocks.event }));
 
-import { createMediaPost, createWish, deletePost, deletePostAsAdmin } from "./posts";
+import { createMediaPost, createWish, deletePost, deletePostAsAdmin, getOwnStripObject } from "./posts";
 
 const GUEST = { id: "g1", name: "Ali", eventId: "e1" };
 const POST_ID = "b0000000-0000-4000-8000-000000000001";
@@ -339,5 +339,43 @@ describe("deletePostAsAdmin", () => {
   it("is a 404 when the post is gone or belongs to another event", async () => {
     setup([ok(null)]);
     await expect(deletePostAsAdmin("e1", POST_ID)).rejects.toMatchObject({ status: 404 });
+  });
+});
+
+describe("getOwnStripObject", () => {
+  const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
+  const media = [
+    { path: K("1.jpg"), position: 1 },
+    { path: K("0.jpg"), position: 0 },
+  ];
+  const row = (over = {}) => ok({ guest_id: "g1", type: "strip", post_media: media, ...over });
+  const objects = { [K("0.jpg")]: { bytes: 4, mime: "image/jpeg", body: JPEG } };
+
+  it("reads the finished image (position 0) of the guest's own, visible strip in this event", async () => {
+    const { calls } = setup([row()], objects);
+    expect(await getOwnStripObject(GUEST, POST_ID)).toEqual(JPEG);
+    const eq = calls.filter((c) => c.method === "eq").map((c) => c.args);
+    expect(eq).toEqual([["id", POST_ID], ["event_id", "e1"], ["hidden", false]]);
+  });
+
+  it("is a 403 for someone else's strip", async () => {
+    setup([row({ guest_id: "someone-else" })], objects);
+    await expect(getOwnStripObject(GUEST, POST_ID)).rejects.toMatchObject({ status: 403, code: "not_yours" });
+  });
+
+  it("is a 404 when the post is gone, is not a strip, or its image is missing", async () => {
+    setup([ok(null)], objects);
+    await expect(getOwnStripObject(GUEST, POST_ID)).rejects.toMatchObject({ status: 404 });
+    setup([row({ type: "album" })], objects);
+    await expect(getOwnStripObject(GUEST, POST_ID)).rejects.toMatchObject({ status: 404 });
+    setup([row()], {});
+    await expect(getOwnStripObject(GUEST, POST_ID)).rejects.toMatchObject({ status: 404 });
+    setup([row({ post_media: [] })], objects);
+    await expect(getOwnStripObject(GUEST, POST_ID)).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("fails loudly when the database does", async () => {
+    setup([failure("XX000")]);
+    await expect(getOwnStripObject(GUEST, POST_ID)).rejects.toThrow(/Loading the post failed/);
   });
 });

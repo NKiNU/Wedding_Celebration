@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Thumb } from "@/components/ui/Thumb";
-import { coverOf, formatDuration, relativeTime, type PostType, type WallPost } from "@/lib/domain/posts";
+import { coverOf, formatDuration, relativeTime, stripPhotos, type PostType, type WallPost } from "@/lib/domain/posts";
 import { markFromWall } from "@/lib/fromWall";
 import { AlbumStack } from "./AlbumStack";
 
@@ -28,14 +28,27 @@ function Face({ post }: { post: WallPost }) {
     );
   }
   const album = post.type === "album";
+  const strip = post.type === "strip";
+  const stacked = album || strip;
+  // A strip stacks the guest's 3 photos; its finished image is for the viewer.
+  const shown = strip ? { media: stripPhotos(post) } : post;
   return (
     <>
-      {album && <AlbumStack post={post} />}
+      {stacked && <AlbumStack post={shown} />}
       <span
-        className={`absolute block overflow-hidden rounded-media ${album ? "inset-2 border-[3px] border-card [box-shadow:var(--stack-shadow)]" : "inset-0"}`}
+        className={`absolute block overflow-hidden rounded-media ${stacked ? "inset-2 border-[3px] border-card [box-shadow:var(--stack-shadow)]" : "inset-0"}`}
       >
-        <Thumb src={coverOf(post)} />
+        <Thumb src={coverOf(shown)} />
       </span>
+      {strip && (
+        <span aria-hidden="true" className={`${BADGE} top-3.5 right-3.5 flex items-center gap-1`}>
+          <svg aria-hidden="true" width="11" height="12" viewBox="0 0 22 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+            <rect x="4" y="1.5" width="14" height="21" rx="1.5" />
+            <path d="M7 8h8M7 14.5h8" />
+          </svg>
+          Strip
+        </span>
+      )}
       {album && (
         <span aria-hidden="true" className={`${BADGE} top-3.5 right-3.5 flex items-center gap-1`}>
           <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">

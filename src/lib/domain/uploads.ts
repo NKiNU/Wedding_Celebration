@@ -9,8 +9,10 @@ import {
   MAX_VIDEO_BYTES,
   MAX_VIDEO_SECONDS,
   MB,
+  MAX_STRIP_TEMPLATE_BYTES,
   MONOGRAM_MIMES,
   QR_MIMES,
+  STRIP_TEMPLATE_MIMES,
   VIDEO_MIMES,
 } from "./limits";
 import { STRIP_WINDOWS, TEMPLATE_H, TEMPLATE_W } from "./strip";
@@ -118,6 +120,56 @@ export function monogramMime(key: string): string | null {
 export function monogramProblem(mime: string, bytes: number): string | null {
   if (!(MONOGRAM_MIMES as readonly string[]).includes(mime)) return "The monogram must be a PNG, WebP or SVG image.";
   return bytes > MAX_MONOGRAM_BYTES ? "The monogram image must be under 1 MB." : null;
+}
+
+/** `events/{event}/admin/strip-{id}.{ext}`: the admin's photo strip template. */
+export const stripTemplateKey = (eventId: string, id: string, mime: string): string => {
+  const ext = QR_EXT[mime];
+  if (!ext) throw new Error(`No extension for ${mime}`);
+  return `events/${eventId}/admin/strip-${id}.${ext}`;
+};
+
+/** The template's type from its key's extension. */
+export const stripTemplateMime = (key: string) => (key.endsWith(".png") ? "image/png" : "image/jpeg");
+
+/** Why this file cannot be the strip template, or null when it can. */
+export function stripTemplateProblem(mime: string, bytes: number): string | null {
+  if (!(STRIP_TEMPLATE_MIMES as readonly string[]).includes(mime)) return "The template must be a PNG or JPG image.";
+  return bytes > MAX_STRIP_TEMPLATE_BYTES
+    ? `The template must be under ${MAX_STRIP_TEMPLATE_BYTES / MB} MB. Try exporting it as JPG.`
+    : null;
+}
+
+/**
+ * Pixel size from a PNG's IHDR or a JPEG's SOFn header, or null when the bytes are neither.
+ * `bytes` must reach the header: the first 24 bytes for a PNG, past any EXIF segments for a JPEG.
+ */
+export function imageSizeOf(bytes: Uint8Array): { w: number; h: number } | null {
+  const u16 = (i: number) => (bytes[i]! << 8) | bytes[i + 1]!;
+  const u32 = (i: number) => u16(i) * 0x10000 + u16(i + 2);
+  if (looksLike("image/png", bytes) && bytes.length >= 24 && String.fromCharCode(...bytes.slice(12, 16)) === "IHDR") {
+    return { w: u32(16), h: u32(20) };
+  }
+  if (!looksLike("image/jpeg", bytes)) return null;
+  let i = 2;
+  while (i + 3 < bytes.length) {
+    if (bytes[i] !== 0xff) return null;
+    const marker = bytes[i + 1]!;
+    if (marker === 0xff) {
+      i++; // fill byte
+      continue;
+    }
+    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd9)) {
+      i += 2; // no length
+      continue;
+    }
+    // SOF0–SOF15 except DHT (C4), JPG (C8) and DAC (CC)
+    if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker)) {
+      return i + 8 < bytes.length ? { w: u16(i + 7), h: u16(i + 5) } : null;
+    }
+    i += 2 + u16(i + 2);
+  }
+  return null;
 }
 
 /**
