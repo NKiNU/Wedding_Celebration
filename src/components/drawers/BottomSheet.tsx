@@ -40,6 +40,11 @@ export function BottomSheet({ open, title, onClose, busy = false, hideTitle = fa
       el.showModal();
     }
     if (!open && el.open) el.close();
+    // Next keeps a page we navigate away from mounted but hidden (<Activity>); an open modal left
+    // behind there makes the next page inert in Safari (taps hit nothing). Hiding runs this cleanup.
+    return () => {
+      if (el.open) el.close();
+    };
   }, [open]);
 
   const move = (clientY: number) => {
