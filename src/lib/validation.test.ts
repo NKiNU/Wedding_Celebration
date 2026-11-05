@@ -128,9 +128,10 @@ test("postIdParam accepts only a uuid", () => {
   expect(postIdParam.safeParse("../x").success).toBe(false);
 });
 
-test("nextParam accepts only a post link on this site", () => {
+test("nextParam accepts only a post link or the strip editor on this site", () => {
   expect(nextParam.safeParse(`/p/${ID}`).success).toBe(true);
-  for (const bad of ["https://evil.example/p/" + ID, `//evil.example/p/${ID}`, "/wall", "/p/not-a-uuid", `/p/${ID}/x`, ""]) {
+  expect(nextParam.safeParse("/strip").success).toBe(true);
+  for (const bad of ["https://evil.example/p/" + ID, `//evil.example/p/${ID}`, "/wall", "/p/not-a-uuid", `/p/${ID}/x`, "/strip/x", "/stripx", ""]) {
     expect(nextParam.safeParse(bad).success, bad).toBe(false);
   }
   expect(nextParam.safeParse(undefined).success).toBe(false);

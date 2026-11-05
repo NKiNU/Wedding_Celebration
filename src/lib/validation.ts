@@ -132,7 +132,9 @@ export const createPostBody = z
 export const postIdParam = z.uuid();
 
 /** Where a guest was headed before the welcome screen (`/?next=`): a post link only, so it cannot be an open redirect. */
-export const nextParam = z.string().refine((v) => v.startsWith("/p/") && postIdParam.safeParse(v.slice(3)).success);
+export const nextParam = z
+  .string()
+  .refine((v) => v === "/strip" || (v.startsWith("/p/") && postIdParam.safeParse(v.slice(3)).success));
 
 export const adminLoginBody = z.object({ passcode: z.string().min(1).max(200) });
 

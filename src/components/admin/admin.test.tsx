@@ -43,6 +43,14 @@ const EVENT: AdminEvent = {
   hasQr: false,
   fonts: { names: "pinyon-script", wishes: "cormorant-garamond", body: "poppins" },
   monogramUrl: null,
+  stripTemplateUrl: "/strip/default-template.png",
+  hasStripTemplate: false,
+  stripWindows: [
+    { x: 290, y: 250, w: 500, h: 375 },
+    { x: 290, y: 665, w: 500, h: 375 },
+    { x: 290, y: 1080, w: 500, h: 375 },
+  ],
+  eventDate: "2026-11-07",
 };
 const post = (id: string, over: Partial<AdminPost> = {}): AdminPost => ({
   id,
