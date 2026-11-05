@@ -144,7 +144,7 @@ describe("PostViewer", () => {
       await fileLoaded(); // let the file land in state before the tap
       fireEvent.click(shareButton());
     };
-    const toApps = () => screen.getByRole("button", { name: "Share", exact: true });
+    const toApps = () => screen.getByRole("button", { name: /^Share$/ });
     const saveToPhone = () => screen.getByRole("button", { name: "Save to phone" });
     const fetchStrip = vi.fn(async () => ({ ok: true, blob: async () => new Blob(["jpeg"], { type: "image/jpeg" }) }) as Response);
     const fileLoaded = () => act(() => new Promise<void>((done) => setTimeout(done, 20)));
@@ -186,7 +186,7 @@ describe("PostViewer", () => {
       show(strip, true);
       await openSheet();
       const sheet = screen.getByRole("dialog", { name: "Share photo strip" });
-      expect(within(sheet).getByRole("button", { name: "Share", exact: true })).toBeInTheDocument();
+      expect(within(sheet).getByRole("button", { name: /^Share$/ })).toBeInTheDocument();
       expect(within(sheet).getByRole("button", { name: "Save to phone" })).toBeInTheDocument();
       expect(within(sheet).queryByRole("heading", { name: "Share photo strip" })).toHaveClass("sr-only");
     });
@@ -266,7 +266,7 @@ describe("PostViewer", () => {
       setNavigator(vi.fn(async () => {}), false);
       show(strip, true);
       await openSheet();
-      expect(screen.queryByRole("button", { name: "Share", exact: true })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^Share$/ })).not.toBeInTheDocument();
       expect(saveToPhone()).toBeInTheDocument();
     });
 
@@ -275,7 +275,7 @@ describe("PostViewer", () => {
       const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
       show(strip, true);
       await openSheet();
-      expect(screen.queryByRole("button", { name: "Share", exact: true })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^Share$/ })).not.toBeInTheDocument();
       fireEvent.click(saveToPhone());
       await waitFor(() => expect(click).toHaveBeenCalled());
       expect(click.mock.contexts[0]).toHaveProperty("href", expect.stringMatching(new RegExp(`/api/posts/${strip.id}/strip$`)));
