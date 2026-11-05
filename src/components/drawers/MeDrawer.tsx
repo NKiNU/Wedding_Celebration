@@ -63,7 +63,7 @@ function PostRow({ post, now, onOpenWish, onDelete }: { post: WallPost; now: Dat
       <button
         type="button"
         onClick={() => onDelete(post)}
-        aria-label={`Delete ${post.type}`}
+        aria-label={`Delete ${post.type === "strip" ? "photo strip" : post.type}`}
         className="flex size-11 flex-none items-center justify-center rounded-full bg-soft"
       >
         <TrashIcon size={18} />

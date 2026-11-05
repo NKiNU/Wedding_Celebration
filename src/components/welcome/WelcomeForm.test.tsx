@@ -34,14 +34,13 @@ describe("WelcomeForm", () => {
   it("ignores input in the server-rendered HTML, which React would otherwise throw away on hydration", () => {
     const html = renderToString(<WelcomeForm known={[ALI]} />);
     expect(html).toMatch(/<input[^>]*readonly/i);
-    expect(html).toMatch(/<button[^>]*disabled[^>]*>Start/);
+    expect(html).toMatch(/<button[^>]*disabled[^>]*><span[^>]*>Start/);
     expect(html).toMatch(/<button[^>]*disabled[^>]*><span[^>]*>Continue as/);
   });
 
-  it("asks for a name and explains how identity works, with no password field", () => {
+  it("asks for a name, with no password field", () => {
     render(<WelcomeForm known={[]} />);
     expect(nameInput()).toHaveAttribute("placeholder", "e.g. Aina from Kajang");
-    expect(screen.getByText(/No password: this phone remembers you/)).toBeInTheDocument();
     expect(screen.queryByText(/This phone remembers you$/)).not.toBeInTheDocument();
     expect(document.querySelector('input[type="password"]')).toBeNull();
   });

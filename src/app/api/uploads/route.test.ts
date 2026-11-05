@@ -27,7 +27,18 @@ describe("POST /api/uploads", () => {
     const res = await send({ files: photo });
     expect(res.status).toBe(201);
     expect(await res.json()).toEqual({ ok: true, data: { postId: "p1", uploads: [] } });
-    expect(mocks.createUploadIntent).toHaveBeenCalledWith(GUEST, photo);
+    expect(mocks.createUploadIntent).toHaveBeenCalledWith(GUEST, photo, null);
+  });
+
+  it("passes a strip layout on, and refuses one whose files are not a strip", async () => {
+    const strip = [0, 1, 2, 3].flatMap((position) => [
+      { role: "main", position, mime: "image/jpeg", bytes: 1000, ...(position === 0 ? { width: 1080, height: 1920 } : {}) },
+      { role: "thumb", position, mime: "image/jpeg", bytes: 100 },
+    ]);
+    expect((await send({ files: strip, layout: "strip" })).status).toBe(201);
+    expect(mocks.createUploadIntent).toHaveBeenLastCalledWith(GUEST, strip, "strip");
+    expect((await send({ files: photo, layout: "strip" })).status).toBe(400);
+    expect((await send({ files: strip, layout: "collage" })).status).toBe(400);
   });
 
   it("is a 401 without a session", async () => {

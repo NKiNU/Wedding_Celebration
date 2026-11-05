@@ -8,6 +8,7 @@ import { flash } from "@/lib/flash";
 import { cameFromWall } from "@/lib/fromWall";
 import { postLabel, relativeTime, type WallPost } from "@/lib/domain/posts";
 import { AlbumGallery } from "./AlbumGallery";
+import { StripSave } from "./StripSave";
 import { VideoPlayer } from "./VideoPlayer";
 
 const WALL = "/wall";
@@ -33,6 +34,7 @@ export function PostViewer({ post, mine, now }: Props) {
   // behind it, so "back" goes to the wall instead (which reloads from its first page).
   const back = () => (cameFromWall(post.id) && window.history.length > 1 ? router.back() : router.replace(WALL));
   const video = post.type === "video" ? post.media[0] : undefined;
+  const strip = post.type === "strip";
 
   return (
     <main className="flex h-dvh flex-col overscroll-contain bg-viewer pt-[env(safe-area-inset-top)] pb-[max(1.75rem,env(safe-area-inset-bottom))] text-overlay-ink">
@@ -43,19 +45,34 @@ export function PostViewer({ post, mine, now }: Props) {
           </svg>
         </button>
         <div className="flex min-w-0 flex-1 flex-col">
-          <h1 className="truncate text-[15px] leading-tight font-semibold">{post.author}</h1>
+          <h1 className="bone self-start truncate text-[15px] leading-tight font-semibold">{post.author}</h1>
           <p className="text-xs text-overlay-ink/70">
-            {relativeTime(post.createdAt, new Date(now))} · {postLabel(post)}
+            <span className="bone">
+              {relativeTime(post.createdAt, new Date(now))} · {postLabel(post)}
+            </span>
           </p>
         </div>
+        {mine && strip && <StripSave postId={post.id} />}
         {mine && (
           <button type="button" onClick={() => remove.ask(post)} aria-label="Delete this post" className={`${ROUND} bg-overlay-ink/12`}>
             <TrashIcon />
           </button>
         )}
       </header>
-      {video ? <VideoPlayer media={video} label={`Video by ${post.author}`} /> : <AlbumGallery media={post.media} />}
-      {post.caption && <p className="px-5 pt-2.5 text-[15px]">{post.caption}</p>}
+      {video ? (
+        <VideoPlayer media={video} label={`Video by ${post.author}`} />
+      ) : strip ? (
+        // Only the finished 1080 x 1920 image, contained: no gallery chrome.
+        <AlbumGallery media={post.media.slice(0, 1)} label="Photo strip: 3 photos in the wedding template" />
+      ) : (
+        <AlbumGallery media={post.media} />
+      )}
+      {post.caption && <p className="px-5 pt-2.5 text-[15px]">
+          <span className="bone">{post.caption}</span>
+        </p>}
+      {mine && strip && (
+        <p className="px-5 pt-1.5 text-xs text-overlay-ink/70">Or long-press the image and tap Save to Photos.</p>
+      )}
       <ConfirmDialog {...remove.dialog} />
     </main>
   );

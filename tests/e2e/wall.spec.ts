@@ -12,7 +12,6 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("the wall shows the seeded memories, counts per filter, and never the hidden post", async ({ page }) => {
-  await expect(page.getByText("10 memories shared")).toBeVisible();
   await expect(page.getByRole("button", { name: "All 10" })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("button", { name: "Photos 4" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Videos 1" })).toBeVisible();

@@ -44,6 +44,14 @@ describe("PostCard", () => {
     expect(container.querySelectorAll("img")).toHaveLength(3);
   });
 
+  it("stacks a strip's 3 photos (not its finished image) with a Strip badge", () => {
+    const { container } = show(wallPost({ type: "strip", media: [image(9), image(1), image(2), image(3)] }));
+    expect(screen.getByRole("link", { name: "Photo strip by Nazrul" })).toBeInTheDocument();
+    expect(screen.getByText("Strip")).toBeInTheDocument();
+    const srcs = [...container.querySelectorAll("img")].map((i) => i.getAttribute("src"));
+    expect(srcs).toEqual(["3", "2", "1"].map((n) => `https://media.example.com/${n}_thumb.jpg`));
+  });
+
   it("shows a video's duration over its poster", () => {
     const media = [{ kind: "video" as const, url: "v.mp4", thumbUrl: null, posterUrl: "p.jpg", durationS: 42 }];
     const { container } = show(wallPost({ type: "video", media }));

@@ -1,5 +1,6 @@
 import type { FontRole } from "./domain/fonts";
 import type { WallCounts, WallPost } from "./domain/posts";
+import type { Rect } from "./domain/strip";
 import type { FileRole } from "./domain/uploads";
 
 export type KnownGuest = { guestId: string; name: string };
@@ -32,6 +33,13 @@ export type AdminEvent = {
   /** Font key per role, with defaults filled in. */
   fonts: Record<FontRole, string>;
   monogramUrl: string | null;
+  /** Same-origin template address: the admin's upload, or the built-in default. */
+  stripTemplateUrl: string;
+  hasStripTemplate: boolean;
+  /** The 3 photo windows in template px, defaults filled in. */
+  stripWindows: Rect[];
+  /** `yyyy-mm-dd`, shown on the default template. */
+  eventDate: string | null;
 };
 
 /** POST /api/admin/qr and /api/admin/monogram: where to PUT the image, and the key to confirm afterwards. */

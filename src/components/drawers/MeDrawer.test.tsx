@@ -75,6 +75,16 @@ describe("MeDrawer", () => {
     expect(h.onDelete).toHaveBeenLastCalledWith(wish);
   });
 
+  it("shows a strip by its finished image and calls it a photo strip", () => {
+    const strip = wallPost({ id: "00000000-0000-4000-8000-000000000a03", type: "strip", media: [image(9), image(1), image(2), image(3)] });
+    const h = show({ posts: [strip] });
+    const row = within(dialog()).getByRole("listitem");
+    expect(within(row).getByRole("link", { name: /^Photo strip/ })).toHaveAttribute("href", `/p/${strip.id}`);
+    expect(row.querySelector("img")).toHaveAttribute("src", "https://media.example.com/9_thumb.jpg");
+    fireEvent.click(within(row).getByRole("button", { name: "Delete photo strip" }));
+    expect(h.onDelete).toHaveBeenCalledWith(strip);
+  });
+
   it("invites the guest to share when they have nothing yet", () => {
     const h = show({ posts: [] });
     expect(screen.getByRole("heading", { name: "Your posts (0)" })).toBeInTheDocument();

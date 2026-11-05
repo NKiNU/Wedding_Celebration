@@ -4,10 +4,14 @@ import { initialOf as initial } from "@/lib/domain/names";
 export function WelcomeHeader({ groom, bride, monogramUrl }: { groom: string; bride: string; monogramUrl?: string | null }) {
   return (
     <header className="relative flex w-full flex-col items-center gap-1 text-center">
-      <p className="text-[11px] tracking-[0.2em] text-muted uppercase">Share celebration memories of</p>
+      <p className="text-[11px] tracking-[0.2em] text-muted uppercase">
+        <span className="bone">Share celebration memories of</span>
+      </p>
       <Monogram a={initial(groom)} b={initial(bride)} imageUrl={monogramUrl} />
       <h1 className="mt-1 font-script text-(length:--welcome-names-size) leading-[1.15] font-(weight:--names-weight)">
-        {groom} &amp; {bride}
+        <span className="bone">
+          {groom} &amp; {bride}
+        </span>
       </h1>
     </header>
   );

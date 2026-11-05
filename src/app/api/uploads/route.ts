@@ -9,8 +9,8 @@ export const POST = (req: Request) =>
     req,
     async () => {
       const guest = await requireGuest(await cookies());
-      const { files } = createUploadBody.parse(await req.json().catch(() => null));
-      return createUploadIntent(guest, files);
+      const { files, layout } = createUploadBody.parse(await req.json().catch(() => null));
+      return createUploadIntent(guest, files, layout ?? null);
     },
     201,
   );

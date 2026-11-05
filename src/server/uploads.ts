@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { UploadIntent } from "@/lib/api";
 import type { Json } from "@/lib/database.types";
 import { BYTES_PER_HOUR, INTENT_TTL_MS, MB, POSTS_PER_HOUR, RATE_WINDOW_MS } from "@/lib/domain/limits";
-import { mediaKey, type StoredFile, type UploadFile } from "@/lib/domain/uploads";
+import { mediaKey, type StoredFile, type UploadFile, type UploadLayout } from "@/lib/domain/uploads";
 import { storedFiles } from "@/lib/validation";
 import { db } from "./db";
 import { env } from "./env";
@@ -46,7 +46,11 @@ export function storedFilesOf(json: unknown): StoredFile[] {
  * Reserves a post id and keys for these files and returns one presigned PUT URL per file. The
  * client never picks a key, and each URL accepts exactly the declared type and size.
  */
-export async function createUploadIntent(guest: Guest, files: UploadFile[]): Promise<UploadIntent> {
+export async function createUploadIntent(
+  guest: Guest,
+  files: UploadFile[],
+  layout: UploadLayout | null = null,
+): Promise<UploadIntent> {
   const event = await getEvent();
   assertUploadsOpen(event);
 
@@ -67,6 +71,12 @@ export async function createUploadIntent(guest: Guest, files: UploadFile[]): Pro
     throw new AppError("storage_full", 507, "The photo space for this wedding is full. You can still send a wish.");
   }
   if (error) throw new Error(`Creating the upload intent failed: ${error.code} ${error.message}`);
+  if (layout) {
+    // Not an argument of create_upload_intent (shared by every upload). The row is this request's and
+    // has no URL yet, so a failure here leaves only a quota-counted row for the sweep.
+    const { error: layoutError } = await db().from("upload_intents").update({ layout }).eq("post_id", postId);
+    if (layoutError) throw new Error(`Saving the upload layout failed: ${layoutError.code} ${layoutError.message}`);
+  }
 
   const signer = r2();
   try {

@@ -9,8 +9,10 @@ const ARROW =
 
 function Slide({ media, label, eager }: { media: WallMedia; label: string; eager: boolean }) {
   const [failed, setFailed] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   return (
-    <li className="flex size-full flex-none snap-center snap-always items-center justify-center">
+    // The slide shimmers (.media-loading) until its photo has downloaded, then the photo fades in.
+    <li className={`flex size-full flex-none snap-center snap-always items-center justify-center ${failed || loaded ? "" : "media-loading"}`}>
       {failed ? (
         <p className="px-6 text-center text-sm text-overlay-ink/70">This photo can’t be loaded right now.</p>
       ) : (
@@ -22,8 +24,14 @@ function Slide({ media, label, eager }: { media: WallMedia; label: string; eager
           loading={eager ? "eager" : "lazy"}
           decoding="async"
           draggable={false}
+          ref={(img) => {
+            if (!img?.complete) return;
+            if (img.naturalWidth === 0) setFailed(true);
+            else setLoaded(true);
+          }}
+          onLoad={() => setLoaded(true)}
           onError={() => setFailed(true)}
-          className="size-full object-contain"
+          className={`size-full object-contain transition-opacity duration-240 ease-out ${loaded ? "opacity-100" : "opacity-0"}`}
         />
       )}
     </li>
@@ -34,7 +42,8 @@ function Slide({ media, label, eager }: { media: WallMedia; label: string; eager
  * One photo, or an album: a native scroll-snap track (the browser's own swipe physics), prev/next
  * buttons, a "2 / 5" counter and a thumbnail strip. A single photo shows none of the chrome.
  */
-export function AlbumGallery({ media }: { media: WallMedia[] }) {
+/** `label` names a single image (default "Photo"). */
+export function AlbumGallery({ media, label = "Photo" }: { media: WallMedia[]; label?: string }) {
   const track = useRef<HTMLUListElement>(null);
   const strip = useRef<HTMLUListElement>(null);
   const [index, setIndex] = useState(0);
@@ -66,7 +75,7 @@ export function AlbumGallery({ media }: { media: WallMedia[] }) {
             className="absolute inset-0 flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain scroll-smooth [scrollbar-width:none] motion-reduce:scroll-auto"
           >
             {media.map((m, i) => (
-              <Slide key={m.url} media={m} eager={i === 0} label={count > 1 ? `Photo ${i + 1} of ${count}` : "Photo"} />
+              <Slide key={m.url} media={m} eager={i === 0} label={count > 1 ? `Photo ${i + 1} of ${count}` : label} />
             ))}
           </ul>
           {count > 1 && (

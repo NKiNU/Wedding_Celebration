@@ -4,6 +4,7 @@ import {
   derivePostType,
   extFromMime,
   fitWithin,
+  imageSizeOf,
   looksLike,
   mediaKey,
   monogramKey,
@@ -11,6 +12,9 @@ import {
   monogramProblem,
   qrKey,
   qrProblem,
+  stripTemplateKey,
+  stripTemplateMime,
+  stripTemplateProblem,
   NOT_SVG,
   svgBytesProblem,
   svgProblem,
@@ -270,5 +274,65 @@ describe("svgBytesProblem", () => {
     expect(svgBytesProblem(bytes([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0]))).toBe(NOT_SVG);
     expect(svgBytesProblem(bytes("<html></html>"))).toBe(NOT_SVG);
     expect(svgBytesProblem(bytes("<svg><script/></svg>"))).not.toBe(NOT_SVG);
+  });
+});
+
+describe("strip template", () => {
+  const E = "e0000000-0000-4000-8000-000000000001";
+  const ID = "a0000000-0000-4000-8000-000000000002";
+
+  it("keys PNG and JPEG templates under the event's admin folder and reads the type back", () => {
+    expect(stripTemplateKey(E, ID, "image/png")).toBe(`events/${E}/admin/strip-${ID}.png`);
+    expect(stripTemplateKey(E, ID, "image/jpeg")).toBe(`events/${E}/admin/strip-${ID}.jpg`);
+    expect(() => stripTemplateKey(E, ID, "image/webp")).toThrow();
+    expect(stripTemplateMime("x/strip-1.png")).toBe("image/png");
+    expect(stripTemplateMime("x/strip-1.jpg")).toBe("image/jpeg");
+  });
+
+  it("allows PNG or JPEG up to 3 MB", () => {
+    expect(stripTemplateProblem("image/png", 3 * MB)).toBeNull();
+    expect(stripTemplateProblem("image/jpeg", 1)).toBeNull();
+    expect(stripTemplateProblem("image/webp", 1)).toMatch(/PNG or JPG/);
+    expect(stripTemplateProblem("image/png", 3 * MB + 1)).toMatch(/under 3 MB/);
+  });
+});
+
+describe("imageSizeOf", () => {
+  const png = (w: number, h: number) => {
+    const b = new Uint8Array(33);
+    b.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
+    new DataView(b.buffer).setUint32(16, w);
+    new DataView(b.buffer).setUint32(20, h);
+    return b;
+  };
+  // SOI, an APP1 (EXIF-like) segment, a DQT, a fill byte, then SOF2 (progressive).
+  const jpeg = (w: number, h: number, sof = 0xc2) =>
+    new Uint8Array([
+      0xff, 0xd8,
+      0xff, 0xe1, 0x00, 0x06, 1, 2, 3, 4,
+      0xff, 0xdb, 0x00, 0x03, 0,
+      0xff, 0xff, sof, 0x00, 0x11, 0x08, h >> 8, h & 0xff, w >> 8, w & 0xff, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ]);
+
+  it("reads a PNG's IHDR", () => {
+    expect(imageSizeOf(png(1080, 1920))).toEqual({ w: 1080, h: 1920 });
+    expect(imageSizeOf(png(70000, 1))).toEqual({ w: 70000, h: 1 });
+  });
+
+  it("walks a JPEG's segments to the SOF header", () => {
+    expect(imageSizeOf(jpeg(1080, 1920))).toEqual({ w: 1080, h: 1920 });
+    expect(imageSizeOf(jpeg(800, 600, 0xc0))).toEqual({ w: 800, h: 600 });
+  });
+
+  it("skips DHT, which shares the SOF marker range", () => {
+    const dht = new Uint8Array([0xff, 0xd8, 0xff, 0xc4, 0x00, 0x03, 0, ...jpeg(10, 20).slice(2)]);
+    expect(imageSizeOf(dht)).toEqual({ w: 10, h: 20 });
+  });
+
+  it("is null for garbage, a cut-off file or a broken segment chain", () => {
+    expect(imageSizeOf(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]))).toBeNull();
+    expect(imageSizeOf(png(1, 1).slice(0, 20))).toBeNull();
+    expect(imageSizeOf(jpeg(1080, 1920).slice(0, 20))).toBeNull();
+    expect(imageSizeOf(new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x02, 0x12, 0x34, 0, 0]))).toBeNull();
   });
 });

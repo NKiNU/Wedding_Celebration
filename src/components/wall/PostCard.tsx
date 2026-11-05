@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Thumb } from "@/components/ui/Thumb";
-import { coverOf, formatDuration, relativeTime, type PostType, type WallPost } from "@/lib/domain/posts";
+import { coverOf, formatDuration, relativeTime, stripPhotos, type PostType, type WallPost } from "@/lib/domain/posts";
 import { markFromWall } from "@/lib/fromWall";
 import { AlbumStack } from "./AlbumStack";
 
@@ -9,6 +9,7 @@ const LEAD: Record<PostType, string> = {
   album: "Album by",
   video: "Video by",
   wish: "Wish from",
+  strip: "Photo strip by",
 };
 
 const CARD =
@@ -19,22 +20,35 @@ function Face({ post }: { post: WallPost }) {
   if (post.type === "wish") {
     return (
       <span className="absolute inset-0 flex flex-col gap-0.5 rounded-media bg-(--wish-bg) px-3.5 py-3 text-(--wish-ink) [border:var(--wish-border)]">
-        <span aria-hidden="true" className="h-6 font-serif text-[40px] leading-[0.9]">
+        <span aria-hidden="true" className="bone h-6 self-start font-serif text-[40px] leading-[0.9]">
           “
         </span>
-        <span className="line-clamp-5 font-serif text-base leading-[1.3] italic">{post.wishText}</span>
+        <span className="bone line-clamp-5 font-serif text-base leading-[1.3] italic">{post.wishText}</span>
       </span>
     );
   }
   const album = post.type === "album";
+  const strip = post.type === "strip";
+  const stacked = album || strip;
+  // A strip stacks the guest's 3 photos; its finished image is for the viewer.
+  const shown = strip ? { media: stripPhotos(post) } : post;
   return (
     <>
-      {album && <AlbumStack post={post} />}
+      {stacked && <AlbumStack post={shown} />}
       <span
-        className={`absolute block overflow-hidden rounded-media ${album ? "inset-2 border-[3px] border-card [box-shadow:var(--stack-shadow)]" : "inset-0"}`}
+        className={`absolute block overflow-hidden rounded-media ${stacked ? "inset-2 border-[3px] border-card [box-shadow:var(--stack-shadow)]" : "inset-0"}`}
       >
-        <Thumb src={coverOf(post)} />
+        <Thumb src={coverOf(shown)} />
       </span>
+      {strip && (
+        <span aria-hidden="true" className={`${BADGE} top-3.5 right-3.5 flex items-center gap-1`}>
+          <svg aria-hidden="true" width="11" height="12" viewBox="0 0 22 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+            <rect x="4" y="1.5" width="14" height="21" rx="1.5" />
+            <path d="M7 8h8M7 14.5h8" />
+          </svg>
+          Strip
+        </span>
+      )}
       {album && (
         <span aria-hidden="true" className={`${BADGE} top-3.5 right-3.5 flex items-center gap-1`}>
           <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -72,12 +86,12 @@ function Footer({ post, mine, now }: { post: WallPost; mine: boolean; now: Date 
   return (
     <span className="flex items-center justify-between gap-1.5 px-0.5 pb-0.5 leading-[1.1]">
       <span className="flex min-w-0 flex-col">
-        <span className="truncate text-[13px] font-semibold">{post.author}</span>
-        <time dateTime={post.createdAt} suppressHydrationWarning className="text-[11px] text-muted">
+        <span className="bone self-start truncate text-[13px] font-semibold">{post.author}</span>
+        <time dateTime={post.createdAt} suppressHydrationWarning className="bone self-start text-[11px] text-muted">
           {relativeTime(post.createdAt, now)}
         </time>
       </span>
-      {mine && <span className="flex-none rounded-[10px] bg-soft px-2 py-[3px] text-[10px] font-semibold">You</span>}
+      {mine && <span className="bone flex-none rounded-[10px] bg-soft px-2 py-[3px] text-[10px] font-semibold">You</span>}
     </span>
   );
 }

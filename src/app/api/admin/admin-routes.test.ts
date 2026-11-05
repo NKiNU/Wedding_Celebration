@@ -12,6 +12,9 @@ const mocks = vi.hoisted(() => ({
   presignMonogram: vi.fn(),
   confirmMonogram: vi.fn(),
   removeMonogram: vi.fn(),
+  presignStripTemplate: vi.fn(),
+  confirmStripTemplate: vi.fn(),
+  removeStripTemplate: vi.fn(),
   getModerationPage: vi.fn(),
   setHidden: vi.fn(),
   mediaManifest: vi.fn(),
@@ -27,6 +30,7 @@ import { DELETE as deleteSession, POST as postSession } from "./session/route";
 import { PATCH as patchEvent } from "./event/route";
 import { POST as postQr, PUT as putQr } from "./qr/route";
 import { DELETE as deleteMonogram, POST as postMonogram, PUT as putMonogram } from "./monogram/route";
+import { DELETE as deleteStrip, POST as postStrip, PUT as putStrip } from "./strip-template/route";
 import { GET as getPosts } from "./posts/route";
 import { DELETE as deletePost, PATCH as patchPost } from "./posts/[id]/route";
 import { GET as getMedia } from "./media/route";
@@ -77,6 +81,9 @@ describe("routes behind the admin cookie", () => {
     ["POST monogram", () => postMonogram(json("POST", { mime: "image/png", bytes: 1000 }))],
     ["PUT monogram", () => putMonogram(json("PUT", { key: "k" }))],
     ["DELETE monogram", () => deleteMonogram(json("DELETE"))],
+    ["POST strip template", () => postStrip(json("POST", { mime: "image/png", bytes: 1000 }))],
+    ["PUT strip template", () => putStrip(json("PUT", { key: "k" }))],
+    ["DELETE strip template", () => deleteStrip(json("DELETE"))],
     ["GET posts", () => getPosts(json("GET"))],
     ["PATCH post", () => patchPost(json("PATCH", { hidden: true }), ctx)],
     ["DELETE post", () => deletePost(json("DELETE"), ctx)],
@@ -140,6 +147,40 @@ describe("routes behind the admin cookie", () => {
     mocks.removeMonogram.mockResolvedValue({ monogramUrl: null });
     expect((await deleteMonogram(json("DELETE"))).status).toBe(200);
     expect(mocks.removeMonogram).toHaveBeenCalled();
+  });
+
+  it("presigns (201), confirms and removes a strip template", async () => {
+    mocks.presignStripTemplate.mockResolvedValue({ key: "k", url: "u" });
+    expect((await postStrip(json("POST", { mime: "image/jpeg", bytes: 1000 }))).status).toBe(201);
+    expect(mocks.presignStripTemplate).toHaveBeenCalledWith("image/jpeg", 1000);
+    expect((await postStrip(json("POST", { mime: "image/webp", bytes: 1000 }))).status).toBe(400);
+    expect((await postStrip(json("POST", { mime: "image/png", bytes: 4 * 1024 * 1024 }))).status).toBe(400);
+    mocks.confirmStripTemplate.mockResolvedValue({ hasStripTemplate: true });
+    expect((await putStrip(json("PUT", { key: "k" }))).status).toBe(200);
+    expect(mocks.confirmStripTemplate).toHaveBeenCalledWith("k");
+    expect((await putStrip(json("PUT", {}))).status).toBe(400);
+    mocks.removeStripTemplate.mockResolvedValue({ hasStripTemplate: false });
+    expect((await deleteStrip(json("DELETE"))).status).toBe(200);
+    expect(mocks.removeStripTemplate).toHaveBeenCalled();
+  });
+
+  it("refuses a cross-site template upload", async () => {
+    const res = await postStrip(json("POST", { mime: "image/png", bytes: 1 }, { "sec-fetch-site": "cross-site" }));
+    expect(res.status).toBe(403);
+    expect(mocks.presignStripTemplate).not.toHaveBeenCalled();
+  });
+
+  it("passes strip windows and the event date through, and rejects bad ones", async () => {
+    mocks.updateEvent.mockResolvedValue({});
+    const wins = [
+      { x: 290, y: 250, w: 500, h: 375 },
+      { x: 290, y: 665, w: 500, h: 375 },
+      { x: 290, y: 1080, w: 500, h: 375 },
+    ];
+    expect((await patchEvent(json("PATCH", { stripWindows: wins, eventDate: "2026-11-07" }))).status).toBe(200);
+    expect(mocks.updateEvent).toHaveBeenCalledWith({ stripWindows: wins, eventDate: "2026-11-07" });
+    expect((await patchEvent(json("PATCH", { stripWindows: [wins[0], wins[0], wins[2]] }))).status).toBe(400);
+    expect((await patchEvent(json("PATCH", { eventDate: "2026-13-01" }))).status).toBe(400);
   });
 
   it("lists posts from a cursor", async () => {

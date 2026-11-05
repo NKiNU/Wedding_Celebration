@@ -4,28 +4,29 @@ import { EmptyState } from "./EmptyState";
 import { WallHeader } from "./WallHeader";
 
 describe("WallHeader", () => {
-  it("names the couple, the guest, the header message and the memory count", () => {
-    render(<WallHeader groom="Hafiz" bride="Aisyah" headerMessage="Raikan memori" memories={3} me="Aina" onOpenMe={vi.fn()} />);
+  it("names the couple, the guest and the header message, with no memory count", () => {
+    render(<WallHeader groom="Hafiz" bride="Aisyah" headerMessage="Raikan memori" me="Aina" onOpenMe={vi.fn()} />);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Hafiz & Aisyah");
-    expect(screen.getByText("Raikan memori · 3 memories shared")).toBeInTheDocument();
+    expect(screen.getByText("Raikan memori")).toBeInTheDocument();
+    expect(screen.queryByText(/memories shared/)).not.toBeInTheDocument();
     expect(screen.getByText("Aina")).toBeInTheDocument();
   });
 
   it("makes the name chip the button that opens the Me drawer", () => {
     const onOpenMe = vi.fn();
-    render(<WallHeader groom="H" bride="A" headerMessage={null} memories={0} me="Aina" onOpenMe={onOpenMe} />);
+    render(<WallHeader groom="H" bride="A" headerMessage={null} me="Aina" onOpenMe={onOpenMe} />);
     fireEvent.click(screen.getByRole("button", { name: "Your name and posts, Aina" }));
     expect(onOpenMe).toHaveBeenCalledOnce();
   });
 
-  it("uses the singular and survives a missing header message", () => {
-    render(<WallHeader groom="H" bride="A" headerMessage={null} memories={1} me="Aina" onOpenMe={vi.fn()} />);
-    expect(screen.getByText("1 memory shared")).toBeInTheDocument();
+  it("leaves the message line out when there is no header message", () => {
+    const { container } = render(<WallHeader groom="H" bride="A" headerMessage={null} me="Aina" onOpenMe={vi.fn()} />);
+    expect(container.querySelector("header > p.text-muted:not(.uppercase)")).toBeNull();
   });
 
   it("shows the monogram image instead of the initials", () => {
     const { container } = render(
-      <WallHeader groom="Hafiz" bride="Aisyah" headerMessage={null} memories={0} me="Aina" monogramUrl="https://media.test/mono.png" onOpenMe={vi.fn()} />,
+      <WallHeader groom="Hafiz" bride="Aisyah" headerMessage={null} me="Aina" monogramUrl="https://media.test/mono.png" onOpenMe={vi.fn()} />,
     );
     expect(container.querySelector("img")).toHaveAttribute("src", "https://media.test/mono.png");
     expect(screen.queryByText("HA")).toBeNull();
@@ -33,7 +34,7 @@ describe("WallHeader", () => {
 
   it("renders the ticker slot", () => {
     render(
-      <WallHeader groom="H" bride="A" headerMessage={null} memories={0} me="Aina" onOpenMe={vi.fn()}>
+      <WallHeader groom="H" bride="A" headerMessage={null} me="Aina" onOpenMe={vi.fn()}>
         <p>ticker</p>
       </WallHeader>,
     );

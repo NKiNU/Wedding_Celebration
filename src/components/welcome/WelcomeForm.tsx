@@ -27,7 +27,7 @@ export function WelcomeForm({ known, next }: { known: readonly KnownGuest[]; nex
           className="mb-2 flex flex-col gap-2 rounded-card border border-line bg-card p-3.5 text-left"
         >
           <p id="wm-known" className="text-xs text-muted">
-            This phone remembers you
+            <span className="bone">This phone remembers you</span>
           </p>
           <div className="flex flex-wrap gap-2">
             {known.map((guest) => (
@@ -39,7 +39,7 @@ export function WelcomeForm({ known, next }: { known: readonly KnownGuest[]; nex
                 onClick={() => continueAs(guest)}
                 className={`${CHIP} border-ink font-medium`}
               >
-                <span className="truncate">Continue as {guest.name}</span>
+                <span className="bone truncate">Continue as {guest.name}</span>
               </button>
             ))}
           </div>
@@ -47,7 +47,7 @@ export function WelcomeForm({ known, next }: { known: readonly KnownGuest[]; nex
       )}
 
       <label htmlFor="wm-name" className="text-[13px] font-medium">
-        Your name
+        <span className="bone">Your name</span>
       </label>
       <input
         id="wm-name"
@@ -103,17 +103,13 @@ export function WelcomeForm({ known, next }: { known: readonly KnownGuest[]; nex
         </div>
       )}
 
-      <p className="text-xs text-muted">
-        Shown on everything you share. No password: this phone remembers you, so only you can delete
-        your posts. We keep only the name you enter.
-      </p>
       <button
         type="submit"
         disabled={busy}
         data-pending={pending || undefined}
         className="mt-1.5 h-[54px] rounded-full bg-ink text-[15px] font-semibold tracking-[0.02em] text-paper transition-transform duration-100 active:scale-[0.98] data-pending:opacity-60"
       >
-        {pending ? "Starting…" : "Start"}
+        <span className="bone">{pending ? "Starting…" : "Start"}</span>
       </button>
     </form>
   );

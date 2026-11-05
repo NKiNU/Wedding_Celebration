@@ -11,7 +11,8 @@ import {
 } from "./domain/limits";
 import { isFontKey } from "./domain/fonts";
 import { nameProblem, normalizeName } from "./domain/names";
-import { monogramProblem, qrProblem, uploadProblem } from "./domain/uploads";
+import { formatEventDate, windowsProblem } from "./domain/strip";
+import { monogramProblem, qrProblem, stripShapeProblem, stripTemplateProblem, uploadProblem } from "./domain/uploads";
 
 const fontKey = z.string().refine(isFontKey, "Choose one of the listed fonts.");
 
@@ -84,9 +85,9 @@ const uploadFile = z.object({
 
 /** POST /api/uploads: the files a guest wants to send. Keys and the post type are the server's. */
 export const createUploadBody = z
-  .object({ files: z.array(uploadFile).min(1).max(MAX_PHOTOS * 2) })
-  .superRefine(({ files }, ctx) => {
-    const problem = uploadProblem(files);
+  .object({ files: z.array(uploadFile).min(1).max(MAX_PHOTOS * 2), layout: z.literal("strip").optional() })
+  .superRefine(({ files, layout }, ctx) => {
+    const problem = uploadProblem(files) ?? (layout === "strip" ? stripShapeProblem(files) : null);
     if (problem) ctx.addIssue({ code: "custom", message: problem });
   });
 
@@ -131,7 +132,9 @@ export const createPostBody = z
 export const postIdParam = z.uuid();
 
 /** Where a guest was headed before the welcome screen (`/?next=`): a post link only, so it cannot be an open redirect. */
-export const nextParam = z.string().refine((v) => v.startsWith("/p/") && postIdParam.safeParse(v.slice(3)).success);
+export const nextParam = z
+  .string()
+  .refine((v) => v === "/strip" || (v.startsWith("/p/") && postIdParam.safeParse(v.slice(3)).success));
 
 export const adminLoginBody = z.object({ passcode: z.string().min(1).max(200) });
 
@@ -149,6 +152,18 @@ export const updateEventBody = z
     fontNames: fontKey,
     fontWishes: fontKey,
     fontBody: fontKey,
+    /** null = the default windows. */
+    stripWindows: z
+      .array(z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }))
+      .superRefine((rects, ctx) => {
+        const problem = windowsProblem(rects);
+        if (problem) ctx.addIssue({ code: "custom", message: problem });
+      })
+      .nullable(),
+    eventDate: z
+      .string()
+      .refine((d) => formatEventDate(d) !== null, "Choose a valid date.")
+      .nullable(),
   })
   .partial()
   .refine((b) => Object.keys(b).length > 0, "Nothing to change.");
@@ -172,7 +187,16 @@ export const monogramPresignBody = z
     if (problem) ctx.addIssue({ code: "custom", message: problem });
   });
 
-/** PUT /api/admin/monogram: the key the presign call returned, now uploaded. */
+/** POST /api/admin/strip-template: the template image the admin is about to upload. */
+export const stripTemplatePresignBody = z
+  .object({ mime: z.string().max(100), bytes: z.int().positive() })
+  .superRefine(({ mime, bytes }, ctx) => {
+    const problem = stripTemplateProblem(mime, bytes);
+    if (problem) ctx.addIssue({ code: "custom", message: problem });
+  });
+
+/** PUT /api/admin/monogram and /api/admin/strip-template: the key the presign call returned, now uploaded. */
 export const monogramConfirmBody = z.object({ key: z.string().min(1).max(200) });
+export const stripTemplateConfirmBody = monogramConfirmBody;
 
 export const hideBody = z.object({ hidden: z.boolean() });

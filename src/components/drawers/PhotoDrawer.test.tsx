@@ -44,6 +44,21 @@ beforeEach(() => {
 });
 
 describe("PhotoDrawer", () => {
+  it("offers a photo strip first, as a link to its own page", () => {
+    show();
+    const link = screen.getByRole("link", { name: "Make a photo strip, 3 photos in the wedding frame" });
+    expect(link).toHaveAttribute("href", "/strip");
+    expect(link).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("puts the strip link out of reach while an upload runs", () => {
+    mocks.state = { status: "uploading", progress: 0.4, error: null };
+    show();
+    const link = screen.getByRole("link", { name: /Make a photo strip/ });
+    expect(link).toHaveAttribute("aria-disabled", "true");
+    expect(link).toHaveAttribute("tabindex", "-1");
+  });
+
   it("starts empty with Post disabled", () => {
     show();
     expect(screen.getByText("Choose photos")).toBeInTheDocument();

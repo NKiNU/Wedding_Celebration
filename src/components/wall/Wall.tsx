@@ -33,6 +33,7 @@ const POSTED: Record<PostType, string> = {
   album: "Shared! Your photos are on the wall as an album.",
   video: "Shared! Your video is on the wall.",
   wish: "Your wish has been sent to the couple.",
+  strip: "Shared! Your photo strip is on the wall.",
 };
 
 type Props = {
@@ -121,7 +122,7 @@ export function Wall({ eventId, groom, bride, headerMessage, monogramUrl, me, no
 
   return (
     <>
-      <WallHeader groom={groom} bride={bride} headerMessage={headerMessage} memories={counts.all} me={me.name} monogramUrl={monogramUrl} onOpenMe={() => setSheet("me")}>
+      <WallHeader groom={groom} bride={bride} headerMessage={headerMessage} me={me.name} monogramUrl={monogramUrl} onOpenMe={() => setSheet("me")}>
         <WishTicker wishes={wishes} onOpen={setWish} />
       </WallHeader>
       <FilterBar counts={counts} value={filter} onChange={setFilter} />

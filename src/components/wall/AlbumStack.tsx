@@ -3,8 +3,8 @@ import { coverOf, type WallPost } from "@/lib/domain/posts";
 
 const BACK = "absolute inset-2 block overflow-hidden rounded-media border-[3px] border-card [box-shadow:var(--stack-shadow)]";
 
-/** The two photos fanned out behind an album's cover. */
-export function AlbumStack({ post }: { post: WallPost }) {
+/** The two photos fanned out behind an album's (or a strip's) cover. */
+export function AlbumStack({ post }: { post: Pick<WallPost, "media"> }) {
   return (
     <>
       <span className={`${BACK} -rotate-[8deg]`}>

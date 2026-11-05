@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { markFromWall } from "@/lib/fromWall";
 import { image, wallPost } from "../../../tests/fixtures/posts";
@@ -130,6 +130,97 @@ describe("PostViewer", () => {
       expect(await screen.findByRole("alert")).toHaveTextContent("Something went wrong. Please try again.");
       expect(mocks.load).not.toHaveBeenCalled();
       expect(mocks.flash).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("photo strip", () => {
+    const strip = wallPost({ type: "strip", author: "Aina", caption: "Photobooth!", media: [image(9), image(1), image(2), image(3)] });
+    const setNavigator = (share?: (data: ShareData) => Promise<void>, canShare = true) => {
+      Object.defineProperty(navigator, "canShare", { value: share ? () => canShare : undefined, configurable: true });
+      Object.defineProperty(navigator, "share", { value: share, configurable: true });
+    };
+    const saveButton = () => screen.getByRole("button", { name: "Save image, story size 1080 by 1920" });
+    const fetchStrip = vi.fn(async () => ({ ok: true, blob: async () => new Blob(["jpeg"], { type: "image/jpeg" }) }) as Response);
+    const fileLoaded = () => act(() => new Promise<void>((done) => setTimeout(done, 20)));
+
+    beforeEach(() => vi.stubGlobal("fetch", fetchStrip));
+    afterEach(() => setNavigator(undefined));
+
+    it("shows only the finished image, without gallery chrome, and the caption", () => {
+      show(strip);
+      expect(screen.getByText("5 min ago · Photo strip")).toBeInTheDocument();
+      const img = screen.getByRole("img", { name: "Photo strip: 3 photos in the wedding template" });
+      expect(img).toHaveAttribute("src", "https://media.example.com/9.jpg");
+      expect(screen.getAllByRole("img")).toHaveLength(1);
+      expect(screen.queryByRole("button", { name: "Next photo" })).not.toBeInTheDocument();
+      expect(screen.getByText("Photobooth!")).toBeInTheDocument();
+    });
+
+    it("offers Save only to the owner, and fetches nothing for anyone else", () => {
+      const { unmount } = show(strip, false);
+      expect(screen.queryByRole("button", { name: /Save image/ })).not.toBeInTheDocument();
+      expect(screen.queryByText(/long-press/)).not.toBeInTheDocument();
+      expect(fetchStrip).not.toHaveBeenCalled();
+      unmount();
+      show(strip, true);
+      expect(saveButton()).toHaveTextContent("Save");
+      expect(screen.getByText("Or long-press the image and tap Save to Photos.")).toBeInTheDocument();
+      expect(fetchStrip).toHaveBeenCalledWith(`/api/posts/${strip.id}/strip`);
+    });
+
+    it("never offers Save on an album, even to its owner", () => {
+      show(album, true);
+      expect(screen.queryByRole("button", { name: /Save image/ })).not.toBeInTheDocument();
+    });
+
+    it("shares the image through the share sheet when the phone can", async () => {
+      const share = vi.fn<(data: ShareData) => Promise<void>>(async () => {});
+      setNavigator(share);
+      show(strip, true);
+      await waitFor(() => expect(fetchStrip).toHaveBeenCalled());
+      await fileLoaded(); // let the file land in state before the tap
+      fireEvent.click(saveButton());
+      await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+      const file = share.mock.calls[0]![0].files![0]!;
+      expect(file.name).toBe("photo-strip.jpg");
+      expect(file.type).toBe("image/jpeg");
+    });
+
+    it("stops quietly when the guest closes the share sheet", async () => {
+      setNavigator(vi.fn(async () => Promise.reject(new DOMException("closed", "AbortError"))));
+      const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+      show(strip, true);
+      await fileLoaded();
+      fireEvent.click(saveButton());
+      await waitFor(() => expect(navigator.share).toHaveBeenCalled());
+      expect(click).not.toHaveBeenCalled();
+      click.mockRestore();
+    });
+
+    it("downloads through a link when the phone cannot share files", async () => {
+      setNavigator(vi.fn(async () => {}), false);
+      URL.createObjectURL = vi.fn(() => "blob:strip");
+      URL.revokeObjectURL = vi.fn();
+      const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+      show(strip, true);
+      await fileLoaded();
+      fireEvent.click(saveButton());
+      await waitFor(() => expect(click).toHaveBeenCalled());
+      expect(click.mock.contexts[0]).toHaveProperty("download", "photo-strip.jpg");
+      expect(click.mock.contexts[0]).toHaveProperty("href", "blob:strip");
+      expect(navigator.share).not.toHaveBeenCalled();
+      click.mockRestore();
+    });
+
+    it("falls back to the owner route itself when the image never arrived", async () => {
+      fetchStrip.mockResolvedValueOnce({ ok: false } as Response);
+      const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+      show(strip, true);
+      await fileLoaded();
+      fireEvent.click(saveButton());
+      await waitFor(() => expect(click).toHaveBeenCalled());
+      expect(click.mock.contexts[0]).toHaveProperty("href", expect.stringMatching(new RegExp(`/api/posts/${strip.id}/strip$`)));
+      click.mockRestore();
     });
   });
 });

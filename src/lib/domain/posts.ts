@@ -1,6 +1,6 @@
 /** Pure wall rules: what a card shows, how lists merge, how the cursor and counts behave. */
 
-export type PostType = "photo" | "album" | "video" | "wish";
+export type PostType = "photo" | "album" | "video" | "wish" | "strip";
 
 /** URLs are final (the server maps R2 keys to the public media domain). */
 export type WallMedia = {
@@ -36,6 +36,7 @@ export const FILTERS: readonly { id: WallFilter; label: string }[] = [
 const FILTER_OF: Record<PostType, Exclude<WallFilter, "all">> = {
   photo: "photos",
   album: "photos",
+  strip: "photos",
   video: "videos",
   wish: "wishes",
 };
@@ -138,6 +139,12 @@ export function coverOf(post: Pick<WallPost, "media">, index = 0): string | null
   return (m.kind === "video" ? m.posterUrl : m.thumbUrl) ?? m.url;
 }
 
+/**
+ * A strip's media: position 0 is the finished 1080 x 1920 image, 1-3 the guest's photos.
+ * The wall stacks the photos; the viewer and the Me drawer show the finished image.
+ */
+export const stripPhotos = (post: Pick<WallPost, "media">) => post.media.slice(1);
+
 /** What a post is called in the viewer header and the Me drawer. */
 export function postLabel(post: Pick<WallPost, "type" | "media">): string {
   switch (post.type) {
@@ -149,5 +156,7 @@ export function postLabel(post: Pick<WallPost, "type" | "media">): string {
       return "Video";
     case "wish":
       return "Wish";
+    case "strip":
+      return "Photo strip";
   }
 }
