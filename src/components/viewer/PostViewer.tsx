@@ -8,7 +8,7 @@ import { flash } from "@/lib/flash";
 import { cameFromWall } from "@/lib/fromWall";
 import { postLabel, relativeTime, type WallPost } from "@/lib/domain/posts";
 import { AlbumGallery } from "./AlbumGallery";
-import { StripSave } from "./StripSave";
+import { StripShare } from "./StripShare";
 import { VideoPlayer } from "./VideoPlayer";
 
 const WALL = "/wall";
@@ -52,7 +52,7 @@ export function PostViewer({ post, mine, now }: Props) {
             </span>
           </p>
         </div>
-        {mine && strip && <StripSave postId={post.id} />}
+        {mine && strip && <StripShare postId={post.id} />}
         {mine && (
           <button type="button" onClick={() => remove.ask(post)} aria-label="Delete this post" className={`${ROUND} bg-overlay-ink/12`}>
             <TrashIcon />
@@ -71,7 +71,7 @@ export function PostViewer({ post, mine, now }: Props) {
           <span className="bone">{post.caption}</span>
         </p>}
       {mine && strip && (
-        <p className="px-5 pt-1.5 text-xs text-overlay-ink/70">Or long-press the image and tap Save to Photos.</p>
+        <p className="px-5 pt-1.5 text-xs text-overlay-ink/70">Long-press the image and tap Save to Photos.</p>
       )}
       <ConfirmDialog {...remove.dialog} />
     </main>
