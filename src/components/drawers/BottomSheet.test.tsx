@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { useState } from "react";
+import { Activity, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { BottomSheet } from "./BottomSheet";
 
@@ -32,6 +32,19 @@ describe("BottomSheet", () => {
     fireEvent.click(screen.getByText("Open"));
     expect(dialog()).toHaveAttribute("open");
     expect(dialog()).toHaveAttribute("aria-labelledby", screen.getByRole("heading", { name: "Share" }).id);
+  });
+
+  it("closes the modal when its page is hidden, so the next page is not left inert", () => {
+    const view = (mode: "visible" | "hidden") => (
+      <Activity mode={mode}>
+        <Harness />
+      </Activity>
+    );
+    const { rerender } = render(view("visible"));
+    fireEvent.click(screen.getByText("Open"));
+    expect(dialog()).toHaveAttribute("open");
+    rerender(view("hidden"));
+    expect(dialog()).not.toHaveAttribute("open");
   });
 
   it("reports a close once: the echo of the parent's own close would undo its next move", () => {
