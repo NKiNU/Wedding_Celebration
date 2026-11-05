@@ -81,6 +81,7 @@ src/
       admin/strip-template/route.ts  # POST/PUT/DELETE the photo strip template (admin)
     strip/page.tsx           # Photo strip editor (3 photos in the story-size template)
     strip/template/route.ts  # GET the current strip template on the app's origin (canvas needs same-origin pixels)
+    contact/page.tsx         # Contact us: the developer's WhatsApp + call (static, nothing stored)
   components/
     wall/                    # Header, WishTicker, FilterBar, PostCard, AlbumStack, Fab, ActionMenu
     drawers/                 # BottomSheet + PhotoDrawer, VideoDrawer, WishDrawer, QrDrawer, WishViewDrawer, MeDrawer
@@ -88,6 +89,7 @@ src/
     ui/                      # Button, Input, Toast, ConfirmDialog, Monogram
     welcome/                 # WelcomeHeader, WelcomeForm + useJoin hook
     decor/                   # Floral, LaceFrame (hidden by the decor flag / wireframe theme)
+    contact/                 # ContactPage (markup for /contact)
   lib/
     domain/                  # pure rules, no I/O: names, post type, limits.ts, fonts.ts (font keys), rate-limit math, relative time
     media.ts                 # client-side resize, video duration + poster frame
@@ -205,7 +207,7 @@ create table post_media (
    - New posts appear live via Supabase Realtime (insert/update/delete on `posts`, plus the `post_hidden` broadcast on `wall:<eventId>` for moderation; see `docs/PLAN.md` Data model). Paginate with infinite scroll, 24 per page.
 3. **Bottom drawers** (one `BottomSheet` component: drag handle, title, close button, scrim tap closes, focus trapped, Escape closes)
    - Photos: picker (multiple), preview grid with remove, hint "will post as album" when >1, optional caption, Post button shows count, progress while uploading.
-   - Photo strip (`/strip`, from a card at the top of the Photos drawer): the story-size template full screen with 3 windows. Tap a window to pick a photo; pinch to zoom, drag to move (the window keeps its size, the photo always covers it); hold a photo and drag it onto the bin to remove it (Delete key too). Post when all 3 are filled. On the wall: the 3 photos stacked with a "Strip" badge; the viewer shows the finished image; only the owner gets Save.
+   - Photo strip (`/strip`, from a card at the top of the Photos drawer): the story-size template full screen with 3 windows. Tap a window to pick a photo; pinch to zoom, drag to move (the window keeps its size, the photo always covers it); hold a photo and drag it onto the bin to remove it (Delete key too). Post when all 3 are filled. On the wall: the 3 photos stacked with a "Strip" badge; the viewer shows the finished image; only the owner gets Share (a sheet with "Share" and "Save to phone").
    - Video: picker (single), file name/size, validation error, optional caption, progress.
    - Wish: quick-start chips, textarea, counter 0/300, Send.
    - DuitNow QR: admin's QR image, account holder name + bank, **Download QR**, 3 steps (save → banking app → DuitNow QR → scan from gallery → check name). Not a post; nothing is stored.

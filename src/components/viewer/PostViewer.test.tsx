@@ -139,7 +139,13 @@ describe("PostViewer", () => {
       Object.defineProperty(navigator, "canShare", { value: share ? () => canShare : undefined, configurable: true });
       Object.defineProperty(navigator, "share", { value: share, configurable: true });
     };
-    const saveButton = () => screen.getByRole("button", { name: "Save image, story size 1080 by 1920" });
+    const shareButton = () => screen.getByRole("button", { name: "Share photo strip" });
+    const openSheet = async () => {
+      await fileLoaded(); // let the file land in state before the tap
+      fireEvent.click(shareButton());
+    };
+    const toApps = () => screen.getByRole("button", { name: /^Share$/ });
+    const saveToPhone = () => screen.getByRole("button", { name: "Save to phone" });
     const fetchStrip = vi.fn(async () => ({ ok: true, blob: async () => new Blob(["jpeg"], { type: "image/jpeg" }) }) as Response);
     const fileLoaded = () => act(() => new Promise<void>((done) => setTimeout(done, 20)));
 
@@ -156,68 +162,121 @@ describe("PostViewer", () => {
       expect(screen.getByText("Photobooth!")).toBeInTheDocument();
     });
 
-    it("offers Save only to the owner, and fetches nothing for anyone else", () => {
+    it("offers Share only to the owner, and fetches nothing for anyone else", () => {
       const { unmount } = show(strip, false);
-      expect(screen.queryByRole("button", { name: /Save image/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Share photo strip" })).not.toBeInTheDocument();
       expect(screen.queryByText(/long-press/)).not.toBeInTheDocument();
       expect(fetchStrip).not.toHaveBeenCalled();
       unmount();
       show(strip, true);
-      expect(saveButton()).toHaveTextContent("Save");
-      expect(screen.getByText("Or long-press the image and tap Save to Photos.")).toBeInTheDocument();
+      expect(shareButton()).toHaveTextContent("Share");
+      expect(screen.queryByRole("button", { name: /Save image/ })).not.toBeInTheDocument(); // Share replaced Save
+      expect(screen.getByText("Long-press the image and tap Save to Photos.")).toBeInTheDocument();
+      expect(fetchStrip).toHaveBeenCalledTimes(1);
       expect(fetchStrip).toHaveBeenCalledWith(`/api/posts/${strip.id}/strip`);
     });
 
-    it("never offers Save on an album, even to its owner", () => {
+    it("never offers Share on an album, even to its owner", () => {
       show(album, true);
-      expect(screen.queryByRole("button", { name: /Save image/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Share photo strip" })).not.toBeInTheDocument();
     });
 
-    it("shares the image through the share sheet when the phone can", async () => {
+    it("opens a sheet with Share and Save to phone, its title for screen readers only", async () => {
+      setNavigator(vi.fn(async () => {}));
+      show(strip, true);
+      await openSheet();
+      const sheet = screen.getByRole("dialog", { name: "Share photo strip" });
+      expect(within(sheet).getByRole("button", { name: /^Share$/ })).toBeInTheDocument();
+      expect(within(sheet).getByRole("button", { name: "Save to phone" })).toBeInTheDocument();
+      expect(within(sheet).queryByRole("heading", { name: "Share photo strip" })).toHaveClass("sr-only");
+    });
+
+    it("shares the image file, with no text, and closes the sheet", async () => {
       const share = vi.fn<(data: ShareData) => Promise<void>>(async () => {});
       setNavigator(share);
       show(strip, true);
-      await waitFor(() => expect(fetchStrip).toHaveBeenCalled());
-      await fileLoaded(); // let the file land in state before the tap
-      fireEvent.click(saveButton());
+      await openSheet();
+      fireEvent.click(toApps());
       await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
-      const file = share.mock.calls[0]![0].files![0]!;
-      expect(file.name).toBe("photo-strip.jpg");
-      expect(file.type).toBe("image/jpeg");
+      const data = share.mock.calls[0]![0];
+      expect(data.text).toBeUndefined();
+      expect(data.files).toHaveLength(1);
+      expect(data.files![0]!.name).toBe("photo-strip.jpg");
+      expect(data.files![0]!.type).toBe("image/jpeg");
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     });
 
-    it("stops quietly when the guest closes the share sheet", async () => {
+    it("stays open and quiet when the guest closes the share sheet", async () => {
       setNavigator(vi.fn(async () => Promise.reject(new DOMException("closed", "AbortError"))));
       const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
       show(strip, true);
-      await fileLoaded();
-      fireEvent.click(saveButton());
+      await openSheet();
+      fireEvent.click(toApps());
       await waitFor(() => expect(navigator.share).toHaveBeenCalled());
       expect(click).not.toHaveBeenCalled();
+      expect(screen.getByRole("dialog", { name: "Share photo strip" })).toBeInTheDocument();
       click.mockRestore();
     });
 
-    it("downloads through a link when the phone cannot share files", async () => {
-      setNavigator(vi.fn(async () => {}), false);
+    it("ignores a second tap while the share sheet is still up", async () => {
+      let finish = () => {};
+      const share = vi.fn(() => new Promise<void>((done) => (finish = done)));
+      setNavigator(share);
+      const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+      show(strip, true);
+      await openSheet();
+      fireEvent.click(toApps());
+      fireEvent.click(toApps());
+      expect(share).toHaveBeenCalledTimes(1);
+      expect(click).not.toHaveBeenCalled();
+      await act(async () => finish());
+      click.mockRestore();
+    });
+
+    it("downloads instead when the share sheet refuses", async () => {
+      setNavigator(vi.fn(async () => Promise.reject(new DOMException("no", "NotAllowedError"))));
       URL.createObjectURL = vi.fn(() => "blob:strip");
       URL.revokeObjectURL = vi.fn();
       const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
       show(strip, true);
-      await fileLoaded();
-      fireEvent.click(saveButton());
+      await openSheet();
+      fireEvent.click(toApps());
+      await waitFor(() => expect(click).toHaveBeenCalled());
+      expect(click.mock.contexts[0]).toHaveProperty("download", "photo-strip.jpg");
+      click.mockRestore();
+    });
+
+    it("Save to phone downloads the image, even on a phone that can share", async () => {
+      setNavigator(vi.fn(async () => {}));
+      URL.createObjectURL = vi.fn(() => "blob:strip");
+      URL.revokeObjectURL = vi.fn();
+      const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+      show(strip, true);
+      await openSheet();
+      fireEvent.click(saveToPhone());
       await waitFor(() => expect(click).toHaveBeenCalled());
       expect(click.mock.contexts[0]).toHaveProperty("download", "photo-strip.jpg");
       expect(click.mock.contexts[0]).toHaveProperty("href", "blob:strip");
       expect(navigator.share).not.toHaveBeenCalled();
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
       click.mockRestore();
     });
 
-    it("falls back to the owner route itself when the image never arrived", async () => {
+    it("offers only Save to phone when the phone cannot share files", async () => {
+      setNavigator(vi.fn(async () => {}), false);
+      show(strip, true);
+      await openSheet();
+      expect(screen.queryByRole("button", { name: /^Share$/ })).not.toBeInTheDocument();
+      expect(saveToPhone()).toBeInTheDocument();
+    });
+
+    it("saves through the owner route itself when the image never arrived", async () => {
       fetchStrip.mockResolvedValueOnce({ ok: false } as Response);
       const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
       show(strip, true);
-      await fileLoaded();
-      fireEvent.click(saveButton());
+      await openSheet();
+      expect(screen.queryByRole("button", { name: /^Share$/ })).not.toBeInTheDocument();
+      fireEvent.click(saveToPhone());
       await waitFor(() => expect(click).toHaveBeenCalled());
       expect(click.mock.contexts[0]).toHaveProperty("href", expect.stringMatching(new RegExp(`/api/posts/${strip.id}/strip$`)));
       click.mockRestore();

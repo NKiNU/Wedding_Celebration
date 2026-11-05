@@ -60,3 +60,58 @@ Numbers marked *(verify)* are from memory; check them on the provider's pricing 
 ## 8. No `Retry-After` on 429
 
 - Already listed in `docs/PLAN.md` as "not fixed, on purpose". The rate-limit messages tell the guest to wait.
+
+## 9. Photo strip is not full width in the viewer
+
+- **What:** the viewer shows a strip inside `AlbumGallery`'s photo frame, which is `aspect-4/5`. The strip is
+  9:16, so it is contained by the frame's height and leaves dark bands on both sides: on a 390 px phone the
+  frame is about 390 × 487 and the strip only about 274 px wide (~70 %). Found 2026-11-05.
+- **Fix (planned, local):** give strips a 9:16 frame (`aspect-9/16` instead of `aspect-4/5`, strips only) in
+  `src/components/viewer/AlbumGallery.tsx`. The strip then fills the height between header and caption and is
+  nearly full width on most phones. Truly edge to edge would need vertical scroll or cropping the top/bottom
+  (where the names and date are), so not planned.
+
+## 10. Photo strip Share: not yet checked (built 2026-11-05)
+
+The owner-only Share sheet (`src/components/viewer/StripShare.tsx`) is done in code: unit tests, lint,
+typecheck and build pass. Still open:
+
+- **Real phones:** iPhone Safari and Android Chrome. Tap Share → the phone's share menu opens with the image;
+  WhatsApp (chat + status), Facebook (feed + story) and Instagram Stories get the full 1080 × 1920 image,
+  uncropped; on iPhone, Save Image puts it in Photos; closing the menu leaves our sheet open; Save to phone
+  lands in the gallery / Downloads on Android and in Files on iPhone.
+- **E2E:** `npm run test:e2e` was not run (needs local Supabase / Docker). No e2e test covers Share yet; one
+  could stub `navigator.canShare` / `navigator.share` and check the owner-only button and the one-file call.
+- **Pull request:** none yet for `claude/modest-cori-2wwy2a` → `main`.
+
+## 11. Media storage past 9 GB: spill over to the VPS (planned, not built)
+
+- **Today:** the event's posted media is capped at 9 GB (`MAX_EVENT_MB`, checked in `src/server/uploads.ts`).
+  At the cap, photo and video uploads are refused; viewing and wishes keep working.
+- **Wanted (2026-11-05):** when R2 reaches 9 GB, store new media on the VPS that hosts the app ("storage
+  spillover" / capacity-based storage routing). Cheaper alternative: R2's free tier is not a hard cap; past
+  10 GB it bills about US$0.015 per GB-month *(verify)*, so raising `MAX_EVENT_MB` costs cents and needs no code.
+- **Trade-offs:** VPS disk must have room (check `df -h`); overflow uploads and views go through the VPS
+  (put its media domain behind the Cloudflare proxy to cache images); one disk, no redundancy (copy the media
+  off after the event); the VPS must accept only signed, size-checked uploads.
+- **Plan:**
+  1. Migration: `store text not null default 'r2' check (store in ('r2','vps'))` on `post_media` and the
+     upload intent's files. QR, monogram and strip template stay on R2.
+  2. `create_upload_intent` picks the store: under 9 GB → R2, else VPS, with its own cap `MAX_VPS_MB`.
+  3. `src/server/localStore.ts` implements the existing `R2` interface (`presignPut, head, peek, read,
+     deleteMany, purge`) over a media folder `MEDIA_DIR` (e.g. `/var/lib/wedding-media`), same
+     `events/{eventId}/{postId}/…` keys.
+  4. `PUT /api/media/upload/...` stands in for R2's presigned URL: HMAC-signed, expiring link
+     (`MEDIA_UPLOAD_SECRET`), exact declared size and content type, no `..` / absolute paths, write to a temp
+     file then rename. Same origin, so the client's upload code and progress bars stay as they are.
+  5. Caddy/nginx serves `MEDIA_DIR` directly on a media subdomain behind Cloudflare (not through Node), with
+     `nosniff`, no `Content-Disposition`/`Content-Encoding` tricks, long cache.
+  6. `mediaUrl` builds the link from each file's `store` (`MEDIA_VPS_BASE_URL` for the VPS).
+  7. Delete post, hourly sweep, admin hide/delete and zip download, owner strip download: all follow `store`.
+  8. Env vars `MEDIA_DIR`, `MEDIA_VPS_BASE_URL`, `MAX_VPS_MB`, `MEDIA_UPLOAD_SECRET` in `env.ts` /
+     `.env.example`; `docs/DEPLOY.md`: folder + permissions, proxy block, upload body size (80 MB videos),
+     backup and disk checks.
+  9. Tests: switch at 9 GB, bad signature / size / path rejected, delete and sweep on both stores, URLs per
+     store. Record the decision as ADR 005.
+- **Size:** about 12–15 files plus a migration. Needs a real database and the real VPS to check.
+- **Open:** how much free disk the VPS has (sets `MAX_VPS_MB`).
