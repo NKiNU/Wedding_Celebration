@@ -72,13 +72,6 @@ function jar() {
 beforeAll(() => {
   for (const [k, v] of Object.entries(validEnv)) vi.stubEnv(k, v);
 });
-/** `getAdminEvent` and the template calls read the event's admin columns from the database. */
-const withRow = (over = {}, more: DbResult[] = []) => {
-  const fake = fakeDb([ok(eventRow(over)), ...more]);
-  mocks.db = fake.db;
-  return fake;
-};
-
 beforeEach(() => {
   mocks.event = eventRow();
   mocks.db = fakeDb([]).db;
@@ -175,7 +168,7 @@ describe("login and the admin cookie", () => {
 
 describe("the event", () => {
   it("shows empty text for optional fields and whether a QR exists", async () => {
-    withRow({ header_message: null, qr_path: "events/x/admin/qr-1.png" });
+    mocks.event = eventRow({ header_message: null, qr_path: "events/x/admin/qr-1.png" });
     expect(await getAdminEvent()).toEqual({
       groomName: "Groom",
       brideName: "Bride",
@@ -203,7 +196,7 @@ describe("the event", () => {
       { x: 0, y: 300, w: 200, h: 200 },
       { x: 0, y: 600, w: 200, h: 200 },
     ];
-    withRow({ strip_template_path: "events/e/admin/strip-1.png", strip_windows: wins, event_date: "2026-11-07" });
+    mocks.event = eventRow({ strip_template_path: "events/e/admin/strip-1.png", strip_windows: wins, event_date: "2026-11-07" });
     const e = await getAdminEvent();
     expect(e.stripTemplateUrl).toBe("/strip/template?v=events%2Fe%2Fadmin%2Fstrip-1.png");
     expect(e.hasStripTemplate).toBe(true);
@@ -211,27 +204,21 @@ describe("the event", () => {
     expect(e.eventDate).toBe("2026-11-07");
   });
 
-  it("fails when loading the event fails", async () => {
-    mocks.db = fakeDb([failure("XX000")]).db;
-    await expect(getAdminEvent()).rejects.toThrow(/Loading the event failed/);
-  });
-
   it("returns default fonts and no monogram when the columns are null", async () => {
-    withRow();
     const e = await getAdminEvent();
     expect(e.fonts).toEqual({ names: "pinyon-script", wishes: "cormorant-garamond", body: "poppins" });
     expect(e.monogramUrl).toBeNull();
   });
 
   it("returns the stored fonts and a media url for the monogram", async () => {
-    withRow({ font_names: "great-vibes", monogram_path: "events/e/admin/monogram-1.png" });
+    mocks.event = eventRow({ font_names: "great-vibes", monogram_path: "events/e/admin/monogram-1.png" });
     const e = await getAdminEvent();
     expect(e.fonts.names).toBe("great-vibes");
     expect(e.monogramUrl).toBe("https://media.example.com/events/e/admin/monogram-1.png");
   });
 
   it("falls back to the default for a font key that is not in the list", async () => {
-    withRow({ font_body: "comic-sans" });
+    mocks.event = eventRow({ font_body: "comic-sans" });
     expect((await getAdminEvent()).fonts.body).toBe("poppins");
   });
 
@@ -510,7 +497,8 @@ describe("the monogram", () => {
   });
 
   it("removes the monogram and its file", async () => {
-    const { deleted, calls } = setup({}, [ok(eventRow({ monogram_path: OLD })), ok(eventRow())]);
+    mocks.event = eventRow({ monogram_path: OLD });
+    const { deleted, calls } = setup({}, [ok(eventRow())]);
     const result = await removeMonogram();
     expect(calls.find((c) => c.method === "update")!.args[0]).toEqual({ monogram_path: null });
     expect(deleted).toEqual([OLD]);
@@ -518,7 +506,7 @@ describe("the monogram", () => {
   });
 
   it("does nothing when there is no monogram", async () => {
-    const { deleted, calls } = setup({}, [ok(eventRow())]);
+    const { deleted, calls } = setup({}, []);
     expect((await removeMonogram()).monogramUrl).toBeNull();
     expect(deleted).toEqual([]);
     expect(calls.some((c) => c.method === "update")).toBe(false);
@@ -556,10 +544,8 @@ describe("the strip template", () => {
   });
 
   it("makes a 1080 x 1920 PNG the template and removes the old one", async () => {
-    const { deleted, calls } = setup({ [KEY]: png(1080, 1920) }, [
-      ok(eventRow({ strip_template_path: OLD })),
-      ok(eventRow({ strip_template_path: KEY })),
-    ]);
+    mocks.event = eventRow({ strip_template_path: OLD });
+    const { deleted, calls } = setup({ [KEY]: png(1080, 1920) }, [ok(eventRow({ strip_template_path: KEY }))]);
     const result = await confirmStripTemplate(KEY);
     expect(calls.find((c) => c.method === "update")!.args[0]).toEqual({ strip_template_path: KEY });
     expect(deleted).toEqual([OLD]);
@@ -567,13 +553,15 @@ describe("the strip template", () => {
   });
 
   it("accepts a 1080 x 1920 JPEG", async () => {
-    const { deleted } = setup({ [JPG_KEY]: jpeg(1080, 1920) }, [ok(eventRow()), ok(eventRow({ strip_template_path: JPG_KEY }))]);
+    mocks.event = eventRow();
+    const { deleted } = setup({ [JPG_KEY]: jpeg(1080, 1920) }, [ok(eventRow({ strip_template_path: JPG_KEY }))]);
     await expect(confirmStripTemplate(JPG_KEY)).resolves.toMatchObject({ hasStripTemplate: true });
     expect(deleted).toEqual([]);
   });
 
   it("refuses the wrong size with both sizes in the message, and deletes the upload", async () => {
-    const { deleted, calls } = setup({ [JPG_KEY]: jpeg(1080, 1350) }, [ok(eventRow())]);
+    mocks.event = eventRow();
+    const { deleted, calls } = setup({ [JPG_KEY]: jpeg(1080, 1350) }, []);
     await expect(confirmStripTemplate(JPG_KEY)).rejects.toMatchObject({
       status: 400,
       code: "wrong_size",
@@ -588,7 +576,8 @@ describe("the strip template", () => {
     ["a monogram key", `events/${EVENT_ID}/admin/monogram-11111111-1111-4111-8111-111111111111.png`],
     ["a WebP", `events/${EVENT_ID}/admin/strip-11111111-1111-4111-8111-111111111111.webp`],
   ])("refuses %s without touching storage", async (_name, key) => {
-    const { deleted } = setup({ [key]: png(1080, 1920) }, [ok(eventRow())]);
+    mocks.event = eventRow();
+    const { deleted } = setup({ [key]: png(1080, 1920) }, []);
     await expect(confirmStripTemplate(key)).rejects.toMatchObject({ status: 400, code: "invalid_key" });
     expect(deleted).toEqual([]);
   });
@@ -600,14 +589,16 @@ describe("the strip template", () => {
     ["bytes that are not a PNG", { [KEY]: { bytes: 40, mime: "image/png", body: new Uint8Array(40) } }],
     ["a body that cannot be read", { [KEY]: { bytes: 40, mime: "image/png" } }],
   ])("refuses %s as incomplete and removes the upload", async (_name, objects) => {
-    const { deleted } = setup(objects, [ok(eventRow())]);
+    mocks.event = eventRow();
+    const { deleted } = setup(objects, []);
     await expect(confirmStripTemplate(KEY)).rejects.toMatchObject({ status: 400, code: "upload_incomplete" });
     expect(deleted).toEqual([KEY]);
   });
 
   it("does not delete the live template when a retry with its key hits a storage error", async () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
-    const { deleted } = setup({ [KEY]: png(1080, 1920) }, [ok(eventRow({ strip_template_path: KEY }))]);
+    mocks.event = eventRow({ strip_template_path: KEY });
+    const { deleted } = setup({ [KEY]: png(1080, 1920) }, []);
     (mocks.r2 as { head: () => Promise<never> }).head = async () => {
       throw new Error("R2 down");
     };
@@ -617,12 +608,14 @@ describe("the strip template", () => {
   });
 
   it("fails when saving fails", async () => {
-    setup({ [KEY]: png(1080, 1920) }, [ok(eventRow()), failure("XX000")]);
+    mocks.event = eventRow();
+    setup({ [KEY]: png(1080, 1920) }, [failure("XX000")]);
     await expect(confirmStripTemplate(KEY)).rejects.toThrow(/Saving the template failed/);
   });
 
   it("goes back to the default template and deletes the file", async () => {
-    const { deleted, calls } = setup({}, [ok(eventRow({ strip_template_path: OLD })), ok(eventRow())]);
+    mocks.event = eventRow({ strip_template_path: OLD });
+    const { deleted, calls } = setup({}, [ok(eventRow())]);
     const result = await removeStripTemplate();
     expect(calls.find((c) => c.method === "update")!.args[0]).toEqual({ strip_template_path: null });
     expect(deleted).toEqual([OLD]);
@@ -630,14 +623,16 @@ describe("the strip template", () => {
   });
 
   it("does nothing when the default is already in use", async () => {
-    const { deleted, calls } = setup({}, [ok(eventRow())]);
+    mocks.event = eventRow();
+    const { deleted, calls } = setup({}, []);
     expect((await removeStripTemplate()).hasStripTemplate).toBe(false);
     expect(deleted).toEqual([]);
     expect(calls.some((c) => c.method === "update")).toBe(false);
   });
 
   it("fails when removing fails", async () => {
-    setup({}, [ok(eventRow({ strip_template_path: OLD })), failure("XX000")]);
+    mocks.event = eventRow({ strip_template_path: OLD });
+    setup({}, [failure("XX000")]);
     await expect(removeStripTemplate()).rejects.toThrow(/Removing the template failed/);
   });
 });

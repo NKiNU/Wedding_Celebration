@@ -1,6 +1,6 @@
 # Plan: photo strip (3 photos in a story-size template)
 
-Status: **in progress (2026-11-05)** on `ccr-678fc320-9kuhn0`. The owner agreed to the post-type rule change
+Status: **built (2026-11-05)** on `ccr-678fc320-9kuhn0`; not yet run against a database or on a phone. The owner agreed to the post-type rule change
 (ADR 004) and asked for the wedding date (07 Nov 2026) on the default template: `events.event_date`,
 set by migration 0008 and editable in admin. Deviation: `layout` is saved with one update after
 `create_upload_intent` instead of a new argument (that function is shared by every upload).

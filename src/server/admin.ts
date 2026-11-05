@@ -103,22 +103,7 @@ export function logout(jar: CookieJar): void {
 
 // ---------------------------------------------------------------- event
 
-/** The event columns plus the ones only the admin screen reads. */
-const ADMIN_COLUMNS = `${EVENT_COLUMNS}, strip_template_path, strip_windows, event_date` as const;
-
-async function adminRow() {
-  const { data, error } = await db()
-    .from("events")
-    .select(ADMIN_COLUMNS)
-    .eq("id", (await getEvent()).id)
-    .single();
-  if (error) throw new Error(`Loading the event failed: ${error.code} ${error.message}`);
-  return data;
-}
-
-type AdminRow = Awaited<ReturnType<typeof adminRow>>;
-
-const toAdminEvent = (e: AdminRow): AdminEvent => ({
+const toAdminEvent = (e: Awaited<ReturnType<typeof getEvent>>): AdminEvent => ({
   groomName: e.groom_name,
   brideName: e.bride_name,
   headerMessage: e.header_message ?? "",
@@ -139,7 +124,7 @@ const toAdminEvent = (e: AdminRow): AdminEvent => ({
 });
 
 export async function getAdminEvent(): Promise<AdminEvent> {
-  return toAdminEvent(await adminRow());
+  return toAdminEvent(await getEvent());
 }
 
 /** Empty text clears the optional fields; the couple's names cannot be empty (validated). */
@@ -162,7 +147,7 @@ export async function updateEvent(patch: z.infer<typeof updateEventBody>): Promi
     .from("events")
     .update(columns)
     .eq("id", event.id)
-    .select(ADMIN_COLUMNS)
+    .select(EVENT_COLUMNS)
     .single();
   if (error) throw new Error(`Updating the event failed: ${error.code} ${error.message}`);
   return toAdminEvent(data);
@@ -204,7 +189,7 @@ export async function confirmQr(key: string): Promise<AdminEvent> {
     .from("events")
     .update({ qr_path: key })
     .eq("id", event.id)
-    .select(ADMIN_COLUMNS)
+    .select(EVENT_COLUMNS)
     .single();
   if (error) throw new Error(`Saving the QR failed: ${error.code} ${error.message}`);
 
@@ -295,7 +280,7 @@ export async function confirmMonogram(key: string): Promise<AdminEvent> {
     .from("events")
     .update({ monogram_path: key })
     .eq("id", event.id)
-    .select(ADMIN_COLUMNS)
+    .select(EVENT_COLUMNS)
     .single();
   if (error) throw new Error(`Saving the monogram failed: ${error.code} ${error.message}`);
 
@@ -308,14 +293,14 @@ export async function confirmMonogram(key: string): Promise<AdminEvent> {
 
 /** Back to the default "&" monogram. */
 export async function removeMonogram(): Promise<AdminEvent> {
-  const event = await adminRow();
+  const event = await getEvent();
   if (!event.monogram_path) return toAdminEvent(event);
 
   const { data, error } = await db()
     .from("events")
     .update({ monogram_path: null })
     .eq("id", event.id)
-    .select(ADMIN_COLUMNS)
+    .select(EVENT_COLUMNS)
     .single();
   if (error) throw new Error(`Removing the monogram failed: ${error.code} ${error.message}`);
   await r2().deleteMany([event.monogram_path]).catch((e) => console.error("Removing the old monogram failed", e));
@@ -365,7 +350,7 @@ async function templateUploadProblem(key: string, mime: string): Promise<AppErro
  * story size. Strips already posted are flattened images, so they keep the template they were made with.
  */
 export async function confirmStripTemplate(key: string): Promise<AdminEvent> {
-  const event = await adminRow();
+  const event = await getEvent();
   if (!STRIP_KEY(event.id).test(key)) throw new AppError("invalid_key", 400, "That isn’t a template upload.");
 
   const problem = await templateUploadProblem(key, stripTemplateMime(key)).catch((e: unknown) => {
@@ -383,7 +368,7 @@ export async function confirmStripTemplate(key: string): Promise<AdminEvent> {
     .from("events")
     .update({ strip_template_path: key })
     .eq("id", event.id)
-    .select(ADMIN_COLUMNS)
+    .select(EVENT_COLUMNS)
     .single();
   if (error) throw new Error(`Saving the template failed: ${error.code} ${error.message}`);
 
@@ -397,14 +382,14 @@ export async function confirmStripTemplate(key: string): Promise<AdminEvent> {
 
 /** Back to the built-in default template. */
 export async function removeStripTemplate(): Promise<AdminEvent> {
-  const event = await adminRow();
+  const event = await getEvent();
   if (!event.strip_template_path) return toAdminEvent(event);
 
   const { data, error } = await db()
     .from("events")
     .update({ strip_template_path: null })
     .eq("id", event.id)
-    .select(ADMIN_COLUMNS)
+    .select(EVENT_COLUMNS)
     .single();
   if (error) throw new Error(`Removing the template failed: ${error.code} ${error.message}`);
   await r2()
