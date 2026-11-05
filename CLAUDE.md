@@ -81,6 +81,7 @@ src/
       admin/strip-template/route.ts  # POST/PUT/DELETE the photo strip template (admin)
     strip/page.tsx           # Photo strip editor (3 photos in the story-size template)
     strip/template/route.ts  # GET the current strip template on the app's origin (canvas needs same-origin pixels)
+    contact/page.tsx         # Contact us: the developer's WhatsApp + call (static, nothing stored)
   components/
     wall/                    # Header, WishTicker, FilterBar, PostCard, AlbumStack, Fab, ActionMenu
     drawers/                 # BottomSheet + PhotoDrawer, VideoDrawer, WishDrawer, QrDrawer, WishViewDrawer, MeDrawer
@@ -88,6 +89,7 @@ src/
     ui/                      # Button, Input, Toast, ConfirmDialog, Monogram
     welcome/                 # WelcomeHeader, WelcomeForm + useJoin hook
     decor/                   # Floral, LaceFrame (hidden by the decor flag / wireframe theme)
+    contact/                 # ContactPage (markup for /contact)
   lib/
     domain/                  # pure rules, no I/O: names, post type, limits.ts, fonts.ts (font keys), rate-limit math, relative time
     media.ts                 # client-side resize, video duration + poster frame
