@@ -36,7 +36,7 @@ export function useDeletePost(onDeleted: (post: WallPost) => void) {
 
   const dialog = {
     open,
-    title: `Delete this ${post?.type ?? "post"}?`,
+    title: `Delete this ${post?.type === "strip" ? "photo strip" : (post?.type ?? "post")}?`,
     body: "Guests will not see it anymore. This cannot be undone.",
     confirmLabel: "Delete",
     cancelLabel: "Keep it",

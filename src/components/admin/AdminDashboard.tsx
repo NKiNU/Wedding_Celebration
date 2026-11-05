@@ -6,6 +6,7 @@ import { DownloadAll } from "./DownloadAll";
 import { EventForm } from "./EventForm";
 import { ModerationList } from "./ModerationList";
 import { QrSection } from "./QrSection";
+import { StripTemplateSection } from "./StripTemplateSection";
 import { UploadsSection } from "./UploadsSection";
 import { useAdminEvent } from "./useAdminEvent";
 import { useAdminLogin } from "./useAdminLogin";
@@ -28,6 +29,7 @@ export function AdminDashboard({ event: initial, initialPosts, now }: Props) {
       <UploadsSection event={event} saving={saving} save={save} />
       <QrSection event={event} saving={saving} save={save} onQrChanged={setEvent} />
       <AppearanceSection event={event} saving={saving} save={save} onChanged={setEvent} />
+      <StripTemplateSection event={event} saving={saving} save={save} onChanged={setEvent} />
       <ModerationList initial={initialPosts} now={now} />
       <DownloadAll />
     </main>

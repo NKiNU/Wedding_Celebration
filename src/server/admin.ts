@@ -7,12 +7,24 @@ import {
   ADMIN_SESSION_S,
   MAX_MONOGRAM_BYTES,
   MAX_QR_BYTES,
+  MAX_STRIP_TEMPLATE_BYTES,
   QR_FETCH_TIMEOUT_MS,
   PAGE_SIZE,
 } from "@/lib/domain/limits";
 import { fontOrDefault } from "@/lib/domain/fonts";
 import { decodeCursor, encodeCursor } from "@/lib/domain/posts";
-import { looksLike, monogramKey, monogramMime, NOT_SVG, qrKey, svgBytesProblem } from "@/lib/domain/uploads";
+import { stripTemplateUrl, TEMPLATE_H, TEMPLATE_W, windowsOf } from "@/lib/domain/strip";
+import {
+  imageSizeOf,
+  looksLike,
+  monogramKey,
+  monogramMime,
+  NOT_SVG,
+  qrKey,
+  stripTemplateKey,
+  stripTemplateMime,
+  svgBytesProblem,
+} from "@/lib/domain/uploads";
 import type { updateEventBody } from "@/lib/validation";
 import type { z } from "zod";
 import { db } from "./db";
@@ -91,7 +103,22 @@ export function logout(jar: CookieJar): void {
 
 // ---------------------------------------------------------------- event
 
-const toAdminEvent = (e: Awaited<ReturnType<typeof getEvent>>): AdminEvent => ({
+/** The event columns plus the ones only the admin screen reads. */
+const ADMIN_COLUMNS = `${EVENT_COLUMNS}, strip_template_path, strip_windows, event_date` as const;
+
+async function adminRow() {
+  const { data, error } = await db()
+    .from("events")
+    .select(ADMIN_COLUMNS)
+    .eq("id", (await getEvent()).id)
+    .single();
+  if (error) throw new Error(`Loading the event failed: ${error.code} ${error.message}`);
+  return data;
+}
+
+type AdminRow = Awaited<ReturnType<typeof adminRow>>;
+
+const toAdminEvent = (e: AdminRow): AdminEvent => ({
   groomName: e.groom_name,
   brideName: e.bride_name,
   headerMessage: e.header_message ?? "",
@@ -105,10 +132,14 @@ const toAdminEvent = (e: Awaited<ReturnType<typeof getEvent>>): AdminEvent => ({
     body: fontOrDefault("body", e.font_body),
   },
   monogramUrl: mediaUrl(e.monogram_path),
+  stripTemplateUrl: stripTemplateUrl(e.strip_template_path),
+  hasStripTemplate: e.strip_template_path !== null,
+  stripWindows: [...windowsOf(e.strip_windows)],
+  eventDate: e.event_date,
 });
 
 export async function getAdminEvent(): Promise<AdminEvent> {
-  return toAdminEvent(await getEvent());
+  return toAdminEvent(await adminRow());
 }
 
 /** Empty text clears the optional fields; the couple's names cannot be empty (validated). */
@@ -124,12 +155,14 @@ export async function updateEvent(patch: z.infer<typeof updateEventBody>): Promi
     ...(patch.fontNames !== undefined && { font_names: patch.fontNames }),
     ...(patch.fontWishes !== undefined && { font_wishes: patch.fontWishes }),
     ...(patch.fontBody !== undefined && { font_body: patch.fontBody }),
+    ...(patch.stripWindows !== undefined && { strip_windows: patch.stripWindows }),
+    ...(patch.eventDate !== undefined && { event_date: patch.eventDate }),
   };
   const { data, error } = await db()
     .from("events")
     .update(columns)
     .eq("id", event.id)
-    .select(EVENT_COLUMNS)
+    .select(ADMIN_COLUMNS)
     .single();
   if (error) throw new Error(`Updating the event failed: ${error.code} ${error.message}`);
   return toAdminEvent(data);
@@ -171,7 +204,7 @@ export async function confirmQr(key: string): Promise<AdminEvent> {
     .from("events")
     .update({ qr_path: key })
     .eq("id", event.id)
-    .select(EVENT_COLUMNS)
+    .select(ADMIN_COLUMNS)
     .single();
   if (error) throw new Error(`Saving the QR failed: ${error.code} ${error.message}`);
 
@@ -262,7 +295,7 @@ export async function confirmMonogram(key: string): Promise<AdminEvent> {
     .from("events")
     .update({ monogram_path: key })
     .eq("id", event.id)
-    .select(EVENT_COLUMNS)
+    .select(ADMIN_COLUMNS)
     .single();
   if (error) throw new Error(`Saving the monogram failed: ${error.code} ${error.message}`);
 
@@ -275,17 +308,108 @@ export async function confirmMonogram(key: string): Promise<AdminEvent> {
 
 /** Back to the default "&" monogram. */
 export async function removeMonogram(): Promise<AdminEvent> {
-  const event = await getEvent();
+  const event = await adminRow();
   if (!event.monogram_path) return toAdminEvent(event);
 
   const { data, error } = await db()
     .from("events")
     .update({ monogram_path: null })
     .eq("id", event.id)
-    .select(EVENT_COLUMNS)
+    .select(ADMIN_COLUMNS)
     .single();
   if (error) throw new Error(`Removing the monogram failed: ${error.code} ${error.message}`);
   await r2().deleteMany([event.monogram_path]).catch((e) => console.error("Removing the old monogram failed", e));
+  return toAdminEvent(data);
+}
+
+// ---------------------------------------------------------------- photo strip template
+
+const STRIP_KEY = (eventId: string) => new RegExp(`^events/${eventId}/admin/strip-[0-9a-f-]{36}\\.(png|jpg)$`);
+const STRIP_INCOMPLETE = "The template didn’t finish uploading. Please try again.";
+
+/** A URL to PUT the template to. Nothing changes until `confirmStripTemplate`. */
+export async function presignStripTemplate(mime: string, bytes: number): Promise<ImageUpload> {
+  const key = stripTemplateKey((await getEvent()).id, randomUUID(), mime);
+  return { key, url: await r2().presignPut(key, mime, bytes) };
+}
+
+/** Why the uploaded object cannot be the template, or null. The pixel size is read from the file itself. */
+async function templateUploadProblem(key: string, mime: string): Promise<AppError | null> {
+  const incomplete = new AppError("upload_incomplete", 400, STRIP_INCOMPLETE);
+  const object = await r2().head(key);
+  if (
+    !object ||
+    object.overridden ||
+    object.mime.split(";")[0]!.trim().toLowerCase() !== mime ||
+    object.bytes > MAX_STRIP_TEMPLATE_BYTES
+  ) {
+    return incomplete;
+  }
+  // shortcut: reads the whole file (capped at 3 MB) because a JPEG's size header can sit after
+  // large EXIF segments; switch to a ranged read if the cap grows.
+  const body = await r2().read(key, MAX_STRIP_TEMPLATE_BYTES);
+  const size = body && looksLike(mime, body) ? imageSizeOf(body) : null;
+  if (!size) return incomplete;
+  if (size.w !== TEMPLATE_W || size.h !== TEMPLATE_H) {
+    return new AppError(
+      "wrong_size",
+      400,
+      `The template must be ${TEMPLATE_W} × ${TEMPLATE_H} px (Instagram story size). Yours is ${size.w} × ${size.h}.`,
+    );
+  }
+  return null;
+}
+
+/**
+ * Makes an uploaded image the strip template, after the same checks as the monogram plus the exact
+ * story size. Strips already posted are flattened images, so they keep the template they were made with.
+ */
+export async function confirmStripTemplate(key: string): Promise<AdminEvent> {
+  const event = await adminRow();
+  if (!STRIP_KEY(event.id).test(key)) throw new AppError("invalid_key", 400, "That isn’t a template upload.");
+
+  const problem = await templateUploadProblem(key, stripTemplateMime(key)).catch((e: unknown) => {
+    console.error("Checking the strip template failed", e);
+    return new AppError("upload_incomplete", 400, STRIP_INCOMPLETE);
+  });
+  if (problem) {
+    if (key !== event.strip_template_path) {
+      await r2().deleteMany([key]).catch((e) => console.error("Removing the rejected template failed", e));
+    }
+    throw problem;
+  }
+
+  const { data, error } = await db()
+    .from("events")
+    .update({ strip_template_path: key })
+    .eq("id", event.id)
+    .select(ADMIN_COLUMNS)
+    .single();
+  if (error) throw new Error(`Saving the template failed: ${error.code} ${error.message}`);
+
+  if (event.strip_template_path && event.strip_template_path !== key) {
+    await r2()
+      .deleteMany([event.strip_template_path])
+      .catch((e) => console.error("Removing the old template failed", e));
+  }
+  return toAdminEvent(data);
+}
+
+/** Back to the built-in default template. */
+export async function removeStripTemplate(): Promise<AdminEvent> {
+  const event = await adminRow();
+  if (!event.strip_template_path) return toAdminEvent(event);
+
+  const { data, error } = await db()
+    .from("events")
+    .update({ strip_template_path: null })
+    .eq("id", event.id)
+    .select(ADMIN_COLUMNS)
+    .single();
+  if (error) throw new Error(`Removing the template failed: ${error.code} ${error.message}`);
+  await r2()
+    .deleteMany([event.strip_template_path])
+    .catch((e) => console.error("Removing the old template failed", e));
   return toAdminEvent(data);
 }
 

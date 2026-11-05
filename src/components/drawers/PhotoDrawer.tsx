@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { MAX_PHOTOS } from "@/lib/domain/limits";
@@ -97,6 +98,33 @@ export function PhotoDrawer({ open, onClose, onPosted }: Props) {
 
   return (
     <BottomSheet open={open} title="Share photos" onClose={close} busy={busy}>
+      {/* The strip has its own full-screen page. Out of reach while an upload runs, like the picker. */}
+      <Link
+        href="/strip"
+        aria-label="Make a photo strip, 3 photos in the wedding frame"
+        aria-disabled={busy || undefined}
+        tabIndex={busy ? -1 : undefined}
+        className={`flex min-h-[76px] items-center gap-3.5 rounded-[18px] bg-ink px-3.5 py-3 text-paper transition-transform duration-100 select-none active:scale-[0.98] ${busy ? "pointer-events-none opacity-35" : ""}`}
+      >
+        <svg aria-hidden="true" width="30" height="44" viewBox="0 0 30 44" fill="none" stroke="currentColor" strokeWidth="1.5" className="flex-none">
+          <rect x="1.5" y="1.5" width="27" height="41" rx="1.5" />
+          <rect x="5" y="5" width="20" height="9" />
+          <rect x="5" y="17" width="20" height="9" />
+          <rect x="5" y="29" width="20" height="5" />
+        </svg>
+        <span className="flex flex-1 flex-col">
+          <span className="text-[15px] font-semibold">Make a photo strip</span>
+          <span className="text-xs text-paper/75">3 photos in the wedding frame</span>
+        </span>
+        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M9 5l7 7-7 7" />
+        </svg>
+      </Link>
+      <p aria-hidden="true" className="flex items-center gap-2.5 text-xs text-muted">
+        <span className="h-px flex-1 bg-line" />
+        or post them as they are
+        <span className="h-px flex-1 bg-line" />
+      </p>
       <p className="text-[13px] text-muted">Pick one photo, or up to {MAX_PHOTOS}. Several photos post together as one album.</p>
       <label
         className={`relative flex flex-col items-center justify-center gap-1.5 rounded-[18px] border-[1.5px] border-dashed border-line bg-card px-4 py-[18px] text-center has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-ink ${count ? "min-h-24" : "min-h-[150px]"} ${busy || count >= MAX_PHOTOS ? "opacity-35" : ""}`}

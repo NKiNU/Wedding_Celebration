@@ -42,7 +42,8 @@ function Slide({ media, label, eager }: { media: WallMedia; label: string; eager
  * One photo, or an album: a native scroll-snap track (the browser's own swipe physics), prev/next
  * buttons, a "2 / 5" counter and a thumbnail strip. A single photo shows none of the chrome.
  */
-export function AlbumGallery({ media }: { media: WallMedia[] }) {
+/** `label` names a single image (default "Photo"). */
+export function AlbumGallery({ media, label = "Photo" }: { media: WallMedia[]; label?: string }) {
   const track = useRef<HTMLUListElement>(null);
   const strip = useRef<HTMLUListElement>(null);
   const [index, setIndex] = useState(0);
@@ -74,7 +75,7 @@ export function AlbumGallery({ media }: { media: WallMedia[] }) {
             className="absolute inset-0 flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain scroll-smooth [scrollbar-width:none] motion-reduce:scroll-auto"
           >
             {media.map((m, i) => (
-              <Slide key={m.url} media={m} eager={i === 0} label={count > 1 ? `Photo ${i + 1} of ${count}` : "Photo"} />
+              <Slide key={m.url} media={m} eager={i === 0} label={count > 1 ? `Photo ${i + 1} of ${count}` : label} />
             ))}
           </ul>
           {count > 1 && (

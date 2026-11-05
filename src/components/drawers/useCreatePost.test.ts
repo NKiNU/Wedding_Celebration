@@ -32,6 +32,15 @@ beforeEach(() => {
 });
 
 describe("postMedia", () => {
+  it("passes a layout to the upload intent when one is given (a photo strip)", async () => {
+    apiMock.mockResolvedValueOnce(ok(intent)).mockResolvedValueOnce(ok({ id: "p1" }));
+    const { result } = renderHook(() => useCreatePost());
+    await act(async () => {
+      await result.current.postMedia(items, "", "strip");
+    });
+    expect(apiMock.mock.calls[0]![2]).toMatchObject({ layout: "strip" });
+  });
+
   it("asks for an intent, uploads every file by role and position, then creates the post", async () => {
     apiMock.mockResolvedValueOnce(ok(intent)).mockResolvedValueOnce(ok({ id: "p1" }));
     const { result } = renderHook(() => useCreatePost());

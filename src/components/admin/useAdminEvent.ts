@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { api, type AdminEvent } from "@/lib/api";
+import type { Rect } from "@/lib/domain/strip";
 
 export type EventPatch = Partial<{
   groomName: string;
@@ -13,6 +14,9 @@ export type EventPatch = Partial<{
   fontNames: string;
   fontWishes: string;
   fontBody: string;
+  /** null = the default windows. */
+  stripWindows: Rect[] | null;
+  eventDate: string | null;
 }>;
 
 /** The event as the admin sees it, and one `save` for every editable field. */

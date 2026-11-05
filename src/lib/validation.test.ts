@@ -9,6 +9,7 @@ import {
   nextParam,
   postIdParam,
   storedFiles,
+  stripTemplatePresignBody,
   updateEventBody,
 } from "./validation";
 
@@ -189,5 +190,30 @@ describe("updateEventBody fonts", () => {
   test("accepts a listed font and rejects an unknown one", () => {
     expect(updateEventBody.safeParse({ fontNames: "great-vibes", fontWishes: "lora", fontBody: "inter" }).success).toBe(true);
     expect(msg(updateEventBody.safeParse({ fontBody: "comic-sans" }))).toMatch(/Choose one of the listed fonts/);
+  });
+});
+
+describe("updateEventBody photo strip", () => {
+  const wins = [
+    { x: 290, y: 250, w: 500, h: 375 },
+    { x: 290, y: 665, w: 500, h: 375 },
+    { x: 290, y: 1080, w: 500, h: 375 },
+  ];
+  test("accepts valid windows, null (defaults), a date or null", () => {
+    expect(updateEventBody.safeParse({ stripWindows: wins }).success).toBe(true);
+    expect(updateEventBody.safeParse({ stripWindows: null, eventDate: null }).success).toBe(true);
+    expect(updateEventBody.safeParse({ eventDate: "2026-11-07" }).success).toBe(true);
+  });
+  test("rejects overlapping, outside, too small or too few windows, and bad dates", () => {
+    expect(msg(updateEventBody.safeParse({ stripWindows: [wins[0], wins[0], wins[2]] }))).toMatch(/overlap/);
+    expect(msg(updateEventBody.safeParse({ stripWindows: [{ ...wins[0], x: 900 }, wins[1], wins[2]] }))).toMatch(/inside/);
+    expect(msg(updateEventBody.safeParse({ stripWindows: [{ ...wins[0], w: 100 }, wins[1], wins[2]] }))).toMatch(/at least/);
+    expect(msg(updateEventBody.safeParse({ stripWindows: wins.slice(0, 2) }))).toMatch(/exactly 3/);
+    expect(msg(updateEventBody.safeParse({ eventDate: "2026-02-30" }))).toMatch(/valid date/);
+    expect(updateEventBody.safeParse({ eventDate: "7 Nov" }).success).toBe(false);
+  });
+  test("template presign: PNG or JPEG up to 3 MB", () => {
+    expect(stripTemplatePresignBody.safeParse({ mime: "image/jpeg", bytes: 1000 }).success).toBe(true);
+    expect(msg(stripTemplatePresignBody.safeParse({ mime: "image/gif", bytes: 1000 }))).toMatch(/PNG or JPG/);
   });
 });
