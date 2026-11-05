@@ -1,6 +1,9 @@
 # Plan: photo strip (3 photos in a story-size template)
 
-Status: **planned (2026-11-05), nothing built yet.** Branch `ccr-678fc320-9kuhn0`.
+Status: **in progress (2026-11-05)** on `ccr-678fc320-9kuhn0`. The owner agreed to the post-type rule change
+(ADR 004) and asked for the wedding date (07 Nov 2026) on the default template: `events.event_date`,
+set by migration 0008 and editable in admin. Deviation: `layout` is saved with one update after
+`create_upload_intent` instead of a new argument (that function is shared by every upload).
 
 ## Context
 
@@ -147,6 +150,5 @@ admin surface). The strip editor is a dark full-screen page like the viewer.
 
 ## Open questions (not blocking)
 
-- A **date** on the default template? Needs an "event date" field in admin (small addition).
-- Should guests be able to **save a strip they did not make** after all, or should the image in the viewer be
-  harder to save (no long-press)? Today the plan only hides the button.
+- Other guests can still long-press or screenshot a strip in the viewer; only the Save button is hidden.
+  Kept as is unless the owner asks otherwise.

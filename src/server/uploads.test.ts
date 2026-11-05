@@ -68,6 +68,16 @@ describe("storedFilesOf", () => {
 });
 
 describe("createUploadIntent", () => {
+  it("saves a strip layout on the intent, and stops if that fails", async () => {
+    const { calls } = setup([ok(null), ok(null)]);
+    await createUploadIntent(GUEST, photo, "strip");
+    const update = calls.find((c) => c.table === "upload_intents" && c.method === "update")!;
+    expect(update.args[0]).toEqual({ layout: "strip" });
+
+    setup([ok(null), failure("XX000")]);
+    await expect(createUploadIntent(GUEST, photo, "strip")).rejects.toThrow(/layout failed: XX000/);
+  });
+
   it("spends the allowance and stores the intent in one database call, with server-built keys", async () => {
     const { calls, presigned } = setup([ok(null)]);
 

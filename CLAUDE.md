@@ -77,6 +77,10 @@ src/
       uploads/route.ts       # POST -> signed upload URLs
       uploads/[postId]/route.ts  # DELETE cancel an unposted upload (cleanup)
       cron/sweep/route.ts    # GET hourly: delete objects of expired, unposted uploads
+      posts/[id]/strip/route.ts  # GET owner-only download of a photo strip's finished image
+      admin/strip-template/route.ts  # POST/PUT/DELETE the photo strip template (admin)
+    strip/page.tsx           # Photo strip editor (3 photos in the story-size template)
+    strip/template/route.ts  # GET the current strip template on the app's origin (canvas needs same-origin pixels)
   components/
     wall/                    # Header, WishTicker, FilterBar, PostCard, AlbumStack, Fab, ActionMenu
     drawers/                 # BottomSheet + PhotoDrawer, VideoDrawer, WishDrawer, QrDrawer, WishViewDrawer, MeDrawer
@@ -133,6 +137,9 @@ create table events (
   font_wishes text,             -- font key for wish text
   font_body text,               -- font key for body text
   monogram_path text,           -- storage path of admin-uploaded monogram image (replaces the text initials)
+  strip_template_path text,     -- photo strip template (1080 x 1920); null = public/strip/default-template.png
+  strip_windows jsonb,          -- the strip's 3 photo windows {x,y,w,h} in template px; null = defaults
+  event_date date,              -- shown on the default strip template ("07 Nov 2026")
   created_at timestamptz default now()
 );
 
@@ -145,7 +152,7 @@ create table guests (
 );
 create unique index guests_event_name_ci on guests (event_id, lower(name));
 
-create type post_type as enum ('photo', 'album', 'video', 'wish');
+create type post_type as enum ('photo', 'album', 'video', 'wish', 'strip');
 
 create table posts (
   id uuid primary key default gen_random_uuid(),
@@ -172,6 +179,8 @@ create table post_media (
 ```
 
 - `type` is derived on the server: 1 image → `photo`, 2–10 images → `album`, 1 video → `video`. Never trust the client's type.
+  One exception, `strip` (docs/adr/004-photo-strip.md): the upload may ask for `layout: "strip"`, and the server grants
+  `strip` only for the exact shape (position 0 = the finished 1080 × 1920 image, 1–3 = the photos, each with a thumbnail).
 - RLS: enable on all tables. Anonymous clients may only `select` from `posts` (not hidden) + `post_media` + `events`. The guest list is not readable by anon (`public_guests` is service-role only since Phase 6: PDPA, and the app never needed it). **All writes go through route handlers using the service role after verifying the device token.** Never expose `token_hash`.
 - Deleting a post also deletes its storage objects (do it in the route handler, then delete the row).
 
@@ -196,6 +205,7 @@ create table post_media (
    - New posts appear live via Supabase Realtime (insert/update/delete on `posts`, plus the `post_hidden` broadcast on `wall:<eventId>` for moderation; see `docs/PLAN.md` Data model). Paginate with infinite scroll, 24 per page.
 3. **Bottom drawers** (one `BottomSheet` component: drag handle, title, close button, scrim tap closes, focus trapped, Escape closes)
    - Photos: picker (multiple), preview grid with remove, hint "will post as album" when >1, optional caption, Post button shows count, progress while uploading.
+   - Photo strip (`/strip`, from a card at the top of the Photos drawer): the story-size template full screen with 3 windows. Tap a window to pick a photo; pinch to zoom, drag to move (the window keeps its size, the photo always covers it); hold a photo and drag it onto the bin to remove it (Delete key too). Post when all 3 are filled. On the wall: the 3 photos stacked with a "Strip" badge; the viewer shows the finished image; only the owner gets Save.
    - Video: picker (single), file name/size, validation error, optional caption, progress.
    - Wish: quick-start chips, textarea, counter 0/300, Send.
    - DuitNow QR: admin's QR image, account holder name + bank, **Download QR**, 3 steps (save → banking app → DuitNow QR → scan from gallery → check name). Not a post; nothing is stored.
@@ -203,7 +213,7 @@ create table post_media (
    - Me: name, "remembered on this phone", list of own posts with delete, Switch name.
 4. **Post viewer** `/p/[id]` (full screen, dark): back, author + time, delete (owner only). Photo: fit to screen. Album: swipe + prev/next buttons, "2 / 5" counter, thumbnail strip. Video: native `<video controls playsinline>` with poster. Caption below.
 5. **Delete** always goes through a confirm dialog ("Delete this album? Guests will not see it anymore."). Toast after success.
-6. **Admin** `/admin` (passcode from `ADMIN_PASSCODE`, stored in an httpOnly cookie): edit couple names + header message, upload/replace DuitNow QR + account name + bank, pick the three fonts (names, wishes, body) and upload/remove a monogram image (Appearance section), open/close uploads, hide/unhide/delete any post, download all media as a zip.
+6. **Admin** `/admin` (passcode from `ADMIN_PASSCODE`, stored in an httpOnly cookie): edit couple names + header message, upload/replace DuitNow QR + account name + bank, pick the three fonts (names, wishes, body) and upload/remove a monogram image (Appearance section), upload/replace the photo strip template, place its 3 windows and set the wedding date, open/close uploads, hide/unhide/delete any post, download all media as a zip.
 
 ## Theming **[rule]**
 
@@ -264,7 +274,7 @@ The client may change the palette and fonts later. Keep the look 100 % token-dri
 ## Do not
 
 - Do not add passwords, email, phone number or social login.
-- Do not let the client choose `post.type`, `guest_id` or the author name on a post.
+- Do not let the client choose `post.type` (beyond requesting the `strip` layout, which the server checks), `guest_id` or the author name on a post.
 - Do not store raw device tokens.
 - Do not hardcode colours or fonts in components.
 - Do not store anything about money gifts; the app only displays the QR.
