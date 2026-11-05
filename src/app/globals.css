@@ -62,6 +62,16 @@ html:has(dialog[open]) {
 [data-fonts="loading"] input::placeholder {
   color: transparent;
 }
+/* A tapped card's loading overlay (wall/LinkPending): only shows if the viewer takes a moment. */
+@keyframes pending-fade {
+  from {
+    opacity: 0;
+  }
+}
+.pending-in {
+  animation: pending-fade 0.2s ease-out 0.12s both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   [data-fonts="loading"] .bone,
   .media-loading {

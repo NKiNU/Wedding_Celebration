@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 import { PostViewer } from "@/components/viewer/PostViewer";
+import { ViewerSkeleton } from "@/components/viewer/ViewerSkeleton";
 import { postIdParam } from "@/lib/validation";
 import { getSession } from "@/server/identity";
 import { getPost } from "@/server/wall";
@@ -9,7 +10,7 @@ import { WallContent } from "../../wall/WallContent";
 
 export default function PostPage({ params }: { params: Promise<{ id: string }> }) {
   return (
-    <Suspense fallback={<div className="h-dvh bg-viewer" />}>
+    <Suspense fallback={<ViewerSkeleton />}>
       <PostContent params={params} />
     </Suspense>
   );

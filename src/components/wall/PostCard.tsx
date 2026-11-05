@@ -3,6 +3,7 @@ import { Thumb } from "@/components/ui/Thumb";
 import { coverOf, formatDuration, relativeTime, stripPhotos, type PostType, type WallPost } from "@/lib/domain/posts";
 import { markFromWall } from "@/lib/fromWall";
 import { AlbumStack } from "./AlbumStack";
+import { LinkPending } from "./LinkPending";
 
 const LEAD: Record<PostType, string> = {
   photo: "Photo by",
@@ -130,6 +131,7 @@ export function PostCard({ post, mine, now, onOpenWish }: Props) {
       >
         <span className="relative block aspect-square w-full">
           <Face post={post} />
+          <LinkPending />
         </span>
       </Link>
       {footer}
