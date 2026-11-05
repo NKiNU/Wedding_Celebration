@@ -70,3 +70,16 @@ Numbers marked *(verify)* are from memory; check them on the provider's pricing 
   `src/components/viewer/AlbumGallery.tsx`. The strip then fills the height between header and caption and is
   nearly full width on most phones. Truly edge to edge would need vertical scroll or cropping the top/bottom
   (where the names and date are), so not planned.
+
+## 10. Photo strip Share: not yet checked (built 2026-11-05)
+
+The owner-only Share sheet (`src/components/viewer/StripShare.tsx`) is done in code: unit tests, lint,
+typecheck and build pass. Still open:
+
+- **Real phones:** iPhone Safari and Android Chrome. Tap Share → the phone's share menu opens with the image;
+  WhatsApp (chat + status), Facebook (feed + story) and Instagram Stories get the full 1080 × 1920 image,
+  uncropped; on iPhone, Save Image puts it in Photos; closing the menu leaves our sheet open; Save to phone
+  lands in the gallery / Downloads on Android and in Files on iPhone.
+- **E2E:** `npm run test:e2e` was not run (needs local Supabase / Docker). No e2e test covers Share yet; one
+  could stub `navigator.canShare` / `navigator.share` and check the owner-only button and the one-file call.
+- **Pull request:** none yet for `claude/modest-cori-2wwy2a` → `main`.
