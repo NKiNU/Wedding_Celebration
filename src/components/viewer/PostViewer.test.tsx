@@ -144,7 +144,7 @@ describe("PostViewer", () => {
       await fileLoaded(); // let the file land in state before the tap
       fireEvent.click(shareButton());
     };
-    const toApps = () => screen.getByRole("button", { name: "Share to WhatsApp, Facebook…" });
+    const toApps = () => screen.getByRole("button", { name: "Share", exact: true });
     const saveToPhone = () => screen.getByRole("button", { name: "Save to phone" });
     const fetchStrip = vi.fn(async () => ({ ok: true, blob: async () => new Blob(["jpeg"], { type: "image/jpeg" }) }) as Response);
     const fileLoaded = () => act(() => new Promise<void>((done) => setTimeout(done, 20)));
@@ -181,14 +181,14 @@ describe("PostViewer", () => {
       expect(screen.queryByRole("button", { name: "Share photo strip" })).not.toBeInTheDocument();
     });
 
-    it("opens a sheet with Share to apps and Save to phone", async () => {
+    it("opens a sheet with Share and Save to phone, its title for screen readers only", async () => {
       setNavigator(vi.fn(async () => {}));
       show(strip, true);
       await openSheet();
       const sheet = screen.getByRole("dialog", { name: "Share photo strip" });
-      expect(within(sheet).getByRole("button", { name: "Share to WhatsApp, Facebook…" })).toBeInTheDocument();
+      expect(within(sheet).getByRole("button", { name: "Share", exact: true })).toBeInTheDocument();
       expect(within(sheet).getByRole("button", { name: "Save to phone" })).toBeInTheDocument();
-      expect(within(sheet).getByText(/Save Image puts it in Photos/)).toBeInTheDocument();
+      expect(within(sheet).queryByRole("heading", { name: "Share photo strip" })).toHaveClass("sr-only");
     });
 
     it("shares the image file, with no text, and closes the sheet", async () => {
@@ -266,9 +266,8 @@ describe("PostViewer", () => {
       setNavigator(vi.fn(async () => {}), false);
       show(strip, true);
       await openSheet();
-      expect(screen.queryByRole("button", { name: "Share to WhatsApp, Facebook…" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Share", exact: true })).not.toBeInTheDocument();
       expect(saveToPhone()).toBeInTheDocument();
-      expect(screen.queryByText(/Save Image puts it in Photos/)).not.toBeInTheDocument();
     });
 
     it("saves through the owner route itself when the image never arrived", async () => {
@@ -276,7 +275,7 @@ describe("PostViewer", () => {
       const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
       show(strip, true);
       await openSheet();
-      expect(screen.queryByRole("button", { name: "Share to WhatsApp, Facebook…" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Share", exact: true })).not.toBeInTheDocument();
       fireEvent.click(saveToPhone());
       await waitFor(() => expect(click).toHaveBeenCalled());
       expect(click.mock.contexts[0]).toHaveProperty("href", expect.stringMatching(new RegExp(`/api/posts/${strip.id}/strip$`)));

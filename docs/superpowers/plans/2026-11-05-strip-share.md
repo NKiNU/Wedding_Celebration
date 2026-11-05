@@ -6,10 +6,11 @@ Status: **built** on `claude/modest-cori-2wwy2a`. Decision recorded in ADR 004 p
 
 - In the viewer header, **Share** replaces Save (same pill, share icon). Only the strip's owner gets it.
 - Tapping it opens the app's `BottomSheet` "Share photo strip":
-  - **Share to WhatsApp, Facebook…**: `navigator.share({ files: [image] })`, no text. Shown only when
+  - **Share**: `navigator.share({ files: [image] })`, no text. Shown only when
     `navigator.canShare({ files })` is true and the image has loaded.
   - **Save to phone**: downloads `photo-strip.jpg` (the prefetched file, or the owner route itself).
-  - Hint: on iPhone, Share → Save Image puts it in Photos (a download on iOS lands in Files).
+  - The sheet's title is for screen readers only; no hint text. On iPhone, Share → Save Image puts it in
+    Photos (Save to phone lands in Files).
 
 ## Why this shape
 

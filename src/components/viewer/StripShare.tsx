@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 const FILENAME = "photo-strip.jpg";
 
 /**
- * Owner-only Share for a photo strip: a sheet with "Share to apps" (WhatsApp, Facebook, …) and "Save to
+ * Owner-only Share for a photo strip: a sheet with "Share" (the phone's share sheet: WhatsApp, Facebook, …) and "Save to
  * phone". The 1080 x 1920 image comes from the owner route and is fetched up front, because iOS drops the
  * tap's permission to share across a `fetch` (same as the QR drawer).
  */
@@ -68,18 +68,15 @@ export function StripShare({ postId }: { postId: string }) {
         </svg>
         Share
       </button>
-      <BottomSheet open={open} title="Share photo strip" onClose={() => setOpen(false)}>
+      <BottomSheet open={open} title="Share photo strip" hideTitle onClose={() => setOpen(false)}>
         {canShare && (
           <Button type="button" onClick={share}>
-            Share to WhatsApp, Facebook…
+            Share
           </Button>
         )}
         <button type="button" onClick={save} className="h-12 rounded-3xl bg-soft text-sm font-semibold text-ink transition-transform duration-100 select-none active:scale-[0.98]">
           Save to phone
         </button>
-        <p className="text-center text-xs text-muted">
-          {canShare ? "On iPhone, Share to WhatsApp, Facebook… → Save Image puts it in Photos. " : ""}Story size, 1080 × 1920.
-        </p>
       </BottomSheet>
     </>
   );

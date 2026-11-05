@@ -21,8 +21,7 @@ A photo strip is 3 photos placed in a 1080 × 1920 template (the Instagram story
    a canvas can only export pixels it read from its own origin.
 6. **Save is owner-only on the server** (`GET /api/posts/{id}/strip` checks the device token). The image is
    still shown to every guest in the viewer, so this is a convenience, not protection.
-7. **Share replaces Save** (2026-11-05). The owner's Share button opens a sheet: "Share to WhatsApp,
-   Facebook…" is the Web Share API with the image file (shown only when `navigator.canShare({ files })`),
+7. **Share replaces Save** (2026-11-05). The owner's Share button opens a sheet: "Share" is the Web Share API with the image file (shown only when `navigator.canShare({ files })`),
    "Save to phone" downloads it. No `wa.me` / Facebook sharer links: they take a URL, not an image. No text
    is sent with the file.
 

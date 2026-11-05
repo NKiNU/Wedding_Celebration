@@ -14,6 +14,8 @@ type Props = {
   onClose: () => void;
   /** An upload is running: Escape, the backdrop, the close button and dragging all do nothing. */
   busy?: boolean;
+  /** The title names the sheet for screen readers only. */
+  hideTitle?: boolean;
   children: React.ReactNode;
 };
 
@@ -24,7 +26,7 @@ type Props = {
  * ponytail: flick speed is the average over the whole drag, not the release speed; track the
  * last few moves if a slow-then-fast drag ever misfires.
  */
-export function BottomSheet({ open, title, onClose, busy = false, children }: Props) {
+export function BottomSheet({ open, title, onClose, busy = false, hideTitle = false, children }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const drag = useRef<{ y: number; t: number; dy: number } | null>(null);
   const titleId = useId();
@@ -88,7 +90,7 @@ export function BottomSheet({ open, title, onClose, busy = false, children }: Pr
         >
           <span aria-hidden="true" className="mx-auto mt-2.5 block h-[5px] w-10 flex-none rounded-[3px] bg-line" />
           <div className="flex flex-none items-center justify-between py-1.5 pr-2.5 pl-[22px]">
-            <h2 id={titleId} className="text-lg font-semibold">
+            <h2 id={titleId} className={hideTitle ? "sr-only" : "text-lg font-semibold"}>
               {title}
             </h2>
             <button type="button" onClick={onClose} disabled={busy} aria-label="Close" className="flex size-11 items-center justify-center rounded-full disabled:opacity-40">
