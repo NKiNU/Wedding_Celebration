@@ -60,3 +60,13 @@ Numbers marked *(verify)* are from memory; check them on the provider's pricing 
 ## 8. No `Retry-After` on 429
 
 - Already listed in `docs/PLAN.md` as "not fixed, on purpose". The rate-limit messages tell the guest to wait.
+
+## 9. Photo strip is not full width in the viewer
+
+- **What:** the viewer shows a strip inside `AlbumGallery`'s photo frame, which is `aspect-4/5`. The strip is
+  9:16, so it is contained by the frame's height and leaves dark bands on both sides: on a 390 px phone the
+  frame is about 390 × 487 and the strip only about 274 px wide (~70 %). Found 2026-11-05.
+- **Fix (planned, local):** give strips a 9:16 frame (`aspect-9/16` instead of `aspect-4/5`, strips only) in
+  `src/components/viewer/AlbumGallery.tsx`. The strip then fills the height between header and caption and is
+  nearly full width on most phones. Truly edge to edge would need vertical scroll or cropping the top/bottom
+  (where the names and date are), so not planned.
