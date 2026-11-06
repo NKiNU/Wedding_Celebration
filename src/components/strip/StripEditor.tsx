@@ -60,7 +60,8 @@ export function StripEditor({ templateUrl, windows, text }: Props) {
   const hintTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const count = slots.filter(Boolean).length;
 
-  // Object URLs hold the picked files in memory: release them when the page goes.
+  // Object URLs hold the picked files in memory: release them when the page goes. Next keeps a page
+  // we leave mounted but hidden (<Activity>), so also start over: the next strip begins empty.
   const latest = useRef(slots);
   useEffect(() => {
     latest.current = slots;
@@ -69,6 +70,12 @@ export function StripEditor({ templateUrl, windows, text }: Props) {
     () => () => {
       clearTimeout(hintTimer.current);
       latest.current.forEach((s) => s && URL.revokeObjectURL(s.url));
+      setSlots(Array(STRIP_WINDOWS).fill(null));
+      setCaption("");
+      setHint(null);
+      setLift("off");
+      setConfirming(false);
+      setNotice(null);
     },
     [],
   );

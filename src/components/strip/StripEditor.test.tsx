@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import { Activity } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_WINDOWS } from "@/lib/domain/strip";
 
@@ -227,5 +228,22 @@ describe("StripEditor", () => {
     mocks.state = { status: "idle", progress: 0, preparing: true, busy: true, error: null };
     show();
     expect(postButton()).toHaveTextContent("Preparing…");
+  });
+
+  it("starts empty again after Next hides the page and shows it later", async () => {
+    const strip = (mode: "visible" | "hidden") => (
+      <Activity mode={mode}>
+        <StripEditor templateUrl="/strip/default-template.png" windows={DEFAULT_WINDOWS} text={null} />
+      </Activity>
+    );
+    const { rerender } = render(strip("visible"));
+    await fill(2);
+    expect(screen.getByRole("status")).toHaveTextContent("2 of 3 photos");
+    rerender(strip("hidden"));
+    await flush();
+    rerender(strip("visible"));
+    await flush();
+    expect(screen.getByRole("status")).toHaveTextContent("0 of 3 photos");
+    expect(URL.revokeObjectURL).toHaveBeenCalledTimes(2);
   });
 });
