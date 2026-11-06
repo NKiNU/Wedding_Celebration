@@ -15,6 +15,7 @@ type Initial = {
   nextCursor: string | null;
   counts: WallCounts;
   wishes?: WallPost[];
+  pinned?: WallPost[];
 };
 
 /**
@@ -31,6 +32,7 @@ export function useWall(initial: Initial, subscribe: SubscribeToWall = subscribe
   const [nextCursor, setNextCursor] = useState(initial.nextCursor);
   const [counts, setCounts] = useState(initial.counts);
   const [wishes, setWishes] = useState(initial.wishes ?? []);
+  const [pinned, setPinned] = useState(initial.pinned ?? []);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const busy = useRef(false);
@@ -63,7 +65,7 @@ export function useWall(initial: Initial, subscribe: SubscribeToWall = subscribe
   const refresh = useCallback(async (restart: boolean) => {
     const result = await api<WallResponse>("/api/posts", "GET");
     if (!result.ok) return; // the next event or visit retries; the old wall stays usable
-    const { posts: fresh, nextCursor: freshCursor, counts: freshCounts, wishes: freshWishes } = result.data;
+    const { posts: fresh, nextCursor: freshCursor, counts: freshCounts, wishes: freshWishes, pinned: freshPinned } = result.data;
     const folded = reconcileWall(postsRef.current, fresh, restart || freshCursor === null);
     setPosts(folded.posts);
     if (folded.restart) {
@@ -74,6 +76,7 @@ export function useWall(initial: Initial, subscribe: SubscribeToWall = subscribe
     }
     if (freshCounts) setCounts(freshCounts);
     if (freshWishes) setWishes(freshWishes);
+    if (freshPinned) setPinned(freshPinned);
   }, []);
 
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -103,6 +106,7 @@ export function useWall(initial: Initial, subscribe: SubscribeToWall = subscribe
       removed.current.add(id);
       setPosts((current) => current.filter((p) => p.id !== id));
       setWishes((current) => current.filter((p) => p.id !== id));
+      setPinned((current) => current.filter((p) => p.id !== id));
       scheduleRefresh(); // the pill counts and the ticker's next wish come from the server
     },
     [scheduleRefresh],
@@ -137,5 +141,5 @@ export function useWall(initial: Initial, subscribe: SubscribeToWall = subscribe
     };
   }, [initial.eventId, subscribe, scheduleRefresh, drop]);
 
-  return { posts, counts, wishes, nextCursor, loading, loadError, loadMore, refresh: refreshNow, drop };
+  return { posts, counts, wishes, pinned, nextCursor, loading, loadError, loadMore, refresh: refreshNow, drop };
 }

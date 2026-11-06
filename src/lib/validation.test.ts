@@ -5,6 +5,7 @@ import {
   createGuestBody,
   createPostBody,
   createUploadBody,
+  moderateBody,
   parseEnv,
   nextParam,
   postIdParam,
@@ -216,5 +217,16 @@ describe("updateEventBody photo strip", () => {
   test("template presign: PNG or JPEG up to 3 MB", () => {
     expect(stripTemplatePresignBody.safeParse({ mime: "image/jpeg", bytes: 1000 }).success).toBe(true);
     expect(msg(stripTemplatePresignBody.safeParse({ mime: "image/gif", bytes: 1000 }))).toMatch(/PNG or JPG/);
+  });
+});
+
+describe("moderateBody", () => {
+  test("takes either hidden or pinned, never both, neither or extra keys", () => {
+    expect(moderateBody.safeParse({ hidden: true }).success).toBe(true);
+    expect(moderateBody.safeParse({ pinned: false }).success).toBe(true);
+    expect(moderateBody.safeParse({ hidden: true, pinned: true }).success).toBe(false);
+    expect(moderateBody.safeParse({}).success).toBe(false);
+    expect(moderateBody.safeParse({ pinned: true, extra: 1 }).success).toBe(false);
+    expect(moderateBody.safeParse({ pinned: "yes" }).success).toBe(false);
   });
 });

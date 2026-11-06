@@ -6,19 +6,23 @@ import type { FileRole } from "./domain/uploads";
 export type KnownGuest = { guestId: string; name: string };
 export type Session = { active: KnownGuest | null; known: KnownGuest[] };
 
-/** GET /api/posts: `counts` and `wishes` (the newest wishes anywhere on the wall) are only sent with the first page. */
+/**
+ * GET /api/posts: `counts`, `wishes` (the newest wishes anywhere on the wall) and `pinned` (the admin's pins,
+ * newest pin first) are only sent with the first page.
+ */
 export type WallResponse = {
   posts: WallPost[];
   nextCursor: string | null;
   counts: WallCounts | null;
   wishes?: WallPost[] | null;
+  pinned?: WallPost[] | null;
 };
 
 /** POST /api/uploads: one presigned PUT URL per requested file. */
 export type UploadIntent = { postId: string; uploads: { role: FileRole; position: number; url: string }[] };
 
 /** A post as the admin sees it: hidden ones are listed too. */
-export type AdminPost = WallPost & { hidden: boolean };
+export type AdminPost = WallPost & { hidden: boolean; pinned: boolean };
 export type AdminPostsResponse = { posts: AdminPost[]; nextCursor: string | null };
 
 /** The event as the admin edits it. `qrUrl` is the same-origin `/qr` while a QR exists. */

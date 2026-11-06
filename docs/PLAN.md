@@ -10,6 +10,8 @@
 - [x] Phase 5 — QR + Admin
 - [x] Phase 6 — Hardening + launch (hardening done; launch steps listed in the notes below)
 
+Admin view + pin (2026-11-06, branch `feat/admin-pin-viewer`; plan `docs/superpowers/plans/2026-11-06-admin-pin-viewer.md`, design in the canvas row "Admin — view a post and pin it"): the admin opens any post (hidden ones too) in a full-screen viewer over `/admin` and can pin up to 3 (`MAX_PINS`). Pinned posts come first on the wall with no badge, and also keep their own place. Migration `0009_pinned_posts.sql` (`posts.pinned_at`; hiding clears it). The admin post list also got a Refresh button (it does not follow Realtime). **Not yet seen on a real phone.**
+
 Opening a post (2026-11-05): the viewer's loading state was an empty black box (shown instantly on a second visit, from the cached shell), and a card gave no sign while its viewer loaded (`prefetch={false}`). Now `ViewerSkeleton` is the Suspense fallback of `/p/[id]` (back works at once) and `wall/LinkPending` (`useLinkStatus`) dims the tapped card with a spinner after 120 ms. **Not yet seen on a real phone on slow data.**
 
 Contact us (2026-11-05): static `/contact` page for the developer (Nik, WhatsApp + call, hardcoded); not linked from anywhere yet.

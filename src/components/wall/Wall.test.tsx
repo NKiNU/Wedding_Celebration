@@ -42,6 +42,7 @@ const counts = { all: 3, photos: 1, videos: 1, wishes: 1 };
 const wallState = (over = {}) => ({
   posts: [album, video, wish],
   wishes: [wish],
+  pinned: [],
   counts,
   nextCursor: null,
   loading: false,
@@ -119,6 +120,20 @@ describe("Wall", () => {
     expect(screen.getByRole("link", { name: "Video by Iman" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Photos 1" }));
     expect(screen.getByRole("link", { name: "Album by Nazrul, 3 photos" })).toBeInTheDocument();
+  });
+
+  it("shows pinned posts first, under the filters they match, and still in their own place", () => {
+    mocks.useWall.mockReturnValue(wallState({ pinned: [wish, video] }));
+    show();
+    const order = () => cards().map((li) => li.textContent);
+    expect(cards()).toHaveLength(5);
+    expect(order()[0]).toMatch(/Congratulations!/);
+    expect(order()[1]).toMatch(/Iman/);
+    expect(order()[2]).toMatch(/Nazrul/);
+    fireEvent.click(screen.getByRole("button", { name: "Videos 1" }));
+    expect(screen.getAllByRole("link", { name: "Video by Iman" })).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "Photos 1" }));
+    expect(cards()).toHaveLength(1);
   });
 
   it("opens a wish in the drawer from its card and from the ticker", () => {

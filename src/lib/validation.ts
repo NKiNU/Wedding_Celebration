@@ -199,4 +199,5 @@ export const stripTemplatePresignBody = z
 export const monogramConfirmBody = z.object({ key: z.string().min(1).max(200) });
 export const stripTemplateConfirmBody = monogramConfirmBody;
 
-export const hideBody = z.object({ hidden: z.boolean() });
+/** PATCH /api/admin/posts/[id]: hide/unhide or pin/unpin, one at a time. */
+export const moderateBody = z.union([z.strictObject({ hidden: z.boolean() }), z.strictObject({ pinned: z.boolean() })]);
