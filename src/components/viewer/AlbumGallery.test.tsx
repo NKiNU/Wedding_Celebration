@@ -35,6 +35,16 @@ describe("AlbumGallery", () => {
     expect(screen.getByRole("list", { name: "Photos" })).not.toHaveAttribute("tabindex");
   });
 
+  it("keeps photos in a 4:5 frame, and lets `fill` (the photo strip) use all the room", () => {
+    const frame = () => screen.getByRole("list", { name: "Photos" }).parentElement!;
+    const { unmount } = render(<AlbumGallery media={[image(0)]} />);
+    expect(frame()).toHaveClass("aspect-4/5");
+    unmount();
+    render(<AlbumGallery media={[image(0)]} fill />);
+    expect(frame()).toHaveClass("size-full");
+    expect(frame()).not.toHaveClass("aspect-4/5");
+  });
+
   it("shows every photo of an album, with a counter and one thumbnail each", () => {
     render(<AlbumGallery media={album} />);
     expect(screen.getAllByRole("img")).toHaveLength(3);

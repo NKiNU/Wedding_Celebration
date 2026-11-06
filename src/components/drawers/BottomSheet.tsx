@@ -105,7 +105,8 @@ export function BottomSheet({ open, title, onClose, busy = false, hideTitle = fa
             </button>
           </div>
         </div>
-        <div className="flex flex-col gap-3.5 overflow-y-auto overscroll-contain px-[22px] pt-1.5 pb-[30px] [scrollbar-width:none]">
+        {/* shrink-0: a long sheet (10 photos picked) must scroll, not squash its own card, caption and button. */}
+        <div className="flex flex-col gap-3.5 overflow-y-auto overscroll-contain px-[22px] pt-1.5 pb-[30px] *:shrink-0 [scrollbar-width:none]">
           {children}
         </div>
       </div>

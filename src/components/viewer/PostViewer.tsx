@@ -62,8 +62,8 @@ export function PostViewer({ post, mine, now }: Props) {
       {video ? (
         <VideoPlayer media={video} label={`Video by ${post.author}`} />
       ) : strip ? (
-        // Only the finished 1080 x 1920 image, contained: no gallery chrome.
-        <AlbumGallery media={post.media.slice(0, 1)} label="Photo strip: 3 photos in the wedding template" />
+        // Only the finished 1080 x 1920 image, as large as fits: no gallery chrome.
+        <AlbumGallery media={post.media.slice(0, 1)} label="Photo strip: 3 photos in the wedding template" fill />
       ) : (
         <AlbumGallery media={post.media} />
       )}

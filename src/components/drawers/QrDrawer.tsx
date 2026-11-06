@@ -44,7 +44,7 @@ export function QrDrawer({ open, qr, onClose }: Props) {
       {qr.available ? (
         <>
           <p className="text-[13px] text-muted">Scan this QR in your banking app to send a gift to the couple.</p>
-          <div className="mx-auto flex w-full max-w-[260px] flex-col items-center gap-2 rounded-card bg-card p-4 [border:var(--card-border)]">
+          <div className="mx-auto flex w-full max-w-[340px] flex-col items-center gap-2 rounded-card bg-card p-3 [border:var(--card-border)]">
             {failed ? (
               <p role="alert" className="py-10 text-center text-[13px] text-muted">
                 The QR couldn’t be loaded. Please try again.
@@ -57,7 +57,8 @@ export function QrDrawer({ open, qr, onClose }: Props) {
                 alt={`DuitNow QR for ${holder}`}
                 loading="lazy"
                 onError={() => setFailed(true)}
-                className="aspect-square w-full rounded-media object-contain"
+                // Natural shape, as wide as the card: a square box shrank a tall bank screenshot until its QR blurred.
+                className="h-auto max-h-[60dvh] w-full rounded-media object-contain"
               />
             )}
             {qr.accountName && <p className="text-sm font-semibold">{qr.accountName}</p>}

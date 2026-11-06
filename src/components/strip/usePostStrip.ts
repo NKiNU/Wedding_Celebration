@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useCreatePost, type MediaItem } from "@/components/drawers/useCreatePost";
-import { TEMPLATE_H, TEMPLATE_W, type Pan, type Rect } from "@/lib/domain/strip";
+import { STRIP_OUT_H, STRIP_OUT_W, type Pan, type Rect } from "@/lib/domain/strip";
 import { MediaError, preparePhoto } from "@/lib/media";
 import { composeStrip, type StripText } from "@/lib/strip";
 
@@ -31,7 +31,7 @@ async function prepareStrip({ templateUrl, windows, photos, text }: StripInput):
       throw new MediaError(`Photo ${i + 1}: ${reason}`);
     }
   }
-  // The resized photos are enough for a 1080 px strip and far lighter to decode than the originals.
+  // The resized photos are enough for the strip and far lighter to decode than the originals.
   const sources = await Promise.all(items.filter((it) => it.role === "main").map((it) => createImageBitmap(it.blob)));
   try {
     const { image, thumb } = await composeStrip({
@@ -41,7 +41,7 @@ async function prepareStrip({ templateUrl, windows, photos, text }: StripInput):
       text,
     });
     return [
-      { role: "main", position: 0, blob: image, mime: JPEG, width: TEMPLATE_W, height: TEMPLATE_H },
+      { role: "main", position: 0, blob: image, mime: JPEG, width: STRIP_OUT_W, height: STRIP_OUT_H },
       { role: "thumb", position: 0, blob: thumb, mime: JPEG },
       ...items,
     ];
