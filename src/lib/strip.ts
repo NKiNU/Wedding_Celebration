@@ -1,6 +1,6 @@
 /** Browser-side photo strip: draws the template, the 3 cropped photos and (default template) the names. */
 import { STRIP_JPEG_QUALITY, THUMB_LONG_EDGE } from "./domain/limits";
-import { cropRect, TEMPLATE_H, TEMPLATE_W, type Pan, type Rect } from "./domain/strip";
+import { cropRect, STRIP_OUT_H, STRIP_OUT_W, STRIP_OUTPUT_SCALE, TEMPLATE_H, TEMPLATE_W, type Pan, type Rect } from "./domain/strip";
 import { fitWithin } from "./domain/uploads";
 import { MediaError } from "./media";
 
@@ -72,14 +72,15 @@ async function drawText(ctx: CanvasRenderingContext2D, text: StripText) {
   ctx.fillText(text.date, date.x, date.top + (date.size * date.lineHeight) / 2);
 }
 
-/** The finished 1080 x 1920 strip and its thumbnail, both JPEG. */
+/** The finished strip (2160 x 3840: the 1080 x 1920 layout at 2x) and its thumbnail, both JPEG. */
 export async function composeStrip(input: {
   templateUrl: string;
   windows: readonly Rect[];
   photos: readonly StripPhoto[];
   text: StripText | null;
 }): Promise<{ image: Blob; thumb: Blob }> {
-  const { canvas, ctx } = canvasOf(TEMPLATE_W, TEMPLATE_H);
+  const { canvas, ctx } = canvasOf(STRIP_OUT_W, STRIP_OUT_H);
+  ctx.scale(STRIP_OUTPUT_SCALE, STRIP_OUTPUT_SCALE); // everything below is placed in template px
   try {
     const template = await loadTemplate(input.templateUrl);
     try {
@@ -95,7 +96,7 @@ export async function composeStrip(input: {
     });
     if (input.text) await drawText(ctx, input.text);
     const image = await toJpeg(canvas);
-    const size = fitWithin(TEMPLATE_W, TEMPLATE_H, THUMB_LONG_EDGE);
+    const size = fitWithin(STRIP_OUT_W, STRIP_OUT_H, THUMB_LONG_EDGE);
     const small = canvasOf(size.width, size.height);
     try {
       small.ctx.drawImage(canvas, 0, 0, size.width, size.height);

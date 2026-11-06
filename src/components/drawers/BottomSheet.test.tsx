@@ -34,6 +34,12 @@ describe("BottomSheet", () => {
     expect(dialog()).toHaveAttribute("aria-labelledby", screen.getByRole("heading", { name: "Share" }).id);
   });
 
+  it("scrolls a long sheet instead of squashing its content (children never shrink)", () => {
+    render(<Harness />);
+    const content = screen.getByText("Inside").parentElement!;
+    expect(content).toHaveClass("overflow-y-auto", "*:shrink-0");
+  });
+
   it("closes the modal when its page is hidden, so the next page is not left inert", () => {
     const view = (mode: "visible" | "hidden") => (
       <Activity mode={mode}>

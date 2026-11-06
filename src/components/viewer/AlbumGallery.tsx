@@ -42,8 +42,11 @@ function Slide({ media, label, eager }: { media: WallMedia; label: string; eager
  * One photo, or an album: a native scroll-snap track (the browser's own swipe physics), prev/next
  * buttons, a "2 / 5" counter and a thumbnail strip. A single photo shows none of the chrome.
  */
-/** `label` names a single image (default "Photo"). */
-export function AlbumGallery({ media, label = "Photo" }: { media: WallMedia[]; label?: string }) {
+/**
+ * `label` names a single image (default "Photo"). `fill` gives the image all the room there is
+ * instead of the 4:5 photo frame: for the 9:16 photo strip, which the frame would leave in dark bands.
+ */
+export function AlbumGallery({ media, label = "Photo", fill = false }: { media: WallMedia[]; label?: string; fill?: boolean }) {
   const track = useRef<HTMLUListElement>(null);
   const strip = useRef<HTMLUListElement>(null);
   const [index, setIndex] = useState(0);
@@ -66,7 +69,7 @@ export function AlbumGallery({ media, label = "Photo" }: { media: WallMedia[]; l
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex min-h-0 flex-1 items-center justify-center">
-        <div className="relative aspect-4/5 max-h-full w-full">
+        <div className={`relative ${fill ? "size-full" : "aspect-4/5 max-h-full w-full"}`}>
           <ul
             ref={track}
             tabIndex={count > 1 ? 0 : undefined}

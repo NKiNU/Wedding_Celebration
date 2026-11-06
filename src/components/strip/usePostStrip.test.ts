@@ -49,7 +49,7 @@ describe("usePostStrip", () => {
     expect(caption).toBe("Us");
     expect(layout).toBe("strip");
     expect(items.map((it: { role: string; position: number; width?: number; height?: number }) => [it.role, it.position, it.width, it.height])).toEqual([
-      ["main", 0, 1080, 1920],
+      ["main", 0, 2160, 3840],
       ["thumb", 0, undefined, undefined],
       ["main", 1, 2048, 1536],
       ["thumb", 1, undefined, undefined],

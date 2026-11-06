@@ -15,7 +15,7 @@ import {
   STRIP_TEMPLATE_MIMES,
   VIDEO_MIMES,
 } from "./limits";
-import { STRIP_WINDOWS, TEMPLATE_H, TEMPLATE_W } from "./strip";
+import { STRIP_OUT_H, STRIP_OUT_W, STRIP_OUTPUT_SCALE, STRIP_WINDOWS, TEMPLATE_H, TEMPLATE_W } from "./strip";
 
 export type FileRole = "main" | "thumb" | "poster";
 
@@ -67,9 +67,9 @@ export function stripShapeProblem(files: readonly UploadFile[]): string | null {
   const mains = files.filter((f) => f.role === "main");
   if (!stripMainsOk(mains)) return `A photo strip needs ${STRIP_WINDOWS} photos.`;
   const finished = mains.find((m) => m.position === 0);
-  if (finished?.width !== TEMPLATE_W || finished.height !== TEMPLATE_H) {
-    return `The finished strip must be ${TEMPLATE_W} × ${TEMPLATE_H}.`;
-  }
+  // 1x is what phones with an older copy of the page still send; 2x is what the app makes now.
+  const sized = [1, STRIP_OUTPUT_SCALE].some((k) => finished?.width === TEMPLATE_W * k && finished.height === TEMPLATE_H * k);
+  if (!sized) return `The finished strip must be ${TEMPLATE_W} × ${TEMPLATE_H} or ${STRIP_OUT_W} × ${STRIP_OUT_H}.`;
   return null;
 }
 

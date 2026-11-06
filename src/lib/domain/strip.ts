@@ -6,6 +6,10 @@
 
 export const TEMPLATE_W = 1080;
 export const TEMPLATE_H = 1920;
+/** The finished strip is drawn at 2x the template (2160 x 3840) so the photos in their small windows stay sharp. */
+export const STRIP_OUTPUT_SCALE = 2;
+export const STRIP_OUT_W = TEMPLATE_W * STRIP_OUTPUT_SCALE;
+export const STRIP_OUT_H = TEMPLATE_H * STRIP_OUTPUT_SCALE;
 export const STRIP_WINDOWS = 3;
 export const WINDOW_MIN_W = 160;
 export const WINDOW_MIN_H = 120;

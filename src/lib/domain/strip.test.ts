@@ -92,8 +92,11 @@ describe("strip uploads", () => {
     expect(derivePostType([...strip.slice(0, 3), jpeg(3, { mime: "video/mp4" })], "strip")).toBeNull();
   });
 
-  it("needs the finished image at story size", () => {
+  it("needs the finished image at story size, 1x or 2x", () => {
     expect(stripShapeProblem(strip)).toBeNull();
+    // the app now makes 2x strips; a phone with the old page still sends 1x
+    expect(stripShapeProblem([jpeg(0, { width: 2160, height: 3840 }), ...strip.slice(1)])).toBeNull();
+    expect(stripShapeProblem([jpeg(0, { width: 2160, height: 1920 }), ...strip.slice(1)])).toMatch(/2160 × 3840/);
     expect(stripShapeProblem(strip.slice(1))).toMatch(/3 photos/);
     expect(stripShapeProblem([jpeg(0, { width: 1080, height: 1080 }), ...strip.slice(1)])).toMatch(/1080 × 1920/);
   });

@@ -5,6 +5,7 @@ import { composeStrip, DEFAULT_TEMPLATE_TEXT } from "./strip";
 
 type Ctx = {
   drawImage: ReturnType<typeof vi.fn>;
+  scale: ReturnType<typeof vi.fn>;
   fillText: ReturnType<typeof vi.fn>;
   font: string;
   letterSpacing: string;
@@ -27,7 +28,7 @@ beforeEach(() => {
   blobs = [];
   template = { width: 1080, height: 1920, close: vi.fn() };
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation((() => {
-    const ctx = { drawImage: vi.fn(), fillText: vi.fn(), font: "", letterSpacing: "" };
+    const ctx = { drawImage: vi.fn(), scale: vi.fn(), fillText: vi.fn(), font: "", letterSpacing: "" };
     contexts.push(ctx);
     return ctx;
   }) as unknown as HTMLCanvasElement["getContext"]);
@@ -52,6 +53,7 @@ describe("composeStrip", () => {
 
     expect(fetch).toHaveBeenCalledWith("/strip/default-template.png");
     const [main] = contexts;
+    expect(main!.scale).toHaveBeenCalledWith(2, 2); // layout stays in 1080 x 1920 px, drawn at 2x
     expect(main!.drawImage.mock.calls[0]).toEqual([template, 0, 0, 1080, 1920]);
     DEFAULT_WINDOWS.forEach((win, i) => {
       const p = PHOTOS[i]!;
@@ -61,7 +63,7 @@ describe("composeStrip", () => {
     expect(main!.fillText).not.toHaveBeenCalled();
     expect(template.close).toHaveBeenCalled();
     expect(blobs).toEqual([
-      { width: 1080, height: 1920, type: "image/jpeg", quality: 0.9 },
+      { width: 2160, height: 3840, type: "image/jpeg", quality: 0.9 },
       { width: 338, height: 600, type: "image/jpeg", quality: 0.9 },
     ]);
     expect(out.image.type).toBe("image/jpeg");
