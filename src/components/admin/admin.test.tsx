@@ -62,6 +62,7 @@ const post = (id: string, over: Partial<AdminPost> = {}): AdminPost => ({
   author: "Ali",
   media: [],
   hidden: false,
+  pinned: false,
   ...over,
 });
 const NOW = "2026-10-25T10:05:00Z";
@@ -185,6 +186,103 @@ describe("AdminDashboard", () => {
     fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Delete" }));
     await waitFor(() => expect(mocks.api).toHaveBeenCalledWith("/api/admin/posts/p1", "DELETE"));
     await waitFor(() => expect(screen.queryByText(/Wish · Ali/)).not.toBeInTheDocument());
+  });
+
+  it("pins and unpins from the list, counts the pins, and shows the server's refusal", async () => {
+    show([post("p1"), post("p2", { pinned: true }), post("p3", { hidden: true })]);
+    expect(screen.getByText("1 of 3 pinned · tap a photo to view it")).toBeInTheDocument();
+    expect(screen.getAllByText("Pinned")).toHaveLength(1);
+    // Two Pin/Unpin buttons: none for the hidden post.
+    expect(screen.getAllByRole("button", { name: /^(Pin|Unpin)$/ })).toHaveLength(2);
+
+    fireEvent.click(screen.getByRole("button", { name: "Pin" }));
+    await waitFor(() => expect(mocks.api).toHaveBeenCalledWith("/api/admin/posts/p1", "PATCH", { pinned: true }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Pinned to the top of the wall");
+    expect(screen.getByText("2 of 3 pinned · tap a photo to view it")).toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Unpin" })[1]!);
+    await waitFor(() => expect(mocks.api).toHaveBeenCalledWith("/api/admin/posts/p2", "PATCH", { pinned: false }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Post unpinned");
+
+    mocks.api.mockResolvedValue(fail("pin_limit", "You can pin 3 posts. Unpin one first."));
+    fireEvent.click(screen.getByRole("button", { name: "Pin" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("You can pin 3 posts. Unpin one first.");
+    expect(screen.getAllByRole("button", { name: "Unpin" })).toHaveLength(1);
+  });
+
+  it("hiding a pinned post unpins it", async () => {
+    show([post("p1", { pinned: true })]);
+    fireEvent.click(screen.getByRole("button", { name: "Hide" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Post hidden and unpinned");
+    expect(screen.queryByText("Pinned")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Pin" })).not.toBeInTheDocument();
+  });
+
+  describe("viewer", () => {
+    const media = (n: number, kind: "image" | "video" = "image") => ({
+      kind,
+      url: `https://r2.test/${n}`,
+      thumbUrl: null,
+      posterUrl: kind === "video" ? `https://r2.test/${n}_poster.jpg` : null,
+      durationS: kind === "video" ? 24 : null,
+    });
+    const viewer = () => screen.getByRole("dialog");
+
+    it("opens an album from its thumbnail, pins it, and Escape closes it back to the thumbnail", async () => {
+      show([post("a1", { type: "album", wishText: null, caption: "Akad", author: "Siti", media: [media(1), media(2)] })]);
+      const thumb = screen.getByRole("button", { name: "View album by Siti" });
+      thumb.focus();
+      fireEvent.click(thumb);
+      const v = within(viewer());
+      expect(v.getByRole("heading", { name: "Siti" })).toBeInTheDocument();
+      expect(v.getByText("Akad")).toBeInTheDocument();
+      expect(v.getByText("1 / 2")).toBeInTheDocument();
+      expect(v.getByText("Pinned posts show first on the wall · 0 of 3 pinned")).toBeInTheDocument();
+
+      fireEvent.click(v.getByRole("button", { name: "Pin to top of wall" }));
+      await waitFor(() => expect(mocks.api).toHaveBeenCalledWith("/api/admin/posts/a1", "PATCH", { pinned: true }));
+      expect(await v.findByRole("button", { name: "Unpin" })).toBeInTheDocument();
+      expect(v.getByText("Pinned")).toBeInTheDocument();
+
+      const escape = new Event("cancel", { cancelable: true });
+      fireEvent(viewer(), escape);
+      expect(escape.defaultPrevented).toBe(true);
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      expect(thumb).toHaveFocus();
+    });
+
+    it("shows a video with its player, and a hidden post cannot be pinned until unhidden", async () => {
+      show([post("v1", { type: "video", wishText: null, author: "Hafiz", hidden: true, media: [media(1, "video")] })]);
+      fireEvent.click(screen.getByRole("button", { name: "View video by Hafiz" }));
+      const v = within(viewer());
+      expect(viewer().querySelector("video")).toHaveAttribute("src", "https://r2.test/1");
+      expect(v.getByRole("button", { name: "Pin to top of wall" })).toBeDisabled();
+      expect(v.getByText("Hidden from guests. Unhide it to pin it.")).toBeInTheDocument();
+
+      fireEvent.click(v.getByRole("button", { name: "Unhide" }));
+      await waitFor(() => expect(mocks.api).toHaveBeenCalledWith("/api/admin/posts/v1", "PATCH", { hidden: false }));
+      await waitFor(() => expect(v.getByRole("button", { name: "Pin to top of wall" })).toBeEnabled());
+      fireEvent.click(v.getByRole("button", { name: "Close viewer" }));
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("shows a wish in full, and closes after Delete is confirmed", async () => {
+      show([post("w1", { wishText: "Selamat pengantin baru!", author: "Mak Long" })]);
+      fireEvent.click(screen.getByRole("button", { name: "View wish by Mak Long" }));
+      const v = within(viewer());
+      expect(v.getByText("Selamat pengantin baru!")).toBeInTheDocument();
+
+      fireEvent.click(v.getByRole("button", { name: "Delete this post" }));
+      fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Delete" }));
+      await waitFor(() => expect(mocks.api).toHaveBeenCalledWith("/api/admin/posts/w1", "DELETE"));
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    });
+
+    it("shows a photo strip's finished image", () => {
+      show([post("s1", { type: "strip", wishText: null, author: "Zul", media: [media(0), media(1), media(2), media(3)] })]);
+      fireEvent.click(screen.getByRole("button", { name: "View photo strip by Zul" }));
+      expect(within(viewer()).getByAltText("Photo strip: 3 photos in the wedding template")).toHaveAttribute("src", "https://r2.test/0");
+    });
   });
 
   it("logs out and refreshes", async () => {
@@ -372,12 +470,45 @@ describe("useAdminPosts", () => {
     expect(result.current.hasMore).toBe(false);
   });
 
+  it("refresh replaces the list with page 1, and keeps it when that fails", async () => {
+    mocks.api.mockResolvedValue(ok({ posts: [post("new"), post("p1")], nextCursor: "c2" }));
+    const { result } = renderHook(() => useAdminPosts({ posts: [post("p1"), post("p2")], nextCursor: null }));
+    await act(async () => expect(await result.current.refresh()).toBe(true));
+    expect(mocks.api).toHaveBeenCalledWith("/api/admin/posts", "GET");
+    expect(result.current.posts.map((p) => p.id)).toEqual(["new", "p1"]);
+    expect(result.current.hasMore).toBe(true);
+
+    mocks.api.mockResolvedValue(fail("internal", "Offline."));
+    await act(async () => expect(await result.current.refresh()).toBe(false));
+    expect(result.current.error).toBe("Offline.");
+    expect(result.current.posts).toHaveLength(2);
+  });
+
   it("keeps the list and reports a failed page", async () => {
     mocks.api.mockResolvedValue(fail("internal", "Something went wrong."));
     const { result } = renderHook(() => useAdminPosts({ posts: [post("p1")], nextCursor: "c1" }));
     await act(() => result.current.loadMore());
     expect(result.current.error).toBe("Something went wrong.");
     expect(result.current.posts).toHaveLength(1);
+  });
+
+  it("setPinned updates the post, and returns the server's message when refused", async () => {
+    const { result } = renderHook(() => useAdminPosts({ posts: [post("p1")], nextCursor: null }));
+    await act(async () => expect(await result.current.setPinned(post("p1"), true)).toBeNull());
+    expect(mocks.api).toHaveBeenCalledWith("/api/admin/posts/p1", "PATCH", { pinned: true });
+    expect(result.current.posts[0]!.pinned).toBe(true);
+
+    mocks.api.mockResolvedValue(fail("pin_limit", "You can pin 3 posts. Unpin one first."));
+    await act(async () => expect(await result.current.setPinned(post("p1"), false)).toBe("You can pin 3 posts. Unpin one first."));
+    expect(result.current.posts[0]!.pinned).toBe(true);
+  });
+
+  it("hiding a post clears its pin, unhiding does not pin it again", async () => {
+    const { result } = renderHook(() => useAdminPosts({ posts: [post("p1", { pinned: true })], nextCursor: null }));
+    await act(async () => void (await result.current.setHidden(post("p1"), true)));
+    expect(result.current.posts[0]).toMatchObject({ hidden: true, pinned: false });
+    await act(async () => void (await result.current.setHidden(post("p1"), false)));
+    expect(result.current.posts[0]).toMatchObject({ hidden: false, pinned: false });
   });
 
   it("does nothing without a next page, and returns the server's message for a failed hide or delete", async () => {

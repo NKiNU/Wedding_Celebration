@@ -4,22 +4,23 @@ import { createPostBody } from "@/lib/validation";
 import { handle } from "@/server/http";
 import { requireGuest } from "@/server/identity";
 import { createMediaPost, createWish } from "@/server/posts";
-import { getLatestWishes, getWallCounts, getWallPage } from "@/server/wall";
+import { getLatestWishes, getPinnedPosts, getWallCounts, getWallPage } from "@/server/wall";
 
 /**
- * One page of the wall. The first page (no cursor) also carries the filter-pill counts.
+ * One page of the wall. The first page (no cursor) also carries the filter-pill counts, the ticker's wishes and the pins.
  * `req.url` is read outside `handle`: during the build, Next aborts a prerender by throwing
  * from the first request access, and `handle` would catch that and log it as an API error.
  */
 export const GET = (req: Request) => {
   const cursor = new URL(req.url).searchParams.get("cursor");
   return handle(req, async (): Promise<WallResponse> => {
-    const [page, counts, wishes] = await Promise.all([
+    const [page, counts, wishes, pinned] = await Promise.all([
       getWallPage(cursor),
       cursor ? null : getWallCounts(),
       cursor ? null : getLatestWishes(),
+      cursor ? null : getPinnedPosts(),
     ]);
-    return { ...page, counts, wishes };
+    return { ...page, counts, wishes, pinned };
   });
 };
 

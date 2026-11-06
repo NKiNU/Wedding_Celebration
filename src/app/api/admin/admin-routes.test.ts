@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   removeStripTemplate: vi.fn(),
   getModerationPage: vi.fn(),
   setHidden: vi.fn(),
+  setPinned: vi.fn(),
   mediaManifest: vi.fn(),
   deletePostAsAdmin: vi.fn(),
 }));
@@ -195,7 +196,11 @@ describe("routes behind the admin cookie", () => {
     expect(mocks.setHidden).toHaveBeenCalledWith(ID, true);
     expect((await deletePost(json("DELETE"), ctx)).status).toBe(200);
     expect(mocks.deletePostAsAdmin).toHaveBeenCalledWith("e1", ID);
+    expect((await patchPost(json("PATCH", { pinned: false }), ctx)).status).toBe(200);
+    expect(mocks.setPinned).toHaveBeenCalledWith(ID, false);
+    expect(mocks.setHidden).toHaveBeenCalledTimes(1);
     expect((await patchPost(json("PATCH", { hidden: "yes" }), ctx)).status).toBe(400);
+    expect((await patchPost(json("PATCH", { hidden: true, pinned: true }), ctx)).status).toBe(400);
     const bad = { params: Promise.resolve({ id: "../x" }) };
     expect((await deletePost(json("DELETE"), bad)).status).toBe(400);
   });

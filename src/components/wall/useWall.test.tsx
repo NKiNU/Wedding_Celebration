@@ -93,6 +93,36 @@ describe("wishes for the ticker", () => {
   });
 });
 
+describe("pinned posts", () => {
+  const setupWithPins = () =>
+    renderHook(
+      () => useWall({ eventId: "e1", posts: [at(9)], nextCursor: null, counts: counts(1), pinned: [at(1)] }, subscribe),
+    );
+
+  it("starts from the server's pins, takes new ones from page 1, keeps them when a response has none", async () => {
+    const { result } = setupWithPins();
+    expect(result.current.pinned.map((p) => p.id)).toEqual([at(1).id]);
+
+    mocks.api.mockResolvedValueOnce(ok({ posts: [at(9)], nextCursor: null, counts: counts(1), pinned: [at(2), at(1)] }));
+    await act(() => result.current.refresh());
+    expect(result.current.pinned.map((p) => p.id)).toEqual([at(2).id, at(1).id]);
+
+    mocks.api.mockResolvedValueOnce(ok({ posts: [at(9)], nextCursor: null, counts: null }));
+    await act(() => result.current.refresh());
+    expect(result.current.pinned).toHaveLength(2);
+
+    mocks.api.mockResolvedValueOnce(ok({ posts: [at(9)], nextCursor: null, counts: counts(1), pinned: [] }));
+    await act(() => result.current.refresh());
+    expect(result.current.pinned).toEqual([]);
+  });
+
+  it("drops a pinned post that was deleted or hidden", () => {
+    const { result } = setupWithPins();
+    act(() => result.current.drop(at(1).id));
+    expect(result.current.pinned).toEqual([]);
+  });
+});
+
 describe("loadMore", () => {
   it("appends the next page using the cursor and takes the new cursor", async () => {
     mocks.api.mockResolvedValue(ok({ posts: [at(1)], nextCursor: null, counts: null }));

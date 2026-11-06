@@ -2,14 +2,14 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { validEnv } from "../../tests/fixtures/env";
 import { fakeDb } from "../../tests/fixtures/supabase";
 import { encodeCursor } from "@/lib/domain/posts";
-import { MY_POSTS_MAX, PAGE_SIZE, TICKER_WISHES } from "@/lib/domain/limits";
+import { MAX_PINS, MY_POSTS_MAX, PAGE_SIZE, TICKER_WISHES } from "@/lib/domain/limits";
 
 const mocks = vi.hoisted(() => ({ db: null as unknown }));
 vi.mock("./db", () => ({ db: () => mocks.db }));
 vi.mock("./event", () => ({ getEvent: async () => ({ id: "e1" }) }));
 
 import { AppError } from "./http";
-import { getLatestWishes, getMyPosts, getPost, getWallCounts, getWallPage } from "./wall";
+import { getLatestWishes, getMyPosts, getPinnedPosts, getPost, getWallCounts, getWallPage } from "./wall";
 
 beforeAll(() => {
   for (const [k, v] of Object.entries(validEnv)) vi.stubEnv(k, v);
@@ -198,6 +198,30 @@ describe("getLatestWishes", () => {
     const { db } = fakeDb([{ data: null, error: { code: "XX000", message: "nope" } }]);
     mocks.db = db;
     await expect(getLatestWishes()).rejects.toThrow(/XX000 nope/);
+  });
+});
+
+describe("getPinnedPosts", () => {
+  it("asks for the visible pinned posts of this event, newest pin first, at most MAX_PINS", async () => {
+    const { db, calls } = fakeDb([{ data: [row(1)], error: null }]);
+    mocks.db = db;
+
+    const pinned = await getPinnedPosts();
+
+    expect(pinned).toEqual([expect.objectContaining({ id: row(1).id, author: "Ali" })]);
+    expect(calls.filter((c) => c.method === "eq").map((c) => c.args)).toEqual([["event_id", "e1"], ["hidden", false]]);
+    expect(calls.find((c) => c.method === "not")!.args).toEqual(["pinned_at", "is", null]);
+    expect(calls.filter((c) => c.method === "order").map((c) => c.args)).toEqual([
+      ["pinned_at", { ascending: false }],
+      ["id", { ascending: false }],
+      ["position", { referencedTable: "post_media" }],
+    ]);
+    expect(calls.find((c) => c.method === "limit")!.args).toEqual([MAX_PINS]);
+  });
+
+  it("fails loudly when the lookup fails", async () => {
+    mocks.db = fakeDb([{ data: null, error: { code: "XX000", message: "nope" } }]).db;
+    await expect(getPinnedPosts()).rejects.toThrow(/pinned posts failed: XX000 nope/);
   });
 });
 

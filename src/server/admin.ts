@@ -6,6 +6,7 @@ import {
   ADMIN_LOGIN_WINDOW_MS,
   ADMIN_SESSION_S,
   MAX_MONOGRAM_BYTES,
+  MAX_PINS,
   MAX_QR_BYTES,
   MAX_STRIP_TEMPLATE_BYTES,
   QR_FETCH_TIMEOUT_MS,
@@ -407,7 +408,7 @@ export async function getModerationPage(cursor: string | null): Promise<AdminPos
 
   let query = db()
     .from("posts")
-    .select(`${SELECT}, hidden`)
+    .select(`${SELECT}, hidden, pinned_at`)
     .eq("event_id", (await getEvent()).id)
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
@@ -417,25 +418,69 @@ export async function getModerationPage(cursor: string | null): Promise<AdminPos
   const { data, error } = await query;
   if (error) throw new Error(`Loading posts failed: ${error.code} ${error.message}`);
 
-  const rows = data as unknown as (PostRow & { hidden: boolean })[];
+  const rows = data as unknown as (PostRow & { hidden: boolean; pinned_at: string | null })[];
   const page = rows.slice(0, PAGE_SIZE);
   const last = page.at(-1);
   return {
-    posts: page.map((row) => ({ ...toPost(row), hidden: row.hidden })),
+    posts: page.map((row) => ({ ...toPost(row), hidden: row.hidden, pinned: row.pinned_at !== null })),
     nextCursor: rows.length > PAGE_SIZE && last ? encodeCursor(last.created_at, last.id) : null,
   };
 }
 
-/** Hide or unhide one post of this event. Hiding reaches open phones through the database trigger. */
+/**
+ * Hide or unhide one post of this event. Hiding reaches open phones through the database trigger.
+ * Hiding also unpins (a hidden post cannot be pinned); unhiding does not pin it again.
+ */
 export async function setHidden(postId: string, hidden: boolean): Promise<void> {
   const { data, error } = await db()
     .from("posts")
-    .update({ hidden })
+    .update(hidden ? { hidden, pinned_at: null } : { hidden })
     .eq("id", postId)
     .eq("event_id", (await getEvent()).id)
     .select("id");
   if (error) throw new Error(`Updating the post failed: ${error.code} ${error.message}`);
   if (data.length === 0) throw new AppError("post_not_found", 404, "That post is already gone.");
+}
+
+const notFound = () => new AppError("post_not_found", 404, "That post is already gone.");
+const hiddenPin = () => new AppError("post_hidden", 409, "Unhide this post before pinning it.");
+
+/**
+ * Pin a post to the top of the wall (newest pin first) or unpin it. At most MAX_PINS posts are pinned,
+ * and never a hidden one. Pinning a pinned post keeps its place.
+ */
+export async function setPinned(postId: string, pinned: boolean): Promise<void> {
+  const eventId = (await getEvent()).id;
+  if (pinned) {
+    const { data: post, error } = await db()
+      .from("posts")
+      .select("hidden, pinned_at")
+      .eq("id", postId)
+      .eq("event_id", eventId)
+      .maybeSingle();
+    if (error) throw new Error(`Loading the post failed: ${error.code} ${error.message}`);
+    if (!post) throw notFound();
+    if (post.pinned_at !== null) return;
+    if (post.hidden) throw hiddenPin();
+    // shortcut: count-then-update is not atomic, two admins pinning at once could pass MAX_PINS; fine with one admin.
+    const { count, error: countError } = await db()
+      .from("posts")
+      .select("id", { count: "exact", head: true })
+      .eq("event_id", eventId)
+      .not("pinned_at", "is", null);
+    if (countError) throw new Error(`Counting pins failed: ${countError.code} ${countError.message}`);
+    if ((count ?? 0) >= MAX_PINS) throw new AppError("pin_limit", 409, `You can pin ${MAX_PINS} posts. Unpin one first.`);
+  }
+  const { data, error } = await db()
+    .from("posts")
+    .update({ pinned_at: pinned ? new Date().toISOString() : null })
+    .eq("id", postId)
+    .eq("event_id", eventId)
+    .select("id");
+  // 23514: the post was hidden after the check above (the pinned_at check constraint).
+  if (error?.code === "23514") throw hiddenPin();
+  if (error) throw new Error(`Updating the post failed: ${error.code} ${error.message}`);
+  if (data.length === 0) throw notFound();
 }
 
 // ---------------------------------------------------------------- download

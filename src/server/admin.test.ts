@@ -3,6 +3,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { validEnv } from "../../tests/fixtures/env";
 import { fakeR2 } from "../../tests/fixtures/r2";
 import { fakeDb, type DbResult } from "../../tests/fixtures/supabase";
+import { MAX_PINS } from "@/lib/domain/limits";
 import { encodeCursor } from "@/lib/domain/posts";
 
 const mocks = vi.hoisted(() => ({
@@ -33,6 +34,7 @@ import {
   removeMonogram,
   requireAdmin,
   setHidden,
+  setPinned,
   updateEvent,
 } from "./admin";
 
@@ -639,7 +641,7 @@ describe("the strip template", () => {
 
 describe("moderation", () => {
   const STAMP = "2026-10-25T10:00:00.123456+00:00";
-  const row = (n: number, hidden = false) => ({
+  const row = (n: number, hidden = false, pinned_at: string | null = null) => ({
     id: `b0000000-0000-4000-8000-0000000000${String(n).padStart(2, "0")}`,
     type: "wish",
     caption: null,
@@ -649,15 +651,16 @@ describe("moderation", () => {
     guests: { name: "Ali" },
     post_media: [],
     hidden,
+    pinned_at,
   });
 
   it("lists posts including hidden ones, flagged, with a cursor when there is more", async () => {
-    const rows = Array.from({ length: 25 }, (_, i) => row(i + 1, i === 0));
+    const rows = Array.from({ length: 25 }, (_, i) => row(i + 1, i === 0, i === 1 ? STAMP : null));
     mocks.db = fakeDb([ok(rows)]).db;
     const page = await getModerationPage(null);
     expect(page.posts).toHaveLength(24);
-    expect(page.posts[0]).toMatchObject({ id: rows[0]!.id, hidden: true, author: "Ali" });
-    expect(page.posts[1]!.hidden).toBe(false);
+    expect(page.posts[0]).toMatchObject({ id: rows[0]!.id, hidden: true, pinned: false, author: "Ali" });
+    expect(page.posts[1]).toMatchObject({ hidden: false, pinned: true });
     expect(page.nextCursor).not.toBeNull();
   });
 
@@ -680,8 +683,13 @@ describe("moderation", () => {
     const { db, calls } = fakeDb([ok([{ id: "p1" }])]);
     mocks.db = db;
     await setHidden("p1", true);
-    expect(calls.find((c) => c.method === "update")!.args[0]).toEqual({ hidden: true });
+    // Hiding unpins too: the database refuses a pinned hidden post.
+    expect(calls.find((c) => c.method === "update")!.args[0]).toEqual({ hidden: true, pinned_at: null });
     expect(calls.filter((c) => c.method === "eq").map((c) => c.args)).toEqual([["id", "p1"], ["event_id", EVENT_ID]]);
+    const unhide = fakeDb([ok([{ id: "p1" }])]);
+    mocks.db = unhide.db;
+    await setHidden("p1", false);
+    expect(unhide.calls.find((c) => c.method === "update")!.args[0]).toEqual({ hidden: false });
   });
 
   it("is a 404 when no post matched and fails when the database does", async () => {
@@ -689,6 +697,59 @@ describe("moderation", () => {
     await expect(setHidden("p1", true)).rejects.toMatchObject({ status: 404 });
     mocks.db = fakeDb([failure("XX000")]).db;
     await expect(setHidden("p1", true)).rejects.toThrow(/Updating the post failed/);
+  });
+});
+
+describe("setPinned", () => {
+  const post = (over = {}) => ok({ hidden: false, pinned_at: null, ...over });
+  const updates = (calls: { method: string; args: unknown[] }[]) =>
+    calls.filter((c) => c.method === "update").map((c) => c.args[0]);
+
+  it("pins a visible post of this event while fewer than MAX_PINS others are pinned", async () => {
+    const { db, calls } = fakeDb([post(), { data: null, count: MAX_PINS - 1, error: null }, ok([{ id: "p1" }])]);
+    mocks.db = db;
+    await setPinned("p1", true);
+    const [update] = updates(calls) as { pinned_at: string }[];
+    expect(Date.parse(update!.pinned_at)).not.toBeNaN();
+    expect(calls.find((c) => c.method === "not")!.args).toEqual(["pinned_at", "is", null]);
+    expect(calls.filter((c) => c.method === "eq" && c.args[0] === "event_id").every((c) => c.args[1] === EVENT_ID)).toBe(true);
+  });
+
+  it("refuses a pin past the limit, a hidden post and a post not in this event", async () => {
+    mocks.db = fakeDb([post(), { data: null, count: MAX_PINS, error: null }]).db;
+    await expect(setPinned("p1", true)).rejects.toMatchObject({ status: 409, code: "pin_limit" });
+    mocks.db = fakeDb([post({ hidden: true })]).db;
+    await expect(setPinned("p1", true)).rejects.toMatchObject({ status: 409, code: "post_hidden" });
+    mocks.db = fakeDb([ok(null)]).db;
+    await expect(setPinned("p1", true)).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("leaves an already pinned post where it is", async () => {
+    const { db, calls } = fakeDb([post({ pinned_at: "2026-11-06T10:00:00Z" })]);
+    mocks.db = db;
+    await setPinned("p1", true);
+    expect(updates(calls)).toEqual([]);
+  });
+
+  it("unpins without any checks, and is a 404 when nothing matched", async () => {
+    const { db, calls } = fakeDb([ok([{ id: "p1" }])]);
+    mocks.db = db;
+    await setPinned("p1", false);
+    expect(updates(calls)).toEqual([{ pinned_at: null }]);
+    expect(calls.filter((c) => c.method === "eq").map((c) => c.args)).toEqual([["id", "p1"], ["event_id", EVENT_ID]]);
+    mocks.db = fakeDb([ok([])]).db;
+    await expect(setPinned("p1", false)).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("maps a post hidden mid-pin to post_hidden and fails when the database does", async () => {
+    mocks.db = fakeDb([post(), { data: null, count: 0, error: null }, failure("23514")]).db;
+    await expect(setPinned("p1", true)).rejects.toMatchObject({ status: 409, code: "post_hidden" });
+    mocks.db = fakeDb([failure("XX000")]).db;
+    await expect(setPinned("p1", true)).rejects.toThrow(/Loading the post failed/);
+    mocks.db = fakeDb([post(), failure("XX000")]).db;
+    await expect(setPinned("p1", true)).rejects.toThrow(/Counting pins failed/);
+    mocks.db = fakeDb([failure("XX000")]).db;
+    await expect(setPinned("p1", false)).rejects.toThrow(/Updating the post failed/);
   });
 });
 

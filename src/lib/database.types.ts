@@ -43,10 +43,10 @@ export type Database = {
                   }
                   ComputedFields: never
                   Insert: {
-                    "bride_name": string,"created_at"?: string | null,"event_date"?: string | null,"font_body"?: string | null,"font_names"?: string | null,"font_wishes"?: string | null,"groom_name": string,"header_message"?: string | null,"id"?: string,"monogram_path"?: string | null,"qr_account_name"?: string | null,"qr_bank"?: string | null,"qr_path"?: string | null,"strip_template_path"?: string | null,"strip_windows"?: Json | null,"slug": string,"uploads_open"?: boolean
+                    "bride_name": string,"created_at"?: string | null,"event_date"?: string | null,"font_body"?: string | null,"font_names"?: string | null,"font_wishes"?: string | null,"groom_name": string,"header_message"?: string | null,"id"?: string,"monogram_path"?: string | null,"qr_account_name"?: string | null,"qr_bank"?: string | null,"qr_path"?: string | null,"slug": string,"strip_template_path"?: string | null,"strip_windows"?: Json | null,"uploads_open"?: boolean
                   }
                   Update: {
-                    "bride_name"?: string,"created_at"?: string | null,"event_date"?: string | null,"font_body"?: string | null,"font_names"?: string | null,"font_wishes"?: string | null,"groom_name"?: string,"header_message"?: string | null,"id"?: string,"monogram_path"?: string | null,"qr_account_name"?: string | null,"qr_bank"?: string | null,"qr_path"?: string | null,"strip_template_path"?: string | null,"strip_windows"?: Json | null,"slug"?: string,"uploads_open"?: boolean
+                    "bride_name"?: string,"created_at"?: string | null,"event_date"?: string | null,"font_body"?: string | null,"font_names"?: string | null,"font_wishes"?: string | null,"groom_name"?: string,"header_message"?: string | null,"id"?: string,"monogram_path"?: string | null,"qr_account_name"?: string | null,"qr_bank"?: string | null,"qr_path"?: string | null,"slug"?: string,"strip_template_path"?: string | null,"strip_windows"?: Json | null,"uploads_open"?: boolean
                   }
                   Relationships: [
                     
@@ -93,14 +93,14 @@ isOneToOne: false
                   ]
                 },"posts": {
                   Row: {
-                    "caption": string | null,"created_at": string | null,"event_id": string,"guest_id": string,"hidden": boolean,"id": string,"type": Database["public"]['Enums']["post_type"],"wish_text": string | null
+                    "caption": string | null,"created_at": string | null,"event_id": string,"guest_id": string,"hidden": boolean,"id": string,"pinned_at": string | null,"type": Database["public"]['Enums']["post_type"],"wish_text": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "caption"?: string | null,"created_at"?: string | null,"event_id": string,"guest_id": string,"hidden"?: boolean,"id"?: string,"type": Database["public"]['Enums']["post_type"],"wish_text"?: string | null
+                    "caption"?: string | null,"created_at"?: string | null,"event_id": string,"guest_id": string,"hidden"?: boolean,"id"?: string,"pinned_at"?: string | null,"type": Database["public"]['Enums']["post_type"],"wish_text"?: string | null
                   }
                   Update: {
-                    "caption"?: string | null,"created_at"?: string | null,"event_id"?: string,"guest_id"?: string,"hidden"?: boolean,"id"?: string,"type"?: Database["public"]['Enums']["post_type"],"wish_text"?: string | null
+                    "caption"?: string | null,"created_at"?: string | null,"event_id"?: string,"guest_id"?: string,"hidden"?: boolean,"id"?: string,"pinned_at"?: string | null,"type"?: Database["public"]['Enums']["post_type"],"wish_text"?: string | null
                   }
                   Relationships: [
                     {

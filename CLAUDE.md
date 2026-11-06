@@ -164,6 +164,7 @@ create table posts (
   caption text check (char_length(caption) <= 120),
   wish_text text check (char_length(wish_text) between 3 and 300),
   hidden boolean not null default false,   -- admin moderation
+  pinned_at timestamptz,                   -- admin pin (null = not pinned, max 3); hiding clears it
   created_at timestamptz default now(),
   check ((type = 'wish') = (wish_text is not null))
 );
@@ -205,6 +206,7 @@ create table post_media (
    - Empty state per filter with a call to action.
    - Bottom-right **+ FAB** opens a labelled action menu: Photos, Video, Wish, DuitNow QR. FAB turns into ×.
    - New posts appear live via Supabase Realtime (insert/update/delete on `posts`, plus the `post_hidden` broadcast on `wall:<eventId>` for moderation; see `docs/PLAN.md` Data model). Paginate with infinite scroll, 24 per page.
+   - Posts the admin pinned come first (newest pin first, matching the filter), with no badge; they also keep their own place in the list.
 3. **Bottom drawers** (one `BottomSheet` component: drag handle, title, close button, scrim tap closes, focus trapped, Escape closes)
    - Photos: picker (multiple), preview grid with remove, hint "will post as album" when >1, optional caption, Post button shows count, progress while uploading.
    - Photo strip (`/strip`, from a card at the top of the Photos drawer): the story-size template full screen with 3 windows. Tap a window to pick a photo; pinch to zoom, drag to move (the window keeps its size, the photo always covers it); hold a photo and drag it onto the bin to remove it (Delete key too). Post when all 3 are filled. On the wall: the 3 photos stacked with a "Strip" badge; the viewer shows the finished image; only the owner gets Share (a sheet with "Share" and "Save to phone").
@@ -215,7 +217,7 @@ create table post_media (
    - Me: name, "remembered on this phone", list of own posts with delete, Switch name.
 4. **Post viewer** `/p/[id]` (full screen, dark): back, author + time, delete (owner only). Photo: fit to screen. Album: swipe + prev/next buttons, "2 / 5" counter, thumbnail strip. Video: native `<video controls playsinline>` with poster. Caption below.
 5. **Delete** always goes through a confirm dialog ("Delete this album? Guests will not see it anymore."). Toast after success.
-6. **Admin** `/admin` (passcode from `ADMIN_PASSCODE`, stored in an httpOnly cookie): edit couple names + header message, upload/replace DuitNow QR + account name + bank, pick the three fonts (names, wishes, body) and upload/remove a monogram image (Appearance section), upload/replace the photo strip template, place its 3 windows and set the wedding date, open/close uploads, hide/unhide/delete any post, download all media as a zip.
+6. **Admin** `/admin` (passcode from `ADMIN_PASSCODE`, stored in an httpOnly cookie): edit couple names + header message, upload/replace DuitNow QR + account name + bank, pick the three fonts (names, wishes, body) and upload/remove a monogram image (Appearance section), upload/replace the photo strip template, place its 3 windows and set the wedding date, open/close uploads, hide/unhide/delete any post, open any post (hidden ones too) in a full-screen viewer over the list, pin/unpin up to 3 posts, refresh the post list, download all media as a zip.
 
 ## Theming **[rule]**
 

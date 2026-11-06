@@ -45,7 +45,7 @@ type Props = {
   me: KnownGuest;
   /** Server time, so the first render matches the HTML ("5 min ago" cannot differ). */
   now: string;
-  initial: { posts: WallPost[]; nextCursor: string | null; counts: WallCounts; wishes?: WallPost[] };
+  initial: { posts: WallPost[]; nextCursor: string | null; counts: WallCounts; wishes?: WallPost[]; pinned?: WallPost[] };
   /** A wish named by a shared link: its drawer starts open. */
   openWish?: WallPost | null;
   /** The admin can close uploads: the wall then only shows the DuitNow QR to share. */
@@ -56,7 +56,7 @@ type Props = {
 const NO_QR: QrInfo = { available: false, accountName: null, bank: null };
 
 export function Wall({ eventId, groom, bride, headerMessage, monogramUrl, me, now: serverNow, initial, openWish = null, uploadsOpen = true, qr = NO_QR }: Props) {
-  const { posts, counts, wishes, nextCursor, loading, loadError, loadMore, refresh, drop } = useWall({ eventId, ...initial });
+  const { posts, counts, wishes, pinned, nextCursor, loading, loadError, loadMore, refresh, drop } = useWall({ eventId, ...initial });
   const [filter, setFilter] = useState<WallFilter>("all");
   const [wish, setWish] = useState<WallPost | null>(openWish);
   const [sheet, setSheet] = useState<"menu" | "me" | MenuKind | null>(null);
@@ -117,7 +117,11 @@ export function Wall({ eventId, groom, bride, headerMessage, monogramUrl, me, no
     fab.current?.focus();
   };
 
-  const visible = posts.filter((p) => matchesFilter(p, filter));
+  // Pinned posts come first and also keep their own place further down (decided design, no badge).
+  const visible = [
+    ...pinned.filter((p) => matchesFilter(p, filter)).map((post) => ({ key: `pin-${post.id}`, post })),
+    ...posts.filter((p) => matchesFilter(p, filter)).map((post) => ({ key: post.id, post })),
+  ];
   const showEmpty = visible.length === 0 && (counts[filter] === 0 || nextCursor === null);
 
   return (
@@ -130,8 +134,8 @@ export function Wall({ eventId, groom, bride, headerMessage, monogramUrl, me, no
         <h2 className="sr-only">Memories</h2>
         {visible.length > 0 && (
           <ul className="grid grid-cols-2 gap-3">
-            {visible.map((post) => (
-              <li key={post.id} className="min-w-0">
+            {visible.map(({ key, post }) => (
+              <li key={key} className="min-w-0">
                 <PostCard post={post} mine={post.guestId === me.guestId} now={now} onOpenWish={setWish} />
               </li>
             ))}

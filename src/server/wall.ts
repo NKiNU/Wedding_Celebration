@@ -1,5 +1,5 @@
 import "server-only";
-import { MY_POSTS_MAX, PAGE_SIZE, TICKER_WISHES } from "@/lib/domain/limits";
+import { MAX_PINS, MY_POSTS_MAX, PAGE_SIZE, TICKER_WISHES } from "@/lib/domain/limits";
 import {
   decodeCursor,
   encodeCursor,
@@ -103,6 +103,18 @@ export async function getLatestWishes(): Promise<WallPost[]> {
     .order("id", { ascending: false })
     .limit(TICKER_WISHES);
   if (error) throw new Error(`Loading the latest wishes failed: ${error.code} ${error.message}`);
+  return (data as unknown as PostRow[]).map(toPost);
+}
+
+/** The admin's pinned posts, newest pin first, shown before the rest of the wall. */
+export async function getPinnedPosts(): Promise<WallPost[]> {
+  const { data, error } = await visiblePosts((await getEvent()).id)
+    .not("pinned_at", "is", null)
+    .order("pinned_at", { ascending: false })
+    .order("id", { ascending: false })
+    .order("position", { referencedTable: "post_media" })
+    .limit(MAX_PINS);
+  if (error) throw new Error(`Loading the pinned posts failed: ${error.code} ${error.message}`);
   return (data as unknown as PostRow[]).map(toPost);
 }
 

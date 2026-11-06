@@ -10,6 +10,7 @@ export const BYTES_PER_HOUR = 200 * MB;
 export const PAGE_SIZE = 24;
 export const TICKER_WISHES = 5; // the newest wishes the wall header rotates through
 export const MY_POSTS_MAX = 100; // the Me drawer lists the newest of a guest's own posts
+export const MAX_PINS = 3; // posts the admin can pin to the top of the wall
 export const NAME_MIN = 2;
 export const NAME_MAX = 24;
 export const MAX_NAMES_PER_PHONE = 5;
