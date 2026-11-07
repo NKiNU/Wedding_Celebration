@@ -121,7 +121,7 @@ describe("MeDrawer", () => {
 
   it("links to Contact us", () => {
     show();
-    expect(screen.getByRole("link", { name: "Contact us" })).toHaveAttribute("href", "/contact");
+    expect(screen.getByRole("link", { name: "Need website? Contact us" })).toHaveAttribute("href", "/contact");
   });
 
   describe("Switch name", () => {

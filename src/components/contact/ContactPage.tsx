@@ -5,6 +5,8 @@ const ROLE = "Developer · Wedding apps & custom systems";
 const PHONE = "+60 11-3346 0253";
 const WHATSAPP = `https://wa.me/601133460253?text=${encodeURIComponent("Hi Nik, I saw the Wedding Memories app and I'm interested.")}`;
 const CALL = "tel:+601133460253";
+const INSTAGRAM_HANDLE = "@0204.nothim";
+const INSTAGRAM = "https://www.instagram.com/0204.nothim";
 
 // Same look as ui/Button, as a link.
 const PILL =
@@ -36,6 +38,7 @@ export function ContactPage() {
             <span className="text-[17px] font-semibold">{NAME}</span>
             <span className="text-[13px] text-muted">{ROLE}</span>
             <span className="text-[15px] font-semibold">{PHONE}</span>
+            <span className="text-[13px] text-muted">{INSTAGRAM_HANDLE}</span>
           </div>
         </div>
 
@@ -54,7 +57,15 @@ export function ContactPage() {
             </svg>
             Call {NAME}
           </a>
-          <p className="text-center text-xs text-muted">Opens WhatsApp or your phone app. Nothing is stored here.</p>
+          <a href={INSTAGRAM} target="_blank" rel="noopener noreferrer" className={`${PILL} border border-line text-ink`}>
+            <svg {...ICON}>
+              <rect x="3" y="3" width="18" height="18" rx="5" />
+              <circle cx="12" cy="12" r="4" />
+              <path d="M17.5 6.5h.01" />
+            </svg>
+            Follow on Instagram
+          </a>
+          <p className="text-center text-xs text-muted">Opens WhatsApp, your phone app or Instagram. Nothing is stored here.</p>
         </div>
       </div>
     </main>

@@ -124,7 +124,7 @@ export function MeDrawer({ open, me, posts, status, now, onRetry, onOpenWish, on
         href="/contact"
         className="flex h-12 items-center justify-center rounded-3xl border border-line text-sm font-semibold text-ink"
       >
-        Contact us
+        Need website? Contact us
       </Link>
     </>
   ) : null;
