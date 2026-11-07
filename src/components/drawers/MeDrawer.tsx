@@ -72,7 +72,7 @@ function PostRow({ post, now, onOpenWish, onDelete }: { post: WallPost; now: Dat
   );
 }
 
-/** "You": the guest's name, their own posts with delete, and Switch name. */
+/** "You": the guest's name, their own posts with delete, Switch name and Contact us. */
 export function MeDrawer({ open, me, posts, status, now, onRetry, onOpenWish, onDelete, onShare, onSwitchFailed, onClose }: Props) {
   const { switching, switchName } = useSwitchName(onSwitchFailed);
 
@@ -120,6 +120,12 @@ export function MeDrawer({ open, me, posts, status, now, onRetry, onOpenWish, on
         {switching ? "Switching…" : "Switch name"}
       </button>
       <p className="text-xs text-muted">Switching keeps your posts. You can come back as {me} from this phone.</p>
+      <Link
+        href="/contact"
+        className="flex h-12 items-center justify-center rounded-3xl border border-line text-sm font-semibold text-ink"
+      >
+        Need website? Contact us
+      </Link>
     </>
   ) : null;
 
