@@ -119,6 +119,11 @@ describe("MeDrawer", () => {
     expect(screen.queryByText("Loading your posts…")).not.toBeInTheDocument();
   });
 
+  it("links to Contact us", () => {
+    show();
+    expect(screen.getByRole("link", { name: "Contact us" })).toHaveAttribute("href", "/contact");
+  });
+
   describe("Switch name", () => {
     it("forgets the active name, then loads the welcome page afresh", async () => {
       mocks.api.mockResolvedValue({ ok: true, data: null });
